@@ -18,13 +18,18 @@ export async function GET(request: Request) {
   // Get all household account IDs (own + partner's)
   const accountIds = await getHouseholdAccountIds(userId);
 
-  // Get all spending transactions in range (debits only, exclude transfers)
+  // Get all spending transactions in range (debits only, exclude transfers).
+  // Exclude pending screenshot transactions — they will be reconciled when the
+  // statement arrives and promoted to confirmed transactions at that point.
+  // This prevents double-counting when the same expense exists as both a
+  // pending screenshot entry AND a confirmed statement transaction.
   const transactions = await prisma.transaction.findMany({
     where: {
       accountId: { in: accountIds },
       isCredit: false,
       date: { gte: startDate },
-      transferPairId: null, // exclude transfers
+      transferPairId: null,    // exclude transfers
+      isPending: false,         // exclude pending screenshot transactions
     },
     include: { category: true },
     orderBy: { date: "asc" },
