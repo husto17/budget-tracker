@@ -328,7 +328,7 @@ export default function DashboardPage() {
                     outerRadius={80}
                     label={false}
                     style={{ cursor: "pointer" }}
-                    onClick={(entry) => router.push(`/transactions?categoryName=${encodeURIComponent(entry.name)}`)}
+                    onClick={(entry) => entry.name && router.push(`/transactions?categoryName=${encodeURIComponent(entry.name)}`)}
                   >
                     {pieData.map((_, i) => (
                       <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
