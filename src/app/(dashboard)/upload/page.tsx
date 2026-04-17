@@ -87,11 +87,16 @@ export default function UploadPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Upload Statement</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Import transactions from a CSV or PDF bank statement
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Upload Statement</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Import transactions from a CSV or PDF bank statement
+          </p>
+        </div>
+        <a href="/uploads" className="text-sm text-blue-600 hover:underline whitespace-nowrap mt-1">
+          View upload history &rarr;
+        </a>
       </div>
 
       <Card>
