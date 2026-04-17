@@ -46,6 +46,10 @@ export async function GET(request: Request) {
         transferPair: {
           include: { account: { select: { id: true, name: true } } },
         },
+        splits: {
+          include: { category: true },
+          orderBy: { createdAt: "asc" },
+        },
       },
       orderBy: { date: "desc" },
       skip: (page - 1) * limit,

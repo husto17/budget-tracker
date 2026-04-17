@@ -8,7 +8,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Repeat, TrendingUp } from "lucide-react";
+import { AlertTriangle, Repeat, TrendingUp, CreditCard } from "lucide-react";
 
 interface InsightData {
   monthlyByCategory: Record<string, Record<string, number>>;
@@ -20,6 +20,14 @@ interface InsightData {
   recurring: Array<{ name: string; amount: number; months: number }>;
   anomalies: Array<{ category: string; thisMonth: number; average: number; ratio: number }>;
   incomeVsSpending: Array<{ month: string; income: number; spending: number; net: number }>;
+  subscriptions: Array<{
+    merchant: string;
+    amount: number;
+    categoryId: string | null;
+    categoryName: string | null;
+    lastDate: string;
+    monthlyCount: number;
+  }>;
 }
 
 function formatCurrency(n: number) {
@@ -188,6 +196,57 @@ export default function InsightsPage() {
                   <span className="text-gray-500 font-medium">Estimated recurring total</span>
                   <span className="font-bold">{formatCurrency(insights.recurring.reduce((s, r) => s + r.amount, 0))}/month</span>
                 </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Subscriptions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <CreditCard className="w-4 h-4" />
+            Subscriptions
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!insights.subscriptions || insights.subscriptions.length === 0 ? (
+            <p className="text-sm text-gray-400">
+              No recurring subscriptions detected yet. Upload more statements to detect patterns.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 text-xs text-gray-400 uppercase tracking-wide pb-2 border-b border-gray-100">
+                <span>Merchant</span>
+                <span className="text-right">Monthly</span>
+                <span className="text-right">Category</span>
+                <span className="text-right">Last charged</span>
+                <span className="text-right">Annual cost</span>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {insights.subscriptions.map((sub) => (
+                  <div key={sub.merchant} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 py-3 items-center text-sm">
+                    <div>
+                      <p className="font-medium text-gray-900">{sub.merchant}</p>
+                      <p className="text-xs text-gray-400">{sub.monthlyCount} months detected</p>
+                    </div>
+                    <span className="text-right font-medium">{formatCurrency(sub.amount)}</span>
+                    <span className="text-right text-gray-500 text-xs">
+                      {sub.categoryName ?? <span className="text-gray-300">—</span>}
+                    </span>
+                    <span className="text-right text-gray-400 text-xs whitespace-nowrap">
+                      {format(new Date(sub.lastDate), "dd MMM yy")}
+                    </span>
+                    <span className="text-right font-semibold text-gray-700">
+                      {formatCurrency(sub.amount * 12)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="pt-3 border-t border-gray-100 flex justify-between text-sm font-semibold">
+                <span className="text-gray-600">Total annual subscriptions</span>
+                <span>{formatCurrency(insights.subscriptions.reduce((s, sub) => s + sub.amount * 12, 0))}</span>
               </div>
             </div>
           )}

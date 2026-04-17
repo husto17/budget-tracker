@@ -77,6 +77,57 @@ export async function GET(request: Request) {
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 10);
 
+  // Subscription detection: group by merchant, find those appearing in 2+ different months
+  // with similar amounts (within 10%)
+  interface MerchantEntry {
+    amounts: number[];
+    months: Set<string>;
+    lastDate: Date;
+    categoryId: string | null;
+    categoryName: string | null;
+  }
+  const merchantData: Record<string, MerchantEntry> = {};
+  for (const tx of transactions) {
+    const merchantName = tx.merchant ?? tx.description;
+    const monthKey = `${tx.date.getFullYear()}-${String(tx.date.getMonth() + 1).padStart(2, "0")}`;
+    if (!merchantData[merchantName]) {
+      merchantData[merchantName] = {
+        amounts: [],
+        months: new Set(),
+        lastDate: tx.date,
+        categoryId: tx.categoryId,
+        categoryName: tx.category?.name ?? null,
+      };
+    }
+    merchantData[merchantName].amounts.push(tx.amount);
+    merchantData[merchantName].months.add(monthKey);
+    if (tx.date > merchantData[merchantName].lastDate) {
+      merchantData[merchantName].lastDate = tx.date;
+      merchantData[merchantName].categoryId = tx.categoryId;
+      merchantData[merchantName].categoryName = tx.category?.name ?? null;
+    }
+  }
+
+  const subscriptions = Object.entries(merchantData)
+    .filter(([, data]) => {
+      if (data.months.size < 2) return false;
+      // Check if amounts are similar (within 10%)
+      const avgAmount = data.amounts.reduce((a, b) => a + b, 0) / data.amounts.length;
+      return data.amounts.every((a) => Math.abs(a - avgAmount) / avgAmount <= 0.1);
+    })
+    .map(([merchant, data]) => {
+      const avgAmount = data.amounts.reduce((a, b) => a + b, 0) / data.amounts.length;
+      return {
+        merchant,
+        amount: Math.round(avgAmount * 100) / 100,
+        categoryId: data.categoryId,
+        categoryName: data.categoryName,
+        lastDate: data.lastDate.toISOString().slice(0, 10),
+        monthlyCount: data.months.size,
+      };
+    })
+    .sort((a, b) => b.amount - a.amount);
+
   // Anomalies: categories where this month > 150% of average
   const anomalies: Array<{ category: string; thisMonth: number; average: number; ratio: number }> = [];
   const allMonths = Object.keys(monthlyByCategory).filter((m) => m !== thisMonth);
@@ -213,5 +264,6 @@ export async function GET(request: Request) {
     incomeVsSpending,
     spendingByMember,
     totalTransactions: transactions.length,
+    subscriptions,
   });
 }

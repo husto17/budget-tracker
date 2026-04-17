@@ -34,20 +34,40 @@ export async function autoCategorize(
 /**
  * Normalize a merchant name from a raw bank description.
  * Strips common prefixes (VISA, MASTERCARD, SQ *, etc.) and trailing noise.
+ * Also maps well-known subscription services to canonical names.
  */
 export function normalizeMerchant(description: string): string {
-  let d = description;
+  let d = description.trim();
 
-  // Strip leading payment network noise
-  d = d.replace(/^(VISA|MASTERCARD|AMEX|DEBIT CARD|SQ \*|TSF |DDA |ACH |POS |PAYMENT |TFL |CID\*|SP |WWW\.)/i, "");
+  // Canonical subscription service mappings (check early, before stripping)
+  const upper = d.toUpperCase();
 
-  // Strip trailing ref numbers
+  if (/NETFLIX/i.test(d)) return "Netflix";
+  if (/SPOTIFY/i.test(d)) return "Spotify";
+  if (/APPLE\.COM\/BILL|APPLE\.COM BILL/i.test(d)) return "Apple";
+  if (/AMAZON\s*PRIME/i.test(d)) return "Amazon Prime";
+  if (/GOOGLE\s*\*/i.test(d)) return "Google";
+  if (/\bHULU\b/i.test(d)) return "Hulu";
+  if (/DISNEY\+|DISNEYPLUS/i.test(d)) return "Disney+";
+  if (/YOUTUBE\s*PREMIUM/i.test(d)) return "YouTube Premium";
+  if (/\bOPENAI\b/i.test(d)) return "OpenAI";
+  if (/\bPERPLEXITY\b/i.test(d)) return "Perplexity";
+  if (/\bGYMPASS\b/i.test(d)) return "Gympass";
+  if (/T-MOBILE|TMOBILE/i.test(d)) return "T-Mobile";
+
+  // Strip common noisy prefixes
+  d = d.replace(/^(SQ \*|TST\*|SP |IC\* |DLO\*)/i, "");
+  d = d.replace(/^(VISA|MASTERCARD|AMEX|DEBIT CARD|TSF |DDA |ACH |POS |PAYMENT |TFL |CID\*|WWW\.)/i, "");
+
+  // Strip trailing ref numbers and identifiers
   d = d.replace(/\s+\d{6,}$/, "");
   d = d.replace(/\s+(REF|TXN|ID|NO)[:\s]*\w+$/i, "");
+  d = d.replace(/\s+#\w+$/, "");
 
-  // Collapse whitespace and title-case
+  // Collapse whitespace
   d = d.trim().replace(/\s+/g, " ");
 
+  void upper; // used in early return branches above
   return d.length > 0 ? d : description;
 }
 

@@ -9,7 +9,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, AlertTriangle, Repeat, ArrowRightLeft } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, Repeat, ArrowRightLeft, BarChart3 } from "lucide-react";
+import Link from "next/link";
 
 interface InsightData {
   monthlyTotals: Record<string, number>;
@@ -80,6 +81,64 @@ export default function DashboardPage() {
   if (!insights) return null;
 
   const thisMonth = format(new Date(), "MMMM yyyy");
+
+  // Empty state: no accounts at all
+  if (accounts.length === 0 && insights.thisMonthTotal === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-md mx-auto p-8 bg-white rounded-2xl border border-gray-200 shadow-sm space-y-4">
+          <div className="flex justify-center">
+            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center">
+              <BarChart3 className="w-8 h-8 text-blue-500" />
+            </div>
+          </div>
+          <h2 className="text-xl font-bold text-gray-900">Welcome to Budget Tracker</h2>
+          <p className="text-gray-500 text-sm">
+            Get started by adding your accounts and uploading your first bank statement.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+            <Link
+              href="/accounts"
+              className="inline-flex items-center justify-center rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium transition-colors hover:bg-primary/80"
+            >
+              Add an account
+            </Link>
+            <Link
+              href="/upload"
+              className="inline-flex items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+            >
+              Upload a statement
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state: accounts exist but no transactions
+  if (accounts.length > 0 && insights.thisMonthTotal === 0 && Object.keys(insights.monthlyTotals).length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-md mx-auto p-8 bg-white rounded-2xl border border-gray-200 shadow-sm space-y-4">
+          <div className="flex justify-center">
+            <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center">
+              <BarChart3 className="w-8 h-8 text-green-500" />
+            </div>
+          </div>
+          <h2 className="text-xl font-bold text-gray-900">Your accounts are set up!</h2>
+          <p className="text-gray-500 text-sm">
+            Now upload your statements to start tracking your spending.
+          </p>
+          <Link
+            href="/upload"
+            className="inline-flex items-center justify-center rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium transition-colors hover:bg-primary/80"
+          >
+            Upload a statement
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const filteredAccounts = accounts.filter((a) => {
     if (viewFilter === "all") return true;

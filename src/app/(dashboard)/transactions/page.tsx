@@ -12,6 +12,7 @@ import {
   Plus,
   Link2,
   Unlink,
+  Scissors,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,17 +33,27 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { format, addDays, subDays } from "date-fns";
+import { CategoryIcon } from "@/components/ui/category-icon";
 
 interface Category {
   id: string;
   name: string;
   color: string;
+  icon?: string | null;
 }
 
 interface Account {
   id: string;
   name: string;
   type: string;
+}
+
+interface TransactionSplit {
+  id: string;
+  amount: number;
+  note: string | null;
+  categoryId: string | null;
+  category: Category | null;
 }
 
 interface Transaction {
@@ -57,6 +68,7 @@ interface Transaction {
   notes: string | null;
   transferPairId: string | null;
   transferPair: { account: { id: string; name: string } } | null;
+  splits: TransactionSplit[];
 }
 
 function formatCurrency(n: number) {
@@ -106,6 +118,13 @@ export default function TransactionsPage() {
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [selectedPair, setSelectedPair] = useState<string>("");
   const [linkingTransfer, setLinkingTransfer] = useState(false);
+
+  // Split transaction
+  const [splitTx, setSplitTx] = useState<Transaction | null>(null);
+  const [splitRows, setSplitRows] = useState<
+    Array<{ categoryId: string; amount: string; note: string }>
+  >([]);
+  const [savingSplit, setSavingSplit] = useState(false);
 
   const LIMIT = 50;
 
@@ -285,6 +304,48 @@ export default function TransactionsPage() {
     }
   }
 
+  function openSplitDialog(tx: Transaction) {
+    setSplitTx(tx);
+    if (tx.splits && tx.splits.length >= 2) {
+      setSplitRows(
+        tx.splits.map((s) => ({
+          categoryId: s.categoryId ?? "",
+          amount: s.amount.toFixed(2),
+          note: s.note ?? "",
+        }))
+      );
+    } else {
+      setSplitRows([
+        { categoryId: "", amount: "", note: "" },
+        { categoryId: "", amount: "", note: "" },
+      ]);
+    }
+  }
+
+  async function handleSaveSplit() {
+    if (!splitTx) return;
+    setSavingSplit(true);
+    const splits = splitRows.map((r) => ({
+      categoryId: r.categoryId || null,
+      amount: parseFloat(r.amount) || 0,
+      note: r.note || undefined,
+    }));
+    const res = await fetch(`/api/transactions/${splitTx.id}/splits`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ splits }),
+    });
+    if (res.ok) {
+      toast.success("Transaction split saved");
+      setSplitTx(null);
+      fetchTransactions();
+    } else {
+      const d = await res.json();
+      toast.error(d.error ?? "Failed to save split");
+    }
+    setSavingSplit(false);
+  }
+
   const totalPages = Math.ceil(total / LIMIT);
 
   return (
@@ -461,7 +522,12 @@ export default function TransactionsPage() {
                       <span className="text-xs text-gray-400">
                         {format(new Date(tx.date), "dd MMM yyyy")}
                       </span>
-                      {tx.category && (
+                      {tx.splits && tx.splits.length > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                          <Scissors className="w-2.5 h-2.5" />
+                          Split
+                        </span>
+                      ) : tx.category ? (
                         <span
                           className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full"
                           style={{
@@ -469,13 +535,10 @@ export default function TransactionsPage() {
                             color: tx.category.color,
                           }}
                         >
-                          <span
-                            className="w-1.5 h-1.5 rounded-full"
-                            style={{ backgroundColor: tx.category.color }}
-                          />
+                          <CategoryIcon icon={tx.category.icon} color={tx.category.color} size="sm" />
                           {tx.category.name}
                         </span>
-                      )}
+                      ) : null}
                       {tx.transferPairId ? (
                         <Badge
                           variant="outline"
@@ -590,42 +653,50 @@ export default function TransactionsPage() {
                         {tx.account.name}
                       </td>
                       <td className="px-4 py-3">
-                        <Select
-                          value={tx.category?.id ?? "none"}
-                          onValueChange={(v) =>
-                            updateCategory(tx.id, v === "none" ? null : v)
-                          }
-                        >
-                          <SelectTrigger className="h-7 text-xs border-0 bg-transparent p-0 gap-1 w-36 hover:bg-gray-100 rounded px-2">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              {tx.category ? (
-                                <>
-                                  <span
-                                    className="w-2 h-2 rounded-full flex-shrink-0"
-                                    style={{ backgroundColor: tx.category.color }}
-                                  />
-                                  <span className="truncate">{tx.category.name}</span>
-                                </>
-                              ) : (
-                                <span className="text-gray-300">— Uncategorized</span>
-                              )}
-                            </div>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">— None</SelectItem>
-                            {categories.map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                <div className="flex items-center gap-2">
-                                  <span
-                                    className="w-2 h-2 rounded-full"
-                                    style={{ backgroundColor: c.color }}
-                                  />
-                                  {c.name}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {tx.splits && tx.splits.length > 0 ? (
+                          <button
+                            onClick={() => openSplitDialog(tx)}
+                            className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors"
+                          >
+                            <Scissors className="w-3 h-3" />
+                            Split ({tx.splits.length})
+                          </button>
+                        ) : (
+                          <Select
+                            value={tx.category?.id ?? "none"}
+                            onValueChange={(v) =>
+                              updateCategory(tx.id, v === "none" ? null : v)
+                            }
+                          >
+                            <SelectTrigger className="h-7 text-xs border-0 bg-transparent p-0 gap-1 w-36 hover:bg-gray-100 rounded px-2">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                {tx.category ? (
+                                  <>
+                                    <CategoryIcon
+                                      icon={tx.category.icon}
+                                      color={tx.category.color}
+                                      size="sm"
+                                    />
+                                    <span className="truncate">{tx.category.name}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-gray-300">— Uncategorized</span>
+                                )}
+                              </div>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">— None</SelectItem>
+                              {categories.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>
+                                  <div className="flex items-center gap-2">
+                                    <CategoryIcon icon={c.icon} color={c.color} size="sm" />
+                                    {c.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         <span
@@ -639,6 +710,15 @@ export default function TransactionsPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-gray-300 hover:text-purple-500"
+                            title="Split transaction"
+                            onClick={() => openSplitDialog(tx)}
+                          >
+                            <Scissors className="w-3.5 h-3.5" />
+                          </Button>
                           {!tx.transferPairId && (
                             <Button
                               variant="ghost"
@@ -901,6 +981,137 @@ export default function TransactionsPage() {
               }
             >
               Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Split transaction dialog */}
+      <Dialog open={!!splitTx} onOpenChange={(open) => { if (!open) setSplitTx(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Scissors className="w-4 h-4" />
+              Split Transaction
+            </DialogTitle>
+          </DialogHeader>
+          {splitTx && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                <p className="font-medium text-gray-900">
+                  {splitTx.merchant ?? splitTx.description}
+                </p>
+                <p className="text-gray-500 text-xs mt-0.5">
+                  Total: <span className="font-semibold text-gray-900">{formatCurrency(splitTx.amount)}</span>
+                </p>
+              </div>
+
+              {/* Split rows */}
+              <div className="space-y-3">
+                {splitRows.map((row, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-start">
+                    <Select
+                      value={row.categoryId || "none"}
+                      onValueChange={(v) => {
+                        const val = (v == null || v === "none") ? "" : String(v);
+                        setSplitRows((rows) =>
+                          rows.map((r, idx) => idx === i ? { ...r, categoryId: val } : r)
+                        );
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— None</SelectItem>
+                        {categories.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            <div className="flex items-center gap-2">
+                              <CategoryIcon icon={c.icon} color={c.color} size="sm" />
+                              {c.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={row.amount}
+                      onChange={(e) =>
+                        setSplitRows((rows) =>
+                          rows.map((r, idx) => idx === i ? { ...r, amount: e.target.value } : r)
+                        )
+                      }
+                      placeholder="0.00"
+                      className="h-8 text-xs w-24"
+                    />
+                    <Input
+                      value={row.note}
+                      onChange={(e) =>
+                        setSplitRows((rows) =>
+                          rows.map((r, idx) => idx === i ? { ...r, note: e.target.value } : r)
+                        )
+                      }
+                      placeholder="Note (optional)"
+                      className="h-8 text-xs"
+                    />
+                    {splitRows.length > 2 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-gray-300 hover:text-red-500"
+                        onClick={() =>
+                          setSplitRows((rows) => rows.filter((_, idx) => idx !== i))
+                        }
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                    {splitRows.length <= 2 && <div className="w-8" />}
+                  </div>
+                ))}
+              </div>
+
+              {/* Running total */}
+              {(() => {
+                const splitTotal = splitRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+                const diff = Math.abs(splitTotal - splitTx.amount);
+                const ok = diff <= 0.01;
+                return (
+                  <div className={`flex items-center justify-between text-sm px-1 ${ok ? "text-green-600" : "text-red-500"}`}>
+                    <span>Split total: <strong>{formatCurrency(splitTotal)}</strong></span>
+                    <span>
+                      {ok ? "✓ Matches" : `${formatCurrency(diff)} ${splitTotal > splitTx.amount ? "over" : "remaining"}`}
+                    </span>
+                  </div>
+                );
+              })()}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setSplitRows((rows) => [...rows, { categoryId: "", amount: "", note: "" }])
+                }
+                className="w-full"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                Add split
+              </Button>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSplitTx(null)}>Cancel</Button>
+            <Button
+              onClick={handleSaveSplit}
+              disabled={savingSplit || !splitTx || (() => {
+                const t = splitRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+                return Math.abs(t - (splitTx?.amount ?? 0)) > 0.01;
+              })()}
+            >
+              {savingSplit ? "Saving..." : "Save splits"}
             </Button>
           </DialogFooter>
         </DialogContent>
