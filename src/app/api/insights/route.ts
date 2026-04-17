@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds } from "@/lib/household";
+import { getHouseholdAccountIds, getPartnerUserId } from "@/lib/household";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -136,17 +136,82 @@ export async function GET(request: Request) {
     net: (monthlyIncome[month] ?? 0) - (monthlyTotals[month] ?? 0),
   }));
 
+  // Previous month category spending (for MoM comparison per category)
+  const categorySpendingPrevMonth: Record<string, number> = monthlyByCategory[lastMonth] ?? {};
+
+  // Spending by household member
+  const partnerUserId = await getPartnerUserId(userId);
+  const spendingByMember: Record<string, { name: string; amount: number }> = {};
+
+  if (partnerUserId) {
+    // Get current user's name
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+    const partnerUser = await prisma.user.findUnique({
+      where: { id: partnerUserId },
+      select: { name: true },
+    });
+
+    // Get account IDs per user for this month
+    const myAccounts = await prisma.account.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+    const partnerAccounts = await prisma.account.findMany({
+      where: { userId: partnerUserId },
+      select: { id: true },
+    });
+
+    const myAccountIds = myAccounts.map((a) => a.id);
+    const partnerAccountIds = partnerAccounts.map((a) => a.id);
+
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const mySpendingTxs = await prisma.transaction.findMany({
+      where: {
+        accountId: { in: myAccountIds },
+        isCredit: false,
+        transferPairId: null,
+        date: { gte: thisMonthStart },
+      },
+      select: { amount: true },
+    });
+    const partnerSpendingTxs = await prisma.transaction.findMany({
+      where: {
+        accountId: { in: partnerAccountIds },
+        isCredit: false,
+        transferPairId: null,
+        date: { gte: thisMonthStart },
+      },
+      select: { amount: true },
+    });
+
+    spendingByMember[userId] = {
+      name: currentUser?.name ?? "You",
+      amount: mySpendingTxs.reduce((s, t) => s + t.amount, 0),
+    };
+    spendingByMember[partnerUserId] = {
+      name: partnerUser?.name ?? "Partner",
+      amount: partnerSpendingTxs.reduce((s, t) => s + t.amount, 0),
+    };
+  }
+
   return NextResponse.json({
     monthlyByCategory,
     monthlyTotals,
     thisMonthTotal,
     lastMonthTotal,
     momChange,
+    previousMonthSpending: lastMonthTotal,
+    categorySpendingPrevMonth,
     topCategories,
     recurring,
     anomalies,
     budgetUtilization,
     incomeVsSpending,
+    spendingByMember,
     totalTransactions: transactions.length,
   });
 }

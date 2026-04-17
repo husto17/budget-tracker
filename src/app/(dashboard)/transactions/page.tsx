@@ -68,6 +68,7 @@ export default function TransactionsPage() {
     amount: "",
     isCredit: false,
     categoryId: "",
+    notes: "",
   });
 
   const LIMIT = 50;
@@ -258,7 +259,59 @@ export default function TransactionsPage() {
             <p>No transactions found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Mobile card list */}
+          <div className="md:hidden divide-y divide-gray-50">
+            {transactions.map((tx) => (
+              <div key={tx.id} className={`px-4 py-3 flex items-center gap-3 ${selected.has(tx.id) ? "bg-blue-50" : ""}`}>
+                <input
+                  type="checkbox"
+                  checked={selected.has(tx.id)}
+                  onChange={() => toggleSelect(tx.id)}
+                  className="shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {tx.merchant ?? tx.description}
+                    </p>
+                    <span className={`text-sm font-medium shrink-0 ${tx.isCredit ? "text-green-600" : "text-gray-900"}`}>
+                      {tx.isCredit ? "+" : "−"}{formatCurrency(tx.amount)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-gray-400">{format(new Date(tx.date), "dd MMM yyyy")}</span>
+                    {tx.category && (
+                      <span
+                        className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full"
+                        style={{ backgroundColor: tx.category.color + "20", color: tx.category.color }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tx.category.color }} />
+                        {tx.category.name}
+                      </span>
+                    )}
+                    {tx.transferPairId && (
+                      <Badge variant="outline" className="text-xs text-gray-400 gap-1 shrink-0 py-0">
+                        <ArrowRightLeft className="w-3 h-3" />
+                        Transfer
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-gray-300 hover:text-red-500 shrink-0"
+                  onClick={() => handleDelete(tx.id)}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide">
@@ -367,6 +420,7 @@ export default function TransactionsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
@@ -474,6 +528,15 @@ export default function TransactionsPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Notes <span className="text-gray-400">(optional)</span></Label>
+              <textarea
+                value={addForm.notes}
+                onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))}
+                placeholder="Any additional notes..."
+                className="w-full min-h-[72px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+              />
             </div>
           </div>
           <DialogFooter>

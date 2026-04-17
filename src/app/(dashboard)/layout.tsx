@@ -9,7 +9,9 @@ export default function DashboardLayout({
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 overflow-y-auto bg-gray-50">
-        <div className="p-8">{children}</div>
+        {/* Mobile header spacer so content isn't under the hamburger button */}
+        <div className="md:hidden h-14" />
+        <div className="p-4 md:p-8">{children}</div>
       </main>
     </div>
   );

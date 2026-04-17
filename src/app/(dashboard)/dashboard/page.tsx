@@ -17,11 +17,14 @@ interface InsightData {
   thisMonthTotal: number;
   lastMonthTotal: number;
   momChange: number;
+  previousMonthSpending: number;
+  categorySpendingPrevMonth: Record<string, number>;
   topCategories: [string, number][];
   recurring: Array<{ name: string; amount: number; months: number }>;
   anomalies: Array<{ category: string; thisMonth: number; average: number; ratio: number }>;
   budgetUtilization: Array<{ category: string; color: string; spent: number; budget: number; remaining: number; pct: number }>;
   incomeVsSpending: Array<{ month: string; income: number; spending: number; net: number }>;
+  spendingByMember: Record<string, { name: string; amount: number }>;
 }
 
 interface Account {
@@ -133,7 +136,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Top stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white border-0">
           <CardContent className="pt-5 pb-4">
             <p className="text-blue-100 text-xs font-medium">Net Balance</p>
@@ -144,10 +147,12 @@ export default function DashboardPage() {
           <CardContent className="pt-5 pb-4">
             <p className="text-gray-400 text-xs font-medium">This Month Spent</p>
             <p className="text-2xl font-bold mt-1">{formatCurrency(insights.thisMonthTotal)}</p>
-            <div className={`flex items-center gap-1 mt-1 text-xs ${insights.momChange > 0 ? "text-red-500" : "text-green-500"}`}>
-              {insights.momChange > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-              {Math.abs(insights.momChange).toFixed(1)}% vs last month
-            </div>
+            {insights.previousMonthSpending > 0 && (
+              <div className={`flex items-center gap-1 mt-1 text-xs ${insights.momChange > 0 ? "text-red-500" : "text-green-500"}`}>
+                {insights.momChange > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                {insights.momChange > 0 ? "+" : "−"}{formatCurrency(Math.abs(insights.thisMonthTotal - insights.previousMonthSpending))} vs last month
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -179,6 +184,23 @@ export default function DashboardPage() {
               </p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Household breakdown */}
+      {Object.keys(insights.spendingByMember).length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-gray-700 mb-2">Household Breakdown — {thisMonth}</h2>
+          <div className="grid grid-cols-2 gap-3">
+            {Object.entries(insights.spendingByMember).map(([uid, member]) => (
+              <Card key={uid}>
+                <CardContent className="pt-4 pb-3">
+                  <p className="text-xs text-gray-400 font-medium">{member.name}&apos;s spending</p>
+                  <p className="text-xl font-bold mt-1">{formatCurrency(member.amount)}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 
@@ -258,28 +280,37 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {insights.budgetUtilization.map((b) => (
-                <div key={b.category}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: b.color }} />
-                      <span className="text-sm font-medium">{b.category}</span>
+              {insights.budgetUtilization.map((b) => {
+                const prevMonthAmt = insights.categorySpendingPrevMonth[b.category] ?? 0;
+                const momDiff = b.spent - prevMonthAmt;
+                return (
+                  <div key={b.category}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: b.color }} />
+                        <span className="text-sm font-medium">{b.category}</span>
+                        {prevMonthAmt > 0 && (
+                          <span className={`text-xs ${momDiff > 0 ? "text-red-400" : "text-green-500"}`}>
+                            ({momDiff > 0 ? "+" : "−"}{formatCurrency(Math.abs(momDiff))} vs last mo)
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className={b.remaining < 0 ? "text-red-600 font-medium" : "text-gray-500"}>
+                          {b.remaining < 0 ? `Over by ${formatCurrency(Math.abs(b.remaining))}` : `${formatCurrency(b.remaining)} left`}
+                        </span>
+                        <span className="text-gray-300">|</span>
+                        <span className="text-gray-400 text-xs">{formatCurrency(b.spent)} / {formatCurrency(b.budget)}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className={b.remaining < 0 ? "text-red-600 font-medium" : "text-gray-500"}>
-                        {b.remaining < 0 ? `Over by ${formatCurrency(Math.abs(b.remaining))}` : `${formatCurrency(b.remaining)} left`}
-                      </span>
-                      <span className="text-gray-300">|</span>
-                      <span className="text-gray-400 text-xs">{formatCurrency(b.spent)} / {formatCurrency(b.budget)}</span>
-                    </div>
+                    <Progress
+                      value={b.pct}
+                      className="h-2"
+                      style={{ "--progress-color": b.pct >= 100 ? "#EF4444" : b.color } as React.CSSProperties}
+                    />
                   </div>
-                  <Progress
-                    value={b.pct}
-                    className="h-2"
-                    style={{ "--progress-color": b.pct >= 100 ? "#EF4444" : b.color } as React.CSSProperties}
-                  />
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>

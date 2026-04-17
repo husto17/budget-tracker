@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Tag, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Pencil, Trash2, Tag, ChevronDown, ChevronUp, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -138,6 +138,28 @@ export default function CategoriesPage() {
     }
   }
 
+  async function applyRulesToCategory(cat: Category) {
+    const res = await fetch(`/api/categories/${cat.id}/rules/apply`, { method: "POST" });
+    if (res.ok) {
+      const data = await res.json();
+      toast.success(`Applied rules: ${data.updated} transaction${data.updated !== 1 ? "s" : ""} updated`);
+      fetchCategories();
+    } else {
+      toast.error("Failed to apply rules");
+    }
+  }
+
+  async function applyAllRules() {
+    const res = await fetch("/api/categories/rules/apply-all", { method: "POST" });
+    if (res.ok) {
+      const data = await res.json();
+      toast.success(`Applied all rules: ${data.updated} transaction${data.updated !== 1 ? "s" : ""} updated`);
+      fetchCategories();
+    } else {
+      toast.error("Failed to apply rules");
+    }
+  }
+
   async function deleteRule(cat: Category, ruleId: string) {
     const res = await fetch(`/api/categories/${cat.id}/rules`, {
       method: "DELETE",
@@ -160,10 +182,16 @@ export default function CategoriesPage() {
             Budget buckets • Monthly budget: {formatCurrency(totalBudget)}
           </p>
         </div>
-        <Button onClick={openAdd}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Category
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={applyAllRules}>
+            <Zap className="w-4 h-4 mr-2" />
+            Apply all rules
+          </Button>
+          <Button onClick={openAdd}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Category
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -277,6 +305,17 @@ export default function CategoriesPage() {
                         Add
                       </Button>
                     </div>
+                    {cat.rules.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 mt-2 text-xs"
+                        onClick={() => applyRulesToCategory(cat)}
+                      >
+                        <Zap className="w-3.5 h-3.5 mr-1.5" />
+                        Apply to existing transactions
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               )}
