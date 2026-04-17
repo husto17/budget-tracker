@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { parseCsv } from "@/lib/csv-parser";
 import { parsePdfText } from "@/lib/pdf-parser";
 import { autoCategorize, normalizeMerchant, detectTransferPair } from "@/lib/auto-categorize";
+import { getHouseholdAccountIds } from "@/lib/household";
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -18,9 +19,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "File and accountId are required" }, { status: 400 });
   }
 
-  // Verify account belongs to user
+  // Verify account belongs to household (own or partner's)
+  const householdAccountIds = await getHouseholdAccountIds(session.user.id);
   const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account || account.userId !== session.user.id) {
+  if (!account || !householdAccountIds.includes(account.id)) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
 

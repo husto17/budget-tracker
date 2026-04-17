@@ -11,6 +11,7 @@ import {
   Upload,
   LogOut,
   TrendingUp,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ const navItems = [
   { href: "/accounts", icon: Wallet, label: "Accounts" },
   { href: "/categories", icon: Tags, label: "Categories" },
   { href: "/insights", icon: TrendingUp, label: "Insights" },
+  { href: "/settings", icon: Settings, label: "Settings" },
 ];
 
 export function Sidebar() {

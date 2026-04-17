@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getHouseholdAccountIds } from "@/lib/household";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -17,9 +18,10 @@ export async function GET(request: Request) {
   const to = searchParams.get("to");
   const uncategorized = searchParams.get("uncategorized") === "true";
 
+  const householdAccountIds = await getHouseholdAccountIds(session.user.id);
+
   const where = {
-    account: { userId: session.user.id },
-    ...(accountId ? { accountId } : {}),
+    accountId: accountId ? accountId : { in: householdAccountIds },
     ...(categoryId ? { categoryId } : {}),
     ...(uncategorized ? { categoryId: null } : {}),
     ...(search
@@ -66,8 +68,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
+  const householdIds = await getHouseholdAccountIds(session.user.id);
   const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account || account.userId !== session.user.id) {
+  if (!account || !householdIds.includes(account.id)) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
 

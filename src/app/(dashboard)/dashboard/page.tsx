@@ -28,6 +28,8 @@ interface Account {
   id: string;
   name: string;
   type: string;
+  isJoint: boolean;
+  owner: "me" | "partner";
   computedBalance: number;
 }
 
@@ -45,10 +47,13 @@ const CHART_COLORS = [
   "#F59E0B", "#10B981", "#EF4444", "#6366F1", "#14B8A6",
 ];
 
+type ViewFilter = "all" | "mine" | "partner" | "joint";
+
 export default function DashboardPage() {
   const [insights, setInsights] = useState<InsightData | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewFilter, setViewFilter] = useState<ViewFilter>("all");
 
   useEffect(() => {
     Promise.all([
@@ -72,7 +77,18 @@ export default function DashboardPage() {
   if (!insights) return null;
 
   const thisMonth = format(new Date(), "MMMM yyyy");
-  const netBalance = accounts.reduce((sum, a) => {
+
+  const filteredAccounts = accounts.filter((a) => {
+    if (viewFilter === "all") return true;
+    if (viewFilter === "mine") return a.owner === "me" && !a.isJoint;
+    if (viewFilter === "partner") return a.owner === "partner";
+    if (viewFilter === "joint") return a.isJoint;
+    return true;
+  });
+
+  const hasPartner = accounts.some((a) => a.owner === "partner");
+
+  const netBalance = filteredAccounts.reduce((sum, a) => {
     if (a.type === "CREDIT_CARD") return sum - Math.abs(a.computedBalance);
     return sum + a.computedBalance;
   }, 0);
@@ -92,9 +108,28 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">{thisMonth}</p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-1">{thisMonth}</p>
+        </div>
+        {hasPartner && (
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+            {(["all", "mine", "partner", "joint"] as ViewFilter[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setViewFilter(f)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors capitalize ${
+                  viewFilter === f
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {f === "all" ? "All" : f === "mine" ? "Mine" : f === "partner" ? "Partner's" : "Joint"}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Top stat cards */}
@@ -257,17 +292,21 @@ export default function DashboardPage() {
             <CardTitle className="text-base">Accounts</CardTitle>
           </CardHeader>
           <CardContent>
-            {accounts.length === 0 ? (
+            {filteredAccounts.length === 0 ? (
               <p className="text-sm text-gray-400">No accounts. <a href="/accounts" className="text-blue-600 hover:underline">Add one</a></p>
             ) : (
               <div className="space-y-3">
-                {accounts.map((acc) => {
+                {filteredAccounts.map((acc) => {
                   const isCredit = acc.type === "CREDIT_CARD";
                   const balance = isCredit ? -acc.computedBalance : acc.computedBalance;
                   return (
                     <div key={acc.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                       <div>
-                        <p className="text-sm font-medium">{acc.name}</p>
+                        <p className="text-sm font-medium">
+                          {acc.name}
+                          {acc.isJoint && <span className="ml-1.5 text-xs text-purple-600 font-normal">(Joint)</span>}
+                          {acc.owner === "partner" && <span className="ml-1.5 text-xs text-blue-500 font-normal">(Partner)</span>}
+                        </p>
                         <p className="text-xs text-gray-400">{acc.type.replace("_", " ")}</p>
                       </div>
                       <span className={`text-sm font-semibold ${isCredit && balance > 0 ? "text-red-600" : "text-gray-900"}`}>

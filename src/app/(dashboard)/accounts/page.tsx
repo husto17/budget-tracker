@@ -48,7 +48,9 @@ interface Account {
   type: string;
   institution: string | null;
   lastFour: string | null;
+  isJoint: boolean;
   computedBalance: number;
+  owner: "me" | "partner";
   _count: { transactions: number };
 }
 
@@ -64,6 +66,7 @@ export default function AccountsPage() {
     type: "CHECKING",
     institution: "",
     lastFour: "",
+    isJoint: false,
   });
 
   async function fetchAccounts() {
@@ -77,7 +80,7 @@ export default function AccountsPage() {
 
   function openAdd() {
     setEditingAccount(null);
-    setForm({ name: "", type: "CHECKING", institution: "", lastFour: "" });
+    setForm({ name: "", type: "CHECKING", institution: "", lastFour: "", isJoint: false });
     setShowDialog(true);
   }
 
@@ -88,6 +91,7 @@ export default function AccountsPage() {
       type: account.type,
       institution: account.institution ?? "",
       lastFour: account.lastFour ?? "",
+      isJoint: account.isJoint,
     });
     setShowDialog(true);
   }
@@ -176,7 +180,15 @@ export default function AccountsPage() {
                         <AccountIcon type={account.type} />
                       </div>
                       <div>
-                        <CardTitle className="text-base">{account.name}</CardTitle>
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-base">{account.name}</CardTitle>
+                          {account.isJoint && (
+                            <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-700">Joint</Badge>
+                          )}
+                          {account.owner === "partner" && (
+                            <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">Partner&apos;s</Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-400 mt-0.5">
                           {account.institution ?? typeInfo?.label}
                           {account.lastFour && ` •••• ${account.lastFour}`}
@@ -257,6 +269,16 @@ export default function AccountsPage() {
                 placeholder="1234"
                 maxLength={4}
               />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="isJoint"
+                type="checkbox"
+                checked={form.isJoint}
+                onChange={(e) => setForm((f) => ({ ...f, isJoint: e.target.checked }))}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <Label htmlFor="isJoint" className="cursor-pointer">Joint account (shared with partner)</Label>
             </div>
           </div>
           <DialogFooter>

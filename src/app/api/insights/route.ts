@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getHouseholdAccountIds } from "@/lib/household";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -14,9 +15,8 @@ export async function GET(request: Request) {
   const now = new Date();
   const startDate = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1);
 
-  // Get all user accounts
-  const accounts = await prisma.account.findMany({ where: { userId } });
-  const accountIds = accounts.map((a: { id: string }) => a.id);
+  // Get all household account IDs (own + partner's)
+  const accountIds = await getHouseholdAccountIds(userId);
 
   // Get all spending transactions in range (debits only, exclude transfers)
   const transactions = await prisma.transaction.findMany({

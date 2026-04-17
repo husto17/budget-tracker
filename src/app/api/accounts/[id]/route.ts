@@ -20,7 +20,7 @@ export async function PATCH(
 
   const updated = await prisma.account.update({
     where: { id },
-    data: { name: data.name, type: data.type, institution: data.institution, lastFour: data.lastFour },
+    data: { name: data.name, type: data.type, institution: data.institution, lastFour: data.lastFour, isJoint: data.isJoint },
   });
 
   return NextResponse.json(updated);

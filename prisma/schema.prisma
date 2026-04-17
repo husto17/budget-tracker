@@ -7,6 +7,26 @@ datasource db {
   provider = "postgresql"
 }
 
+model Household {
+  id        String            @id @default(cuid())
+  createdAt DateTime          @default(now())
+  members   User[]
+  invites   HouseholdInvite[]
+}
+
+model HouseholdInvite {
+  id           String    @id @default(cuid())
+  householdId  String
+  household    Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  invitedEmail String
+  token        String    @unique @default(cuid())
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
+
+  @@index([token])
+  @@index([invitedEmail])
+}
+
 model User {
   id             String          @id @default(cuid())
   email          String          @unique
@@ -14,6 +34,8 @@ model User {
   password       String?
   image          String?
   createdAt      DateTime        @default(now())
+  householdId    String?
+  household      Household?      @relation(fields: [householdId], references: [id])
   accounts       Account[]
   categories     Category[]
   categoryRules  CategoryRule[]
@@ -28,6 +50,7 @@ model Account {
   type         String         // CHECKING, SAVINGS, CREDIT_CARD, CASH, INVESTMENT, OTHER
   institution  String?
   lastFour     String?
+  isJoint      Boolean       @default(false)
   createdAt    DateTime      @default(now())
   transactions Transaction[]
 

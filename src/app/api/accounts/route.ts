@@ -2,13 +2,18 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getPartnerUserId } from "@/lib/household";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const userId = session.user.id;
+  const partnerUserId = await getPartnerUserId(userId);
+  const userIds = partnerUserId ? [userId, partnerUserId] : [userId];
+
   const accounts = await prisma.account.findMany({
-    where: { userId: session.user.id },
+    where: { userId: { in: userIds } },
     include: {
       _count: { select: { transactions: true } },
     },
@@ -23,7 +28,8 @@ export async function GET() {
         _sum: { amount: true },
       });
       const balance = agg._sum.amount ?? 0;
-      return { ...account, computedBalance: balance };
+      const owner: "me" | "partner" = account.userId === userId ? "me" : "partner";
+      return { ...account, computedBalance: balance, owner };
     })
   );
 
@@ -34,7 +40,7 @@ export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { name, type, institution, lastFour } = await request.json();
+  const { name, type, institution, lastFour, isJoint } = await request.json();
 
   if (!name || !type) {
     return NextResponse.json({ error: "Name and type are required" }, { status: 400 });
@@ -47,6 +53,7 @@ export async function POST(request: Request) {
       type,
       institution,
       lastFour,
+      isJoint: isJoint ?? false,
     },
   });
 
