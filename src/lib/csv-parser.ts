@@ -16,11 +16,11 @@ export interface CsvParseResult {
 }
 
 // Common column name patterns for auto-detection
-const DATE_PATTERNS = /^(date|transaction.?date|posted.?date|trans.?date|value.?date)$/i;
-const DESC_PATTERNS = /^(description|merchant|payee|memo|narrative|details|transaction.?description|reference)$/i;
-const AMOUNT_PATTERNS = /^(amount|transaction.?amount|debit\/credit|net.?amount)$/i;
-const DEBIT_PATTERNS = /^(debit|withdrawals?|out|money.?out|payment)$/i;
-const CREDIT_PATTERNS = /^(credit|deposits?|in|money.?in|received)$/i;
+const DATE_PATTERNS = /^(date|transaction.?date|posted.?date|trans.?date|value.?date|booking.?date)$/i;
+const DESC_PATTERNS = /^(description|original.?description|simple.?description|merchant|payee|memo|narrative|details|transaction.?description|reference|particulars|beneficiary)$/i;
+const AMOUNT_PATTERNS = /^(amount|transaction.?amount|debit\/credit|net.?amount|value)$/i;
+const DEBIT_PATTERNS = /^(debit|withdrawals?|out|money.?out|payment|dr\.?)$/i;
+const CREDIT_PATTERNS = /^(credit|deposits?|in|money.?in|received|cr\.?)$/i;
 
 function parseDate(val: string): Date | null {
   if (!val) return null;
@@ -79,10 +79,29 @@ function detectColumns(headers: string[]): {
 export function parseCsv(csvText: string): CsvParseResult {
   const errors: string[] = [];
 
-  const result = Papa.parse<Record<string, string>>(csvText, {
+  // Some banks (e.g. BofA activity export) prepend metadata lines before the real header.
+  // Skip lines until we find one that looks like a header row (contains at least one
+  // recognised column name). Cap the scan at 15 lines to avoid eating real data.
+  let cleanedText = csvText;
+  const rawLines = csvText.split(/\r?\n/);
+  for (let skip = 0; skip < Math.min(15, rawLines.length - 1); skip++) {
+    const headerLine = rawLines[skip].toLowerCase();
+    if (
+      DATE_PATTERNS.test(headerLine.split(",")[0]?.trim().replace(/"/g, "")) ||
+      headerLine.includes("date") ||
+      headerLine.includes("description") ||
+      headerLine.includes("payee") ||
+      headerLine.includes("amount")
+    ) {
+      cleanedText = rawLines.slice(skip).join("\n");
+      break;
+    }
+  }
+
+  const result = Papa.parse<Record<string, string>>(cleanedText, {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (h: string) => h.trim(),
+    transformHeader: (h: string) => h.trim().replace(/^"|"$/g, ""),
   });
 
   const rawHeaders = result.meta?.fields ?? [];

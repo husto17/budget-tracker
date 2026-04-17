@@ -47,6 +47,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       error: "No transactions could be parsed",
       details: parseResult.errors,
+      detectedBank: "detectedBank" in parseResult ? parseResult.detectedBank : null,
     }, { status: 422 });
   }
 
@@ -167,7 +168,7 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const merchant = normalizeMerchant(tx.description);
+    const merchant = await normalizeMerchant(session.user.id, tx.description);
     const categoryId = await autoCategorize(session.user.id, tx.description);
 
     // Look for a matching pending screenshot transaction BEFORE creating a new record.

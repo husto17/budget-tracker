@@ -60,46 +60,80 @@ function parseBofaCreditCard(text: string, lines: string[]): ParsedTransaction[]
 
   const transactions: ParsedTransaction[] = [];
 
-  // Matches: "03/06 03/07 Gympass US LLC 844-4784744 NY 1089 9576 237.03"
-  // or credits: "03/20 03/20 PAYMENT FROM CHK 0607 CONF#bpcq9otqe 7902 9576 -2,443.74"
-  const FULL_LINE_RE = /^(\d{2}\/\d{2})\s+\d{2}\/\d{2}\s+(.+?)\s+\d{4}\s+\d{4}\s+(-?[\d,]+\.\d{2})$/;
-  // Matches: "03/08 03/09 UBER *TRIP HELP.UBER.COM" (no amount — multi-line entry)
-  const PARTIAL_LINE_RE = /^(\d{2}\/\d{2})\s+\d{2}\/\d{2}\s+(.+)$/;
-  // Matches the ref+acct+amount line: "6373 9576 6.86"
-  const AMOUNT_LINE_RE = /^\d{4}\s+\d{4}\s+(-?[\d,]+\.\d{2})$/;
-  // Skip summary/header lines
-  const SKIP_RE = /^(TOTAL\s|INTEREST CHARGED ON|Payments and Other Credits|Purchases and Adjustments|Fees$|Interest Charged|Transaction\s+Date|Posting\s+Date|\d{4}\s+Totals)/i;
+  // pdf-parse concatenates adjacent narrow columns without spaces.
+  // Observed format:
+  //   Purchase: "MM/DDMM/DD description REF4ACCT4AMOUNT"  (amount on same line)
+  //   Credit:   "MM/DDMM/DD description REF4ACCT4"        (amount on NEXT line, often with en-dash)
+  //   Multi-line: "MM/DDMM/DD description" with ref/acct/amount on subsequent lines
+
+  // Line starts with two consecutive MM/DD dates (no space between them)
+  const TX_START_RE = /^(\d{2}\/\d{2})\d{2}\/\d{2}\s*/;
+
+  // Tail of a purchase line:  ref(4) acct(4) amount  (all concatenated, no spaces)
+  // Cap integer part to 6 digits so greedy match doesn't swallow ref+acct digits
+  const TAIL_WITH_AMOUNT_RE = /(\d{4})(\d{4})([\d,]{1,6}\.\d{2})$/;
+  // Tail of a credit line: ref(4) acct(4) with NO decimal amount after
+  const TAIL_ACCT_ONLY_RE  = /(\d{4})\s*(\d{4})$/;
+
+  // Standalone amount line (credit amount appears on the line after the tx line)
+  // Handles hyphen-minus OR en-dash (U+2013) as the negative sign
+  const CREDIT_AMOUNT_LINE_RE = /^[-\u2013]?\s*([\d,]+\.\d{2})$/;
+
+  // ref(4) acct(4) amount on its own line (multi-line entries like Uber FX)
+  const REF_ACCT_AMOUNT_LINE_RE = /^(\d{4})\s*(\d{4})\s*([\d,]+\.\d{2})$/;
+
+  const SKIP_RE = /^(TOTAL\s|INTEREST CHARGED ON|Payments and Other Credits|Purchases and Adjustments|Fees Charged|Fees$|Interest Charged|Transaction\s+Date|Posting\s+Date|\d{4}\s+Totals|continued on|Transactions Continued)/i;
+
+  // Track which section we're in so we know isCredit without relying on the sign
+  let inCreditsSection = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+
+    if (/^Payments and Other Credits/i.test(line)) { inCreditsSection = true; continue; }
+    if (/^Purchases and Adjustments/i.test(line))  { inCreditsSection = false; continue; }
+    if (/^Fees/i.test(line))                        { inCreditsSection = false; continue; }
+    if (/^Interest Charged/i.test(line))            { break; }
     if (SKIP_RE.test(line)) continue;
 
-    let txDateStr: string | undefined;
+    const startMatch = line.match(TX_START_RE);
+    if (!startMatch) continue;
+
+    const txDateStr = startMatch[1];
+    const remainder = line.slice(startMatch[0].length);
+
     let description: string | undefined;
     let amountStr: string | undefined;
+    const isCredit = inCreditsSection;
 
-    const fullMatch = line.match(FULL_LINE_RE);
-    if (fullMatch) {
-      [, txDateStr, description, amountStr] = fullMatch;
+    // Case 1: purchase — ends with ref4 acct4 amount
+    const tailAmount = remainder.match(TAIL_WITH_AMOUNT_RE);
+    if (tailAmount) {
+      amountStr = tailAmount[3];
+      description = remainder.slice(0, remainder.length - tailAmount[0].length).trim();
     } else {
-      // Try multi-line: description on this line, then optional FX line, then ref+acct+amount
-      const partialMatch = line.match(PARTIAL_LINE_RE);
-      if (partialMatch) {
-        txDateStr = partialMatch[1];
-        description = partialMatch[2];
-        // Look ahead up to 3 lines
-        for (let j = i + 1; j <= Math.min(i + 3, lines.length - 1); j++) {
+      // Case 2: credit — ends with ref4 acct4 (no amount); amount on the very next line
+      const tailAcct = remainder.match(TAIL_ACCT_ONLY_RE);
+      if (tailAcct) {
+        description = remainder.slice(0, remainder.length - tailAcct[0].length).trim();
+        // Look at next 1-2 lines for the credit amount
+        for (let j = i + 1; j <= Math.min(i + 2, lines.length - 1); j++) {
           const next = lines[j];
-          if (AMOUNT_LINE_RE.test(next)) {
-            amountStr = next.match(AMOUNT_LINE_RE)![1];
-            i = j; // skip the lines we consumed
-            break;
-          }
-          // Foreign currency amount on continuation line — append to description context
-          // e.g. "120.88 MXN" — we just skip it (USD amount comes after)
-          if (/^[\d,]+\.\d+\s+[A-Z]{3}$/.test(next)) continue;
-          // Anything else — stop looking ahead
-          break;
+          const creditAmt = next.match(CREDIT_AMOUNT_LINE_RE);
+          if (creditAmt) { amountStr = creditAmt[1]; i = j; break; }
+          // If next line is another transaction or section header, stop
+          if (TX_START_RE.test(next) || SKIP_RE.test(next)) break;
+        }
+      } else {
+        // Case 3: multi-line — description wraps; ref/acct/amount on a following line
+        description = remainder.trim();
+        for (let j = i + 1; j <= Math.min(i + 4, lines.length - 1); j++) {
+          const next = lines[j];
+          const refAcctAmt = next.match(REF_ACCT_AMOUNT_LINE_RE);
+          if (refAcctAmt) { amountStr = refAcctAmt[3]; i = j; break; }
+          if (/^[\d,]+\.\d+\s+[A-Z]{3}$/.test(next)) continue; // FX line
+          if (TX_START_RE.test(next) || SKIP_RE.test(next)) break; // new tx
+          description = description + " " + next; // description continuation
         }
       }
     }
@@ -107,10 +141,9 @@ function parseBofaCreditCard(text: string, lines: string[]): ParsedTransaction[]
     if (!txDateStr || !description || !amountStr) continue;
     if (/^TOTAL\s/i.test(description)) continue;
 
-    const amount = Math.abs(parseSignedAmount(amountStr));
+    const amount = parseFloat(amountStr.replace(/,/g, ""));
     if (amount === 0) continue;
 
-    const isCredit = parseSignedAmount(amountStr) < 0;
     const [month, day] = txDateStr.split("/").map(Number);
     const txYear = resolveYear(year, closingMonth, month);
     const date = new Date(txYear, month - 1, day);

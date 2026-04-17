@@ -36,10 +36,11 @@ model User {
   createdAt      DateTime        @default(now())
   householdId    String?
   household      Household?      @relation(fields: [householdId], references: [id])
-  accounts       Account[]
-  categories     Category[]
-  categoryRules  CategoryRule[]
-  uploads        Upload[]
+  accounts        Account[]
+  categories      Category[]
+  categoryRules   CategoryRule[]
+  uploads         Upload[]
+  merchantAliases MerchantAlias[]
 }
 
 model Account {
@@ -145,6 +146,18 @@ model TransactionSplit {
   createdAt     DateTime    @default(now())
 
   @@index([transactionId])
+}
+
+model MerchantAlias {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromName  String   // what hardcoded normalization produces
+  toName    String   // what user wants it to be
+  createdAt DateTime @default(now())
+
+  @@unique([userId, fromName])
+  @@index([userId])
 }
 
 model Upload {

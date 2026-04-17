@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const merchant = normalizeMerchant(tx.description);
+    const merchant = await normalizeMerchant(session.user.id, tx.description);
     const categoryId = await autoCategorize(session.user.id, tx.description);
 
     await prisma.transaction.create({

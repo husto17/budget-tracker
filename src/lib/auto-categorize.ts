@@ -35,8 +35,11 @@ export async function autoCategorize(
  * Normalize a merchant name from a raw bank description.
  * Strips common prefixes (VISA, MASTERCARD, SQ *, etc.) and trailing noise.
  * Also maps well-known subscription services to canonical names.
+ *
+ * This is the pure sync version — no DB access.
+ * Call normalizeMerchant() (async) in route handlers to also apply learned aliases.
  */
-export function normalizeMerchant(description: string): string {
+export function normalizeMerchantHardcoded(description: string): string {
   let d = description.trim();
 
   // ── Canonical mappings ──────────────────────────────────────────────────────
@@ -99,6 +102,21 @@ export function normalizeMerchant(description: string): string {
   d = d.trim().replace(/\s+/g, " ");
 
   return d.length > 0 ? d : description;
+}
+
+/**
+ * Normalize a merchant name, applying hardcoded rules first then any user-learned aliases.
+ * When a user edits a transaction's merchant field, the mapping is saved to MerchantAlias
+ * and automatically applied to future transactions from the same merchant.
+ */
+export async function normalizeMerchant(userId: string, description: string): Promise<string> {
+  const hardcoded = normalizeMerchantHardcoded(description);
+
+  const alias = await prisma.merchantAlias.findUnique({
+    where: { userId_fromName: { userId, fromName: hardcoded } },
+  });
+
+  return alias?.toName ?? hardcoded;
 }
 
 /**

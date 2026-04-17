@@ -20,6 +20,15 @@ export async function PATCH(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // If merchant is being renamed, save the alias so future uploads auto-apply it
+  if (data.merchant !== undefined && data.merchant !== tx.merchant && tx.merchant) {
+    await prisma.merchantAlias.upsert({
+      where: { userId_fromName: { userId: session.user.id, fromName: tx.merchant } },
+      update: { toName: data.merchant },
+      create: { userId: session.user.id, fromName: tx.merchant, toName: data.merchant },
+    });
+  }
+
   const updated = await prisma.transaction.update({
     where: { id },
     data: {
