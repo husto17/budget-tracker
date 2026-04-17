@@ -19,17 +19,16 @@ export async function GET(request: Request) {
   const accountIds = await getHouseholdAccountIds(userId);
 
   // Get all spending transactions in range (debits only, exclude transfers).
-  // Exclude pending screenshot transactions — they will be reconciled when the
-  // statement arrives and promoted to confirmed transactions at that point.
-  // This prevents double-counting when the same expense exists as both a
-  // pending screenshot entry AND a confirmed statement transaction.
+  // Pending screenshot transactions ARE included — this is intentional so
+  // mid-month spending tracking works. Double-counting is prevented because
+  // when a statement is uploaded, the pending record is UPDATED in-place to
+  // become the statement transaction (never two records for the same expense).
   const transactions = await prisma.transaction.findMany({
     where: {
       accountId: { in: accountIds },
       isCredit: false,
       date: { gte: startDate },
-      transferPairId: null,    // exclude transfers
-      isPending: false,         // exclude pending screenshot transactions
+      transferPairId: null,
     },
     include: { category: true },
     orderBy: { date: "asc" },
