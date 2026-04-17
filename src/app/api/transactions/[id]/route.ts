@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getHouseholdAccountIds } from "@/lib/household";
 
 export async function PATCH(
   request: Request,
@@ -13,11 +14,9 @@ export async function PATCH(
   const { id } = await params;
   const data = await request.json();
 
-  const tx = await prisma.transaction.findUnique({
-    where: { id },
-    include: { account: true },
-  });
-  if (!tx || tx.account.userId !== session.user.id) {
+  const householdAccountIds = await getHouseholdAccountIds(session.user.id);
+  const tx = await prisma.transaction.findUnique({ where: { id } });
+  if (!tx || !householdAccountIds.includes(tx.accountId)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -28,6 +27,8 @@ export async function PATCH(
       notes: data.notes !== undefined ? data.notes : undefined,
       description: data.description !== undefined ? data.description : undefined,
       merchant: data.merchant !== undefined ? data.merchant : undefined,
+      amount: data.amount !== undefined ? parseFloat(data.amount) : undefined,
+      date: data.date !== undefined ? new Date(data.date) : undefined,
     },
     include: { category: true, account: { select: { id: true, name: true, type: true } } },
   });

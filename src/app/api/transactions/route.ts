@@ -26,7 +26,12 @@ export async function GET(request: Request) {
     ...(categoryId ? { categoryId } : {}),
     ...(uncategorized ? { categoryId: null } : {}),
     ...(search
-      ? { description: { contains: search, mode: "insensitive" as const } }
+      ? {
+          OR: [
+            { description: { contains: search, mode: "insensitive" as const } },
+            { merchant: { contains: search, mode: "insensitive" as const } },
+          ],
+        }
       : {}),
     ...(from || to
       ? {

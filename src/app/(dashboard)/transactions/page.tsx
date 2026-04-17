@@ -14,6 +14,7 @@ import {
   Link2,
   Unlink,
   Scissors,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -128,6 +129,11 @@ function TransactionsContent() {
   const [selectedPair, setSelectedPair] = useState<string>("");
   const [linkingTransfer, setLinkingTransfer] = useState(false);
 
+  // Inline edit
+  const [editTx, setEditTx] = useState<Transaction | null>(null);
+  const [editForm, setEditForm] = useState({ description: "", amount: "", date: "", notes: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
+
   // Split transaction
   const [splitTx, setSplitTx] = useState<Transaction | null>(null);
   const [splitRows, setSplitRows] = useState<
@@ -162,16 +168,24 @@ function TransactionsContent() {
   }, [fetchTransactions]);
 
   useEffect(() => {
+    const catName = searchParams.get("categoryName");
     fetch("/api/categories")
       .then((r) => r.json())
-      .then(setCategories);
+      .then((data) => {
+        setCategories(data);
+        // Pre-filter by category name if navigated from dashboard/insights
+        if (catName) {
+          const match = data.find((c: Category) => c.name.toLowerCase() === catName.toLowerCase());
+          if (match) setFilterCategory(match.id);
+        }
+      });
     fetch("/api/accounts")
       .then((r) => r.json())
       .then((data) => {
         setAccounts(data);
         if (data.length > 0) setAddForm((f) => ({ ...f, accountId: data[0].id }));
       });
-  }, []);
+  }, [searchParams]);
 
   // Debounce search input
   function handleSearchChange(value: string) {
@@ -214,14 +228,65 @@ function TransactionsContent() {
       }),
     });
     if (res.ok) {
-      toast.success(`Categorized ${selected.size} transactions`);
+      const prevIds = Array.from(selected);
+      const prevCategoryIds = prevIds.map(id => transactions.find(t => t.id === id)?.category?.id ?? null);
       setSelected(new Set());
       setBulkCatId("");
       fetchTransactions();
+      toast.success(`Categorized ${prevIds.length} transactions`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            await Promise.all(prevIds.map((id, i) =>
+              fetch(`/api/transactions/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ categoryId: prevCategoryIds[i] }),
+              })
+            ));
+            fetchTransactions();
+            toast.success("Undone");
+          },
+        },
+      });
     } else {
       toast.error("Failed to apply categories");
     }
     setApplyingBulk(false);
+  }
+
+  function openEditDialog(tx: Transaction) {
+    setEditTx(tx);
+    setEditForm({
+      description: tx.merchant ?? tx.description,
+      amount: tx.amount.toFixed(2),
+      date: format(new Date(tx.date), "yyyy-MM-dd"),
+      notes: tx.notes ?? "",
+    });
+  }
+
+  async function handleSaveEdit() {
+    if (!editTx) return;
+    setSavingEdit(true);
+    const res = await fetch(`/api/transactions/${editTx.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        description: editForm.description,
+        merchant: editForm.description,
+        amount: editForm.amount,
+        date: editForm.date,
+        notes: editForm.notes || null,
+      }),
+    });
+    if (res.ok) {
+      setEditTx(null);
+      fetchTransactions();
+      toast.success("Transaction updated");
+    } else {
+      toast.error("Failed to save");
+    }
+    setSavingEdit(false);
   }
 
   async function handleAddTransaction() {
@@ -382,7 +447,7 @@ function TransactionsContent() {
             <Input
               value={searchInput}
               onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="Search description..."
+              placeholder="Search transactions..."
               className="pl-9 w-full"
             />
           </div>
@@ -394,7 +459,9 @@ function TransactionsContent() {
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder="All accounts" />
+              <SelectValue>
+                {filterAccount === "all" ? "All accounts" : accounts.find(a => a.id === filterAccount)?.name ?? "All accounts"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All accounts</SelectItem>
@@ -413,7 +480,9 @@ function TransactionsContent() {
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder="All categories" />
+              <SelectValue>
+                {filterCategory === "all" ? "All categories" : categories.find(c => c.id === filterCategory)?.name ?? "All categories"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All categories</SelectItem>
@@ -765,6 +834,15 @@ function TransactionsContent() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-7 w-7 text-gray-300 hover:text-gray-700"
+                            title="Edit transaction"
+                            onClick={() => openEditDialog(tx)}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-7 w-7 text-gray-300 hover:text-purple-500"
                             title="Split transaction"
                             onClick={() => openSplitDialog(tx)}
@@ -1039,6 +1117,64 @@ function TransactionsContent() {
               }
             >
               Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit transaction dialog */}
+      <Dialog open={!!editTx} onOpenChange={(open) => { if (!open) setEditTx(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-4 h-4" />
+              Edit Transaction
+            </DialogTitle>
+          </DialogHeader>
+          {editTx && (
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>Description / Merchant</Label>
+                <Input
+                  value={editForm.description}
+                  onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Date</Label>
+                  <Input
+                    type="date"
+                    value={editForm.date}
+                    onChange={(e) => setEditForm((f) => ({ ...f, date: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Amount</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editForm.amount}
+                    onChange={(e) => setEditForm((f) => ({ ...f, amount: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Notes <span className="text-gray-400">(optional)</span></Label>
+                <textarea
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+                  placeholder="Any notes..."
+                  className="w-full min-h-[64px] rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTx(null)}>Cancel</Button>
+            <Button onClick={handleSaveEdit} disabled={savingEdit || !editForm.description || !editForm.amount}>
+              {savingEdit ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>

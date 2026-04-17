@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, AlertTriangle, Repeat, ArrowRightLeft, BarChart3 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface InsightData {
   monthlyTotals: Record<string, number>;
@@ -56,6 +57,7 @@ const CHART_COLORS = [
 type ViewFilter = "all" | "mine" | "partner" | "joint";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [insights, setInsights] = useState<InsightData | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -251,13 +253,18 @@ export default function DashboardPage() {
       {insights.anomalies.length > 0 && (
         <div className="space-y-2">
           {insights.anomalies.map((a) => (
-            <div key={a.category} className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+            <Link
+              key={a.category}
+              href={`/transactions?categoryName=${encodeURIComponent(a.category)}`}
+              className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 hover:bg-amber-100 transition-colors"
+            >
               <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
-              <p className="text-sm text-amber-700">
+              <p className="text-sm text-amber-700 flex-1">
                 <strong>{a.category}</strong> spending is {formatCurrency(a.thisMonth)} this month —{" "}
                 {a.ratio.toFixed(1)}× your usual average of {formatCurrency(a.average)}.
               </p>
-            </div>
+              <span className="text-xs text-amber-600 font-medium shrink-0">View →</span>
+            </Link>
           ))}
         </div>
       )}
@@ -312,7 +319,17 @@ export default function DashboardPage() {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={false}>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label={false}
+                    style={{ cursor: "pointer" }}
+                    onClick={(entry) => router.push(`/transactions?categoryName=${encodeURIComponent(entry.name)}`)}
+                  >
                     {pieData.map((_, i) => (
                       <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                     ))}

@@ -8,7 +8,8 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Repeat, TrendingUp, CreditCard } from "lucide-react";
+import { AlertTriangle, Repeat, TrendingUp, CreditCard, ExternalLink } from "lucide-react";
+import Link from "next/link";
 
 interface InsightData {
   monthlyByCategory: Record<string, Record<string, number>>;
@@ -96,18 +97,23 @@ export default function InsightsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {insights.anomalies.map((a) => (
-              <div key={a.category} className="flex items-center justify-between bg-white rounded-lg p-3 border border-amber-100">
+              <Link
+                key={a.category}
+                href={`/transactions?categoryName=${encodeURIComponent(a.category)}`}
+                className="flex items-center justify-between bg-white rounded-lg p-3 border border-amber-100 hover:bg-amber-50 transition-colors"
+              >
                 <div>
-                  <p className="font-medium text-gray-900">{a.category}</p>
-                  <p className="text-xs text-gray-500">
-                    Average: {formatCurrency(a.average)}/month
+                  <p className="font-medium text-gray-900 flex items-center gap-1.5">
+                    {a.category}
+                    <ExternalLink className="w-3 h-3 text-gray-400" />
                   </p>
+                  <p className="text-xs text-gray-500">Average: {formatCurrency(a.average)}/month</p>
                 </div>
                 <div className="text-right">
                   <p className="font-bold text-amber-700">{formatCurrency(a.thisMonth)}</p>
                   <Badge variant="destructive" className="text-xs">{a.ratio.toFixed(1)}× usual</Badge>
                 </div>
-              </div>
+              </Link>
             ))}
           </CardContent>
         </Card>
@@ -228,7 +234,13 @@ export default function InsightsPage() {
                 {insights.subscriptions.map((sub) => (
                   <div key={sub.merchant} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 py-3 items-center text-sm">
                     <div>
-                      <p className="font-medium text-gray-900">{sub.merchant}</p>
+                      <Link
+                        href={`/transactions?search=${encodeURIComponent(sub.merchant)}`}
+                        className="font-medium text-gray-900 hover:text-blue-600 flex items-center gap-1 group"
+                      >
+                        {sub.merchant}
+                        <ExternalLink className="w-3 h-3 text-gray-300 group-hover:text-blue-400" />
+                      </Link>
                       <p className="text-xs text-gray-400">{sub.monthlyCount} months detected</p>
                     </div>
                     <span className="text-right font-medium">{formatCurrency(sub.amount)}</span>
@@ -264,7 +276,11 @@ export default function InsightsPage() {
           ) : (
             <div className="space-y-3">
               {insights.topCategories.map(([cat, amount], i) => (
-                <div key={cat} className="flex items-center gap-3">
+                <Link
+                  key={cat}
+                  href={`/transactions?categoryName=${encodeURIComponent(cat)}`}
+                  className="flex items-center gap-3 hover:bg-gray-50 rounded-lg px-1 -mx-1 transition-colors"
+                >
                   <span className="w-5 text-xs text-gray-400 font-medium text-right">{i + 1}</span>
                   <div
                     className="h-2 rounded-full flex-1 min-w-0"
@@ -275,8 +291,8 @@ export default function InsightsPage() {
                     }}
                   />
                   <span className="text-sm font-medium w-28 text-right">{formatCurrency(amount)}</span>
-                  <span className="text-sm text-gray-500 w-28 truncate">{cat}</span>
-                </div>
+                  <span className="text-sm text-blue-600 hover:underline w-28 truncate">{cat}</span>
+                </Link>
               ))}
             </div>
           )}
