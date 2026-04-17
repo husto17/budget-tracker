@@ -39,35 +39,65 @@ export async function autoCategorize(
 export function normalizeMerchant(description: string): string {
   let d = description.trim();
 
-  // Canonical subscription service mappings (check early, before stripping)
-  const upper = d.toUpperCase();
-
+  // ── Canonical mappings ──────────────────────────────────────────────────────
+  // Check before stripping so we match the full raw string.
   if (/NETFLIX/i.test(d)) return "Netflix";
   if (/SPOTIFY/i.test(d)) return "Spotify";
-  if (/APPLE\.COM\/BILL|APPLE\.COM BILL/i.test(d)) return "Apple";
+  if (/APPLE\.COM[/ ]BILL|APPLE\.COM BILL/i.test(d)) return "Apple";
   if (/AMAZON\s*PRIME/i.test(d)) return "Amazon Prime";
+  if (/\bAMAZON\b/i.test(d)) return "Amazon";
   if (/GOOGLE\s*\*/i.test(d)) return "Google";
   if (/\bHULU\b/i.test(d)) return "Hulu";
   if (/DISNEY\+|DISNEYPLUS/i.test(d)) return "Disney+";
   if (/YOUTUBE\s*PREMIUM/i.test(d)) return "YouTube Premium";
+  if (/\bYOUTUBE\b/i.test(d)) return "YouTube";
   if (/\bOPENAI\b/i.test(d)) return "OpenAI";
   if (/\bPERPLEXITY\b/i.test(d)) return "Perplexity";
   if (/\bGYMPASS\b/i.test(d)) return "Gympass";
   if (/T-MOBILE|TMOBILE/i.test(d)) return "T-Mobile";
+  if (/\bUBER\s*EATS\b/i.test(d)) return "Uber Eats";
+  if (/\bUBER\b/i.test(d)) return "Uber";
+  if (/\bLYFT\b/i.test(d)) return "Lyft";
+  if (/\bDOORDASH\b/i.test(d)) return "DoorDash";
+  if (/\bGRUBHUB\b/i.test(d)) return "Grubhub";
+  if (/\bSTARBUCKS\b/i.test(d)) return "Starbucks";
+  if (/\bCHIPOTLE\b/i.test(d)) return "Chipotle";
+  if (/WHOLE\s*FOODS/i.test(d)) return "Whole Foods";
+  if (/TRADER\s*JOE/i.test(d)) return "Trader Joe's";
+  if (/\bWALMART\b/i.test(d)) return "Walmart";
+  if (/\bTARGET\b/i.test(d)) return "Target";
+  if (/\bCOSTCO\b/i.test(d)) return "Costco";
+  if (/\bCVS\b/i.test(d)) return "CVS";
+  if (/\bWALGREENS\b/i.test(d)) return "Walgreens";
+  if (/\bZELLE\b/i.test(d)) return "Zelle";
+  if (/\bVENMO\b/i.test(d)) return "Venmo";
+  if (/\bCASH\s*APP\b/i.test(d)) return "Cash App";
+  if (/PAYPAL\s*\*(.+)/i.test(d)) {
+    // "PAYPAL *ETSYSELLER" → extract the passthrough merchant
+    const inner = d.match(/PAYPAL\s*\*(.+)/i)?.[1]?.trim();
+    if (inner && inner.length >= 3) return inner;
+    return "PayPal";
+  }
 
-  // Strip common noisy prefixes
-  d = d.replace(/^(SQ \*|TST\*|SP |IC\* |DLO\*)/i, "");
-  d = d.replace(/^(VISA|MASTERCARD|AMEX|DEBIT CARD|TSF |DDA |ACH |POS |PAYMENT |TFL |CID\*|WWW\.)/i, "");
-
-  // Strip trailing ref numbers and identifiers
-  d = d.replace(/\s+\d{6,}$/, "");
-  d = d.replace(/\s+(REF|TXN|ID|NO)[:\s]*\w+$/i, "");
-  d = d.replace(/\s+#\w+$/, "");
+  // ── Strip noisy prefixes ─────────────────────────────────────────────────────
+  // Point-of-sale / payment processor prefixes
+  d = d.replace(/^(SQ \*|TST\*|SP \*?|IC\* |DLO\*|SMB\*|LNK\*|PMT\*)/i, "");
+  // Card network / bank channel prefixes
+  d = d.replace(/^(VISA\s*(PURCH|DEBIT)?|MASTERCARD|AMEX|DEBIT CARD PURCHASE|DEBIT PURCHASE)\s*/i, "");
+  // ACH / bank transfer noise
+  d = d.replace(/^(TSF |DDA |ACH |POS |TFL |CID\*|WWW\.|CHECKCARD\s*|PURCHASE\s*)/i, "");
+  // "BP#12345678" → "BP" — strip inline ref numbers attached with # or *
+  d = d.replace(/[#*]\d{4,}/g, "");
+  // Strip city/state suffix: "STARBUCKS 12345 NEW YORK NY" → "STARBUCKS 12345"
+  d = d.replace(/\s+[A-Z]{2}\s*$/, "");
+  // Strip trailing store numbers, ref numbers, long digit strings
+  d = d.replace(/\s+\d{5,}$/, "");
+  d = d.replace(/\s+(REF|TXN|ID|CONF|NO|AUTH)[:\s#]*[\w-]+$/i, "");
+  d = d.replace(/\s+#[\w-]+$/, "");
 
   // Collapse whitespace
   d = d.trim().replace(/\s+/g, " ");
 
-  void upper; // used in early return branches above
   return d.length > 0 ? d : description;
 }
 

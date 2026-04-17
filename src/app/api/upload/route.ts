@@ -71,11 +71,18 @@ export async function POST(request: Request) {
 
   // Score how well two descriptions match (0 = no match, >0 = match)
   function descriptionMatchScore(a: string, b: string, merchantA: string, merchantB: string): number {
-    // Exact merchant match is strongest signal
-    if (merchantA && merchantB && merchantA.toLowerCase() === merchantB.toLowerCase()) return 3;
-    // Significant word overlap (words ≥ 4 chars)
-    const wordsA = new Set(a.toLowerCase().split(/\W+/).filter((w) => w.length >= 4));
-    const wordsB = b.toLowerCase().split(/\W+/).filter((w) => w.length >= 4);
+    const mA = merchantA.toLowerCase().trim();
+    const mB = merchantB.toLowerCase().trim();
+
+    // Exact normalized merchant match — strongest signal
+    if (mA && mB && mA === mB) return 3;
+
+    // One merchant is contained within the other (handles "BP" vs "BP Gas Station")
+    if (mA && mB && (mA.includes(mB) || mB.includes(mA))) return 2;
+
+    // Word overlap — words ≥ 3 chars (covers "BP", "CVS", short names)
+    const wordsA = new Set(a.toLowerCase().split(/\W+/).filter((w) => w.length >= 3));
+    const wordsB = b.toLowerCase().split(/\W+/).filter((w) => w.length >= 3);
     const overlap = wordsB.filter((w) => wordsA.has(w)).length;
     return overlap;
   }
