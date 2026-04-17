@@ -26,6 +26,8 @@ interface InsightData {
   budgetUtilization: Array<{ category: string; color: string; spent: number; budget: number; remaining: number; pct: number }>;
   incomeVsSpending: Array<{ month: string; income: number; spending: number; net: number }>;
   spendingByMember: Record<string, { name: string; amount: number }>;
+  pendingCount: number;
+  pendingTotal: number;
 }
 
 interface Account {
@@ -230,6 +232,20 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Pending transactions banner */}
+      {insights.pendingCount > 0 && (
+        <Link
+          href="/transactions?status=pending"
+          className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 hover:bg-amber-100 transition-colors"
+        >
+          <p className="text-sm text-amber-700 font-medium">
+            {insights.pendingCount} pending transaction{insights.pendingCount !== 1 ? "s" : ""}{" "}
+            &bull; {formatCurrency(insights.pendingTotal)} estimated
+          </p>
+          <span className="text-xs text-amber-600 font-medium">View &rarr;</span>
+        </Link>
+      )}
 
       {/* Anomaly alerts */}
       {insights.anomalies.length > 0 && (

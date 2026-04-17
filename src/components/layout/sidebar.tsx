@@ -14,6 +14,7 @@ import {
   Settings,
   Menu,
   X,
+  Camera,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import { useState } from "react";
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/transactions", icon: ArrowUpDown, label: "Transactions" },
+  { href: "/quick-entry", icon: Camera, label: "Quick Entry" },
   { href: "/upload", icon: Upload, label: "Upload Statement" },
   { href: "/accounts", icon: Wallet, label: "Accounts" },
   { href: "/categories", icon: Tags, label: "Categories" },

@@ -17,6 +17,7 @@ export async function GET(request: Request) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const uncategorized = searchParams.get("uncategorized") === "true";
+  const status = searchParams.get("status"); // "pending" | "posted" | "all"
 
   const householdAccountIds = await getHouseholdAccountIds(session.user.id);
 
@@ -35,6 +36,8 @@ export async function GET(request: Request) {
           },
         }
       : {}),
+    ...(status === "pending" ? { isPending: true } : {}),
+    ...(status === "posted" ? { isPending: false } : {}),
   };
 
   const [transactions, total] = await Promise.all([

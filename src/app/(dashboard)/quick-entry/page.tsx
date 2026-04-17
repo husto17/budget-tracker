@@ -1,0 +1,442 @@
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import { format } from "date-fns";
+import { Camera, Upload, X, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import Link from "next/link";
+
+interface Account {
+  id: string;
+  name: string;
+  type: string;
+}
+
+interface ExtractedTransaction {
+  date: string;
+  description: string;
+  amount: number;
+  isCredit: boolean;
+  isPending: boolean;
+  selected: boolean;
+}
+
+function formatCurrency(n: number) {
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
+}
+
+export default function QuickEntryPage() {
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountId, setAccountId] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const [transactions, setTransactions] = useState<ExtractedTransaction[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveResult, setSaveResult] = useState<{ saved: number; skipped: number } | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch("/api/accounts")
+      .then((r) => r.json())
+      .then((data: Account[]) => {
+        setAccounts(data);
+        if (data.length > 0) setAccountId(data[0].id);
+      });
+  }, []);
+
+  const handleFileDrop = useCallback((f: File) => {
+    setFile(f);
+    setSaveResult(null);
+    setTransactions([]);
+    setExtractError(null);
+    const url = URL.createObjectURL(f);
+    setPreview(url);
+  }, []);
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (f) handleFileDrop(f);
+  }
+
+  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (f) handleFileDrop(f);
+  }
+
+  async function handleExtract() {
+    if (!file || !accountId) return;
+    setExtracting(true);
+    setExtractError(null);
+    setTransactions([]);
+    setSaveResult(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("accountId", accountId);
+
+    const res = await fetch("/api/upload/screenshot", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      setExtractError(data.error ?? "Failed to extract transactions");
+      setExtracting(false);
+      return;
+    }
+
+    const today = format(new Date(), "yyyy-MM-dd");
+    const extracted: ExtractedTransaction[] = (
+      data.transactions as Array<{
+        date: string | null;
+        description: string;
+        amount: number;
+        isCredit: boolean;
+        isPending: boolean;
+      }>
+    ).map((tx) => ({
+      date: tx.date ?? today,
+      description: tx.description,
+      amount: tx.amount,
+      isCredit: tx.isCredit,
+      isPending: tx.isPending,
+      selected: true,
+    }));
+
+    setTransactions(extracted);
+    setExtracting(false);
+  }
+
+  async function handleSave() {
+    if (!accountId) return;
+    setSaving(true);
+
+    const toSave = transactions
+      .filter((t) => t.selected)
+      .map(({ date, description, amount, isCredit, isPending }) => ({
+        date,
+        description,
+        amount,
+        isCredit,
+        isPending,
+      }));
+
+    const res = await fetch("/api/upload/screenshot/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accountId, transactions: toSave }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      setExtractError(data.error ?? "Failed to save transactions");
+      setSaving(false);
+      return;
+    }
+
+    setSaveResult({ saved: data.saved, skipped: data.skipped });
+    setTransactions([]);
+    setFile(null);
+    setPreview(null);
+    setSaving(false);
+  }
+
+  function updateTx(
+    idx: number,
+    field: keyof ExtractedTransaction,
+    value: string | number | boolean
+  ) {
+    setTransactions((prev) =>
+      prev.map((t, i) => (i === idx ? { ...t, [field]: value } : t))
+    );
+  }
+
+  const selectedCount = transactions.filter((t) => t.selected).length;
+
+  return (
+    <div className="space-y-6 max-w-2xl mx-auto">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <Camera className="w-6 h-6" />
+          Quick Entry
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Upload a screenshot of your bank app to extract transactions with AI.
+        </p>
+      </div>
+
+      {saveResult ? (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="pt-6 pb-5 space-y-3 text-center">
+            <div className="flex justify-center">
+              <span className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                <Check className="w-6 h-6 text-green-600" />
+              </span>
+            </div>
+            <p className="text-green-800 font-semibold text-lg">
+              Saved {saveResult.saved} transaction{saveResult.saved !== 1 ? "s" : ""}
+              {saveResult.skipped > 0 && ` (${saveResult.skipped} duplicate${saveResult.skipped !== 1 ? "s" : ""} skipped)`}
+            </p>
+            <div className="flex justify-center gap-3 pt-1">
+              <Link
+                href="/transactions?status=pending"
+                className="text-sm text-green-700 underline underline-offset-2 hover:text-green-900"
+              >
+                View pending transactions
+              </Link>
+              <button
+                onClick={() => setSaveResult(null)}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Upload another
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : transactions.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            {/* Account selector */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">Account</label>
+              <Select
+                value={accountId}
+                onValueChange={(v) => setAccountId(v ?? accountId)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Drop zone */}
+            <div
+              onDrop={handleDrop}
+              onDragOver={(e) => e.preventDefault()}
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-gray-200 rounded-xl p-10 text-center cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-colors"
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.heic"
+                className="hidden"
+                onChange={handleFileInput}
+              />
+              {preview ? (
+                <div className="space-y-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={preview}
+                    alt="Screenshot preview"
+                    className="max-h-48 mx-auto rounded-lg object-contain"
+                  />
+                  <p className="text-sm text-gray-500">{file?.name}</p>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFile(null);
+                      setPreview(null);
+                      setExtractError(null);
+                    }}
+                    className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1 mx-auto"
+                  >
+                    <X className="w-3 h-3" /> Remove
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Upload className="w-8 h-8 text-gray-300 mx-auto" />
+                  <p className="text-sm font-medium text-gray-600">
+                    Drag and drop a screenshot here
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    or click to browse — JPEG, PNG, HEIC
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {extractError && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                {extractError}
+              </p>
+            )}
+
+            <Button
+              onClick={handleExtract}
+              disabled={!file || !accountId || extracting}
+              className="w-full"
+            >
+              {extracting ? (
+                <>
+                  <span className="animate-spin mr-2 inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full" />
+                  Reading your screenshot with AI...
+                </>
+              ) : (
+                <>
+                  <Camera className="w-4 h-4 mr-2" />
+                  Extract transactions
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-600">
+              {transactions.length} transaction{transactions.length !== 1 ? "s" : ""} found — review and confirm
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setTransactions([]);
+                  setFile(null);
+                  setPreview(null);
+                  setExtractError(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={selectedCount === 0 || saving}
+                onClick={handleSave}
+              >
+                {saving ? "Saving..." : `Save ${selectedCount} transaction${selectedCount !== 1 ? "s" : ""}`}
+              </Button>
+            </div>
+          </div>
+
+          {extractError && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+              {extractError}
+            </p>
+          )}
+
+          <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr className="text-xs text-gray-400 uppercase tracking-wide">
+                  <th className="px-3 py-2 text-left w-8">
+                    <input
+                      type="checkbox"
+                      checked={transactions.every((t) => t.selected)}
+                      onChange={(e) =>
+                        setTransactions((prev) =>
+                          prev.map((t) => ({ ...t, selected: e.target.checked }))
+                        )
+                      }
+                    />
+                  </th>
+                  <th className="px-3 py-2 text-left">Date</th>
+                  <th className="px-3 py-2 text-left">Description</th>
+                  <th className="px-3 py-2 text-right">Amount</th>
+                  <th className="px-3 py-2 text-center">Type</th>
+                  <th className="px-3 py-2 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {transactions.map((tx, i) => (
+                  <tr
+                    key={i}
+                    className={`transition-colors ${
+                      tx.selected ? "" : "opacity-40"
+                    } ${tx.isPending ? "bg-amber-50/40" : ""}`}
+                  >
+                    <td className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={tx.selected}
+                        onChange={(e) => updateTx(i, "selected", e.target.checked)}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <Input
+                        type="date"
+                        value={tx.date}
+                        onChange={(e) => updateTx(i, "date", e.target.value)}
+                        className="h-7 text-xs w-32"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <Input
+                        value={tx.description}
+                        onChange={(e) => updateTx(i, "description", e.target.value)}
+                        className="h-7 text-xs min-w-[180px]"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={tx.amount}
+                        onChange={(e) => updateTx(i, "amount", parseFloat(e.target.value) || 0)}
+                        className="h-7 text-xs w-24 text-right"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <button
+                        onClick={() => updateTx(i, "isCredit", !tx.isCredit)}
+                        className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
+                          tx.isCredit
+                            ? "bg-green-100 text-green-700 hover:bg-green-200"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        }`}
+                      >
+                        {tx.isCredit ? "Credit" : "Debit"}
+                      </button>
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {tx.isPending ? (
+                        <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
+                          Pending
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-gray-400">Posted</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="text-xs text-gray-400 text-right">
+            Total selected: {formatCurrency(
+              transactions
+                .filter((t) => t.selected && !t.isCredit)
+                .reduce((s, t) => s + t.amount, 0)
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

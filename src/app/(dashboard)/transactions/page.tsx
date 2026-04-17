@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   Search,
@@ -63,6 +64,9 @@ interface Transaction {
   merchant: string | null;
   amount: number;
   isCredit: boolean;
+  isPending: boolean;
+  isReconciled: boolean;
+  source: string;
   category: Category | null;
   account: Account;
   notes: string | null;
@@ -75,7 +79,8 @@ function formatCurrency(n: number) {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
 }
 
-export default function TransactionsPage() {
+function TransactionsContent() {
+  const searchParams = useSearchParams();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -91,6 +96,10 @@ export default function TransactionsPage() {
   const [filterAccount, setFilterAccount] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterUncategorized, setFilterUncategorized] = useState(false);
+  const initialStatus = searchParams.get("status");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "posted">(
+    initialStatus === "pending" ? "pending" : initialStatus === "posted" ? "posted" : "all"
+  );
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
@@ -139,13 +148,14 @@ export default function TransactionsPage() {
       ...(search ? { search } : {}),
       ...(from ? { from } : {}),
       ...(to ? { to } : {}),
+      ...(statusFilter !== "all" ? { status: statusFilter } : {}),
     });
     const res = await fetch(`/api/transactions?${params}`);
     const data = await res.json();
     setTransactions(data.transactions);
     setTotal(data.total);
     setLoading(false);
-  }, [page, filterAccount, filterCategory, filterUncategorized, search, from, to]);
+  }, [page, filterAccount, filterCategory, filterUncategorized, search, from, to, statusFilter]);
 
   useEffect(() => {
     fetchTransactions();
@@ -426,6 +436,28 @@ export default function TransactionsPage() {
             Uncategorized only
           </Button>
         </div>
+        {/* Status filter */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-gray-500 font-medium mr-1">Show:</span>
+          {(["all", "posted", "pending"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => {
+                setStatusFilter(s);
+                setPage(1);
+              }}
+              className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
+                statusFilter === s
+                  ? s === "pending"
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-gray-900 text-white"
+                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+              }`}
+            >
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
+        </div>
         <div className="flex gap-3 items-end">
           <div className="space-y-1">
             <Label className="text-xs">From</Label>
@@ -518,10 +550,20 @@ export default function TransactionsPage() {
                         {formatCurrency(tx.amount)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="text-xs text-gray-400">
                         {format(new Date(tx.date), "dd MMM yyyy")}
                       </span>
+                      {tx.isPending && !tx.isReconciled && (
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                          Pending
+                        </span>
+                      )}
+                      {tx.isReconciled && (
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">
+                          Reconciled
+                        </span>
+                      )}
                       {tx.splits && tx.splits.length > 0 ? (
                         <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
                           <Scissors className="w-2.5 h-2.5" />
@@ -604,7 +646,7 @@ export default function TransactionsPage() {
                       key={tx.id}
                       className={`hover:bg-gray-50 transition-colors ${
                         selected.has(tx.id) ? "bg-blue-50" : ""
-                      }`}
+                      } ${tx.isPending ? "opacity-80" : ""}`}
                     >
                       <td className="px-4 py-3">
                         <input
@@ -617,7 +659,7 @@ export default function TransactionsPage() {
                         {format(new Date(tx.date), "dd MMM yyyy")}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <div>
                             <p className="text-sm font-medium text-gray-900 truncate max-w-[200px]">
                               {tx.merchant ?? tx.description}
@@ -628,6 +670,16 @@ export default function TransactionsPage() {
                               </p>
                             )}
                           </div>
+                          {tx.isPending && !tx.isReconciled && (
+                            <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 shrink-0">
+                              Pending
+                            </Badge>
+                          )}
+                          {tx.isReconciled && (
+                            <Badge className="text-xs bg-green-100 text-green-700 border-green-200 hover:bg-green-100 shrink-0">
+                              Reconciled
+                            </Badge>
+                          )}
                           {tx.transferPairId ? (
                             <Badge
                               variant="outline"
@@ -1219,5 +1271,13 @@ export default function TransactionsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function TransactionsPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-12 text-gray-400">Loading...</div>}>
+      <TransactionsContent />
+    </Suspense>
   );
 }

@@ -117,6 +117,11 @@ model Transaction {
   isRecurring         Boolean   @default(false)
   recurringGroupId    String?
 
+  // Screenshot / pending / reconciliation
+  isPending           Boolean   @default(false)
+  isReconciled        Boolean   @default(false)
+  source              String    @default("statement")
+
   splits              TransactionSplit[]
   createdAt           DateTime  @default(now())
 

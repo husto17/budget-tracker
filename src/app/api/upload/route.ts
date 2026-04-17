@@ -61,8 +61,17 @@ export async function POST(request: Request) {
     },
   });
 
+  function daysAround(date: Date, days: number): { gte: Date; lte: Date } {
+    const before = new Date(date);
+    before.setDate(before.getDate() - days);
+    const after = new Date(date);
+    after.setDate(after.getDate() + days);
+    return { gte: before, lte: after };
+  }
+
   let imported = 0;
   let skipped = 0;
+  let reconciled = 0;
   const transferPairsLinked: Array<[string, string]> = [];
 
   for (const tx of parseResult.transactions) {
@@ -90,8 +99,44 @@ export async function POST(request: Request) {
         uploadId: upload.id,
         merchant,
         categoryId,
+        source: "statement",
       },
     });
+
+    // Try to reconcile a matching pending screenshot transaction
+    const pendingMatch = await prisma.transaction.findFirst({
+      where: {
+        accountId: { in: householdAccountIds },
+        isPending: true,
+        isReconciled: false,
+        amount: tx.amount,
+        date: daysAround(tx.date, 5),
+      },
+    });
+
+    if (pendingMatch) {
+      // Fuzzy check: at least one word in common between descriptions
+      const createdWords = new Set(
+        created.description.toLowerCase().split(/\s+/).filter((w) => w.length > 3)
+      );
+      const pendingWords = pendingMatch.description
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length > 3);
+      const hasOverlap =
+        pendingWords.some((w) => createdWords.has(w)) ||
+        (created.merchant &&
+          pendingMatch.merchant &&
+          created.merchant.toLowerCase() === pendingMatch.merchant.toLowerCase());
+
+      if (hasOverlap) {
+        await prisma.transaction.update({
+          where: { id: pendingMatch.id },
+          data: { isReconciled: true, isPending: false },
+        });
+        reconciled++;
+      }
+    }
 
     // Try to detect transfer pair
     const pairId = await detectTransferPair(
@@ -121,6 +166,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     imported,
     skipped,
+    reconciled,
     transferPairsLinked: transferPairsLinked.length,
     errors: parseResult.errors,
     uploadId: upload.id,

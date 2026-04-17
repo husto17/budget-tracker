@@ -249,6 +249,17 @@ export async function GET(request: Request) {
     };
   }
 
+  // Pending transaction summary
+  const pendingTransactions = await prisma.transaction.findMany({
+    where: {
+      accountId: { in: accountIds },
+      isPending: true,
+    },
+    select: { amount: true },
+  });
+  const pendingCount = pendingTransactions.length;
+  const pendingTotal = pendingTransactions.reduce((s, t) => s + t.amount, 0);
+
   return NextResponse.json({
     monthlyByCategory,
     monthlyTotals,
@@ -265,5 +276,7 @@ export async function GET(request: Request) {
     spendingByMember,
     totalTransactions: transactions.length,
     subscriptions,
+    pendingCount,
+    pendingTotal,
   });
 }
