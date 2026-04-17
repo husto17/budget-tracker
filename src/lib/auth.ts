@@ -25,14 +25,16 @@ async function createUserWithDefaults(data: {
   password?: string;
   image?: string;
 }) {
-  return prisma.user.create({
-    data: {
-      ...data,
-      categories: {
-        create: DEFAULT_CATEGORIES.map((cat) => ({ ...cat, isDefault: true })),
-      },
-    },
+  // Two separate queries to avoid implicit transactions (not supported by PrismaNeonHttp)
+  const user = await prisma.user.create({ data });
+  await prisma.category.createMany({
+    data: DEFAULT_CATEGORIES.map((cat) => ({
+      ...cat,
+      userId: user.id,
+      isDefault: true,
+    })),
   });
+  return user;
 }
 
 export const authOptions: NextAuthOptions = {

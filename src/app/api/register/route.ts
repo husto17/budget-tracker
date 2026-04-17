@@ -38,17 +38,15 @@ export async function POST(request: Request) {
   const hashedPassword = await bcrypt.hash(password, 12);
 
   const user = await prisma.user.create({
-    data: {
-      email,
-      name,
-      password: hashedPassword,
-      categories: {
-        create: DEFAULT_CATEGORIES.map((cat) => ({
-          ...cat,
-          isDefault: true,
-        })),
-      },
-    },
+    data: { email, name, password: hashedPassword },
+  });
+
+  await prisma.category.createMany({
+    data: DEFAULT_CATEGORIES.map((cat) => ({
+      ...cat,
+      userId: user.id,
+      isDefault: true,
+    })),
   });
 
   return NextResponse.json({ id: user.id, email: user.email, name: user.name });
