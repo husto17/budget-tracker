@@ -72,32 +72,46 @@ export function normalizeMerchant(description: string): string {
 }
 
 /**
- * Detect potential transfer pairs across accounts.
- * Looks for transactions of the same amount ±1 day apart, one credit one debit.
+ * Detect potential transfer pairs across all household accounts.
+ *
+ * Looks for a transaction with the opposite isCredit flag, same amount, within ±3 days.
+ * Uses householdAccountIds so cross-partner transfers are detected (e.g. Hasan pays
+ * Matsu's credit card — debit on his checking, credit on her card).
+ *
+ * When multiple candidates exist (e.g. two £500 payments in the same week), picks
+ * the one closest in date rather than first-found.
  */
 export async function detectTransferPair(
-  userId: string,
+  householdAccountIds: string[],
   amount: number,
   date: Date,
   isCredit: boolean,
   excludeTransactionId?: string
 ): Promise<string | null> {
-  const dayBefore = new Date(date);
-  dayBefore.setDate(dayBefore.getDate() - 2);
-  const dayAfter = new Date(date);
-  dayAfter.setDate(dayAfter.getDate() + 2);
+  const windowStart = new Date(date);
+  windowStart.setDate(windowStart.getDate() - 3);
+  const windowEnd = new Date(date);
+  windowEnd.setDate(windowEnd.getDate() + 3);
 
-  const candidate = await prisma.transaction.findFirst({
+  const candidates = await prisma.transaction.findMany({
     where: {
-      account: { userId },
+      accountId: { in: householdAccountIds },
       amount,
-      isCredit: !isCredit, // opposite direction
-      date: { gte: dayBefore, lte: dayAfter },
-      transferPairId: null, // not already paired
+      isCredit: !isCredit,
+      date: { gte: windowStart, lte: windowEnd },
+      transferPairId: null,
       id: excludeTransactionId ? { not: excludeTransactionId } : undefined,
     },
-    orderBy: { date: "asc" },
   });
 
-  return candidate?.id ?? null;
+  if (candidates.length === 0) return null;
+
+  // Pick closest date match to avoid mispairings when multiple same-amount transfers exist
+  candidates.sort(
+    (a, b) =>
+      Math.abs(a.date.getTime() - date.getTime()) -
+      Math.abs(b.date.getTime() - date.getTime())
+  );
+
+  return candidates[0].id;
 }

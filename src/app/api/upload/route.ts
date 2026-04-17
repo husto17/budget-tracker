@@ -218,7 +218,7 @@ export async function POST(request: Request) {
 
     // Transfer pair detection
     const pairId = await detectTransferPair(
-      session.user.id,
+      householdAccountIds,
       tx.amount,
       tx.date,
       tx.isCredit,
