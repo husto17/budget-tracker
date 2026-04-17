@@ -73,18 +73,34 @@ export async function POST(request: Request) {
   function descriptionMatchScore(a: string, b: string, merchantA: string, merchantB: string): number {
     // Exact merchant match is strongest signal
     if (merchantA && merchantB && merchantA.toLowerCase() === merchantB.toLowerCase()) return 3;
-    // Significant word overlap (words > 3 chars)
-    const wordsA = new Set(a.toLowerCase().split(/\W+/).filter((w) => w.length > 3));
-    const wordsB = b.toLowerCase().split(/\W+/).filter((w) => w.length > 3);
+    // Significant word overlap (words ≥ 4 chars)
+    const wordsA = new Set(a.toLowerCase().split(/\W+/).filter((w) => w.length >= 4));
+    const wordsB = b.toLowerCase().split(/\W+/).filter((w) => w.length >= 4);
     const overlap = wordsB.filter((w) => wordsA.has(w)).length;
     return overlap;
   }
 
-  // Find a pending screenshot transaction that matches this statement transaction.
-  // Strategy 1: exact amount + ±7 days + description similarity
-  // Strategy 2: amount within 25% (handles restaurant tips) + ±3 days + strong merchant match
+  // Days between two dates (absolute)
+  function daysDiff(a: Date, b: Date): number {
+    return Math.abs(a.getTime() - b.getTime()) / 86_400_000;
+  }
+
+  // Find the best-matching pending screenshot transaction for a statement transaction.
+  //
+  // Old approach: return first candidate that clears a threshold.
+  // Problem: two Starbucks visits same week, same price → first-found wins regardless
+  // of which is actually the right match.
+  //
+  // New approach: collect ALL qualifying candidates, score each one, return the best.
+  // Score = (description quality × 10) − date distance in days
+  // This prefers same-merchant + closest date over a weaker match that happens to appear first.
+  //
+  // isReconciled:false filter already prevents a pending tx from being claimed twice.
   async function findPendingMatch(txDate: Date, txAmount: number, txDesc: string, txMerchant: string) {
-    // Strategy 1: exact amount
+    type Scored = { candidate: typeof exactCandidates[0]; score: number };
+    const ranked: Scored[] = [];
+
+    // Pool 1: exact amount, ±7 days (loose description requirement: score ≥ 1)
     const exactCandidates = await prisma.transaction.findMany({
       where: {
         accountId: { in: householdAccountIds },
@@ -95,11 +111,13 @@ export async function POST(request: Request) {
       },
     });
     for (const c of exactCandidates) {
-      if (descriptionMatchScore(txDesc, c.description, txMerchant, c.merchant ?? "") > 0) {
-        return c;
+      const desc = descriptionMatchScore(txDesc, c.description, txMerchant, c.merchant ?? "");
+      if (desc >= 1) {
+        ranked.push({ candidate: c, score: desc * 10 - daysDiff(txDate, c.date) });
       }
     }
-    // Strategy 2: flexible amount (±25%) for tips/pre-auths, tighter date window, strong merchant
+
+    // Pool 2: amount ±25% (tips/pre-auths), ±3 days, stricter description (score ≥ 2)
     const lo = txAmount * 0.75;
     const hi = txAmount * 1.25;
     const flexCandidates = await prisma.transaction.findMany({
@@ -112,11 +130,19 @@ export async function POST(request: Request) {
       },
     });
     for (const c of flexCandidates) {
-      if (descriptionMatchScore(txDesc, c.description, txMerchant, c.merchant ?? "") >= 2) {
-        return c;
+      // Skip if already added from exact pool
+      if (ranked.some((r) => r.candidate.id === c.id)) continue;
+      const desc = descriptionMatchScore(txDesc, c.description, txMerchant, c.merchant ?? "");
+      if (desc >= 2) {
+        ranked.push({ candidate: c, score: desc * 10 - daysDiff(txDate, c.date) });
       }
     }
-    return null;
+
+    if (ranked.length === 0) return null;
+
+    // Return the highest-scoring candidate (best description match, closest date)
+    ranked.sort((a, b) => b.score - a.score);
+    return ranked[0].candidate;
   }
 
   let imported = 0;
