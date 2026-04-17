@@ -122,5 +122,6 @@ export async function POST(request: Request) {
     transferPairsLinked: transferPairsLinked.length,
     errors: parseResult.errors,
     uploadId: upload.id,
+    detectedBank: "detectedBank" in parseResult ? parseResult.detectedBank : undefined,
   });
 }

@@ -5,6 +5,7 @@ export interface PdfParseResult {
   transactions: ParsedTransaction[];
   errors: string[];
   rawText: string;
+  detectedBank?: string;
 }
 
 function hashTransaction(date: Date, description: string, amount: number): string {
@@ -12,91 +13,432 @@ function hashTransaction(date: Date, description: string, amount: number): strin
   return crypto.createHash("sha256").update(str).digest("hex").slice(0, 16);
 }
 
-function parseAmount(val: string): number {
-  return parseFloat(val.replace(/[£$€,\s]/g, "").replace(/[()]/g, (c) => c === "(" ? "-" : "")) || 0;
+function parseSignedAmount(val: string): number {
+  return parseFloat(val.replace(/,/g, "").replace(/[()]/g, (c) => (c === "(" ? "-" : ""))) || 0;
 }
 
-// Generic date regex patterns
-const DATE_RE = /(\d{1,2}[\s\/\-]\w{3,9}[\s\/\-]\d{2,4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})/;
-const AMOUNT_RE = /[£$€]?\s*[\d,]+\.\d{2}/g;
+// ---------------------------------------------------------------------------
+// Year inference — scans statement header text for a 4-digit year
+// ---------------------------------------------------------------------------
+function inferStatementYear(text: string): number {
+  const currentYear = new Date().getFullYear();
 
-function parseDate(val: string): Date | null {
-  const d = new Date(val);
-  if (!isNaN(d.getTime())) return d;
+  // "Statement Closing Date 04/06/2026" or "Statement Date: MM/DD/YYYY"
+  const closingDate = text.match(/(?:closing|statement|period end(?:ing)?)\s*(?:date)?[:\s]+\d{1,2}\/\d{1,2}\/(\d{4})/i);
+  if (closingDate) return parseInt(closingDate[1]);
 
-  // Try DD MMM YYYY / DD MMM YY
-  const m = val.match(/(\d{1,2})\s+([A-Za-z]{3})\s+(\d{2,4})/);
-  if (m) {
-    const year = m[3].length === 2 ? `20${m[3]}` : m[3];
-    const d2 = new Date(`${m[2]} ${m[1]} ${year}`);
-    if (!isNaN(d2.getTime())) return d2;
-  }
+  // "March 7 - April 6, 2026"
+  const monthRange = text.match(/(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}\s*[-–]\s*(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},?\s*(\d{4})/i);
+  if (monthRange) return parseInt(monthRange[1]);
 
-  return null;
+  // Any 4-digit year near top of document (first 2000 chars)
+  const topSection = text.slice(0, 2000);
+  const yearMatch = topSection.match(/20\d{2}/);
+  if (yearMatch) return parseInt(yearMatch[0]);
+
+  return currentYear;
 }
 
-/**
- * Extract transactions from raw PDF text.
- *
- * Strategy: scan line by line for lines that contain a date and a money amount.
- * Works for most UK/US bank statement PDFs. If a bank uses multi-line entries,
- * we look ahead one line for the amount if the date line has none.
- */
-export function parsePdfText(text: string): PdfParseResult {
-  const errors: string[] = [];
+// Given a statement closing month and a transaction month, resolve the year.
+// Handles December→January rollovers.
+function resolveYear(baseYear: number, closingMonth: number, txMonth: number): number {
+  // If transaction month is significantly later than closing month, it's the previous year
+  // e.g., closing in January (1), transaction in December (12) → previous year
+  if (closingMonth <= 3 && txMonth >= 10) return baseYear - 1;
+  return baseYear;
+}
+
+// ---------------------------------------------------------------------------
+// Bank of America — Credit Card
+// Format: MM/DD  MM/DD  DESCRIPTION  REFNUM  LASTFOUR  AMOUNT
+// Credits are negative amounts (payments, refunds)
+// ---------------------------------------------------------------------------
+function parseBofaCreditCard(text: string, lines: string[]): ParsedTransaction[] {
+  const year = inferStatementYear(text);
+  const closingDateMatch = text.match(/Statement Closing Date\s+(\d{2})\/(\d{2})\/\d{4}/i);
+  const closingMonth = closingDateMatch ? parseInt(closingDateMatch[1]) : new Date().getMonth() + 1;
+
   const transactions: ParsedTransaction[] = [];
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  // Matches: "03/06 03/07 Gympass US LLC 844-4784744 NY 1089 9576 237.03"
+  // or credits: "03/20 03/20 PAYMENT FROM CHK 0607 CONF#bpcq9otqe 7902 9576 -2,443.74"
+  const FULL_LINE_RE = /^(\d{2}\/\d{2})\s+\d{2}\/\d{2}\s+(.+?)\s+\d{4}\s+\d{4}\s+(-?[\d,]+\.\d{2})$/;
+  // Matches: "03/08 03/09 UBER *TRIP HELP.UBER.COM" (no amount — multi-line entry)
+  const PARTIAL_LINE_RE = /^(\d{2}\/\d{2})\s+\d{2}\/\d{2}\s+(.+)$/;
+  // Matches the ref+acct+amount line: "6373 9576 6.86"
+  const AMOUNT_LINE_RE = /^\d{4}\s+\d{4}\s+(-?[\d,]+\.\d{2})$/;
+  // Skip summary/header lines
+  const SKIP_RE = /^(TOTAL\s|INTEREST CHARGED ON|Payments and Other Credits|Purchases and Adjustments|Fees$|Interest Charged|Transaction\s+Date|Posting\s+Date|\d{4}\s+Totals)/i;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    if (SKIP_RE.test(line)) continue;
 
+    let txDateStr: string | undefined;
+    let description: string | undefined;
+    let amountStr: string | undefined;
+
+    const fullMatch = line.match(FULL_LINE_RE);
+    if (fullMatch) {
+      [, txDateStr, description, amountStr] = fullMatch;
+    } else {
+      // Try multi-line: description on this line, then optional FX line, then ref+acct+amount
+      const partialMatch = line.match(PARTIAL_LINE_RE);
+      if (partialMatch) {
+        txDateStr = partialMatch[1];
+        description = partialMatch[2];
+        // Look ahead up to 3 lines
+        for (let j = i + 1; j <= Math.min(i + 3, lines.length - 1); j++) {
+          const next = lines[j];
+          if (AMOUNT_LINE_RE.test(next)) {
+            amountStr = next.match(AMOUNT_LINE_RE)![1];
+            i = j; // skip the lines we consumed
+            break;
+          }
+          // Foreign currency amount on continuation line — append to description context
+          // e.g. "120.88 MXN" — we just skip it (USD amount comes after)
+          if (/^[\d,]+\.\d+\s+[A-Z]{3}$/.test(next)) continue;
+          // Anything else — stop looking ahead
+          break;
+        }
+      }
+    }
+
+    if (!txDateStr || !description || !amountStr) continue;
+    if (/^TOTAL\s/i.test(description)) continue;
+
+    const amount = Math.abs(parseSignedAmount(amountStr));
+    if (amount === 0) continue;
+
+    const isCredit = parseSignedAmount(amountStr) < 0;
+    const [month, day] = txDateStr.split("/").map(Number);
+    const txYear = resolveYear(year, closingMonth, month);
+    const date = new Date(txYear, month - 1, day);
+    if (isNaN(date.getTime())) continue;
+
+    transactions.push({
+      date,
+      description: description.trim(),
+      amount,
+      isCredit,
+      hash: hashTransaction(date, description.trim(), amount),
+    });
+  }
+
+  return transactions;
+}
+
+// ---------------------------------------------------------------------------
+// Bank of America — Checking / Savings
+// Format: MM/DD/YYYY  DESCRIPTION  AMOUNT  RUNNING_BALANCE
+// Or:     MM/DD/YYYY  DESCRIPTION  DEBIT   CREDIT  BALANCE
+// ---------------------------------------------------------------------------
+function parseBofaChecking(text: string, lines: string[]): ParsedTransaction[] {
+  const transactions: ParsedTransaction[] = [];
+  // Date + description + optional debit/credit/balance columns
+  // "04/01/2026  ACH CREDIT PAYROLL         2,500.00            5,123.00"
+  // "04/02/2026  PURCHASE STARBUCKS             4.50  5,118.50"
+  const LINE_RE = /^(\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+(-?[\d,]+\.\d{2})(?:\s+[\d,]+\.\d{2})*$/;
+
+  for (const line of lines) {
+    const m = line.match(LINE_RE);
+    if (!m) continue;
+    const [, dateStr, description, amountStr] = m;
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) continue;
+    const raw = parseSignedAmount(amountStr);
+    if (raw === 0) continue;
+    const isCredit = raw > 0;
+    transactions.push({
+      date,
+      description: description.trim(),
+      amount: Math.abs(raw),
+      isCredit,
+      hash: hashTransaction(date, description.trim(), Math.abs(raw)),
+    });
+  }
+  return transactions;
+}
+
+// ---------------------------------------------------------------------------
+// Chase — Credit Card & Checking
+// Credit card: MM/DD  MM/DD  DESCRIPTION  AMOUNT
+// Checking:    MM/DD  DESCRIPTION  AMOUNT  BALANCE
+// ---------------------------------------------------------------------------
+function parseChase(text: string, lines: string[]): ParsedTransaction[] {
+  const year = inferStatementYear(text);
+  const closingDateMatch = text.match(/(?:through|closing|ending|statement date)\s+(\d{2})\/(\d{2})\/(\d{4})/i);
+  const closingMonth = closingDateMatch ? parseInt(closingDateMatch[1]) : new Date().getMonth() + 1;
+  const transactions: ParsedTransaction[] = [];
+
+  // Chase credit card: "03/14 03/15 WHOLE FOODS MARKET #12345 -52.40" (negative = debit)
+  // Chase checking:    "03/14 ACH PMT CHASE CREDIT CRD -1,200.00"
+  // Amount sign convention varies — debits can be positive or negative depending on statement type
+  const CC_LINE_RE = /^(\d{2}\/\d{2})\s+\d{2}\/\d{2}\s+(.+?)\s+(-?[\d,]+\.\d{2})$/;
+  const CHK_LINE_RE = /^(\d{2}\/\d{2})\s+(.+?)\s+(-?[\d,]+\.\d{2})(?:\s+[\d,]+\.\d{2})?$/;
+  const SKIP_RE = /^(DATE\s|TRANSACTION\s|PAYMENT THANK YOU|Deposits|Withdrawals|Beginning Balance|Ending Balance)/i;
+
+  // Detect credit card mode by presence of two consecutive MM/DD patterns
+  const isCreditCard = /^\d{2}\/\d{2}\s+\d{2}\/\d{2}\s+/m.test(text);
+  const LINE_RE = isCreditCard ? CC_LINE_RE : CHK_LINE_RE;
+
+  for (const line of lines) {
+    if (SKIP_RE.test(line)) continue;
+    const m = line.match(LINE_RE);
+    if (!m) continue;
+    const [, dateStr, description, amountStr] = m;
+    const raw = parseSignedAmount(amountStr);
+    if (raw === 0) continue;
+    const [month, day] = dateStr.split("/").map(Number);
+    const txYear = resolveYear(year, closingMonth, month);
+    const date = new Date(txYear, month - 1, day);
+    if (isNaN(date.getTime())) continue;
+    // Chase: negative = debit (money out), positive = credit (money in)
+    const isCredit = raw > 0;
+    transactions.push({
+      date,
+      description: description.trim(),
+      amount: Math.abs(raw),
+      isCredit,
+      hash: hashTransaction(date, description.trim(), Math.abs(raw)),
+    });
+  }
+  return transactions;
+}
+
+// ---------------------------------------------------------------------------
+// Wells Fargo — Checking / Savings / Credit Card
+// Format: MM/DD/YYYY  DESCRIPTION  AMOUNT  RUNNING_BALANCE
+// Or credit card: MM/DD/YYYY  MM/DD/YYYY  DESCRIPTION  AMOUNT
+// ---------------------------------------------------------------------------
+function parseWellsFargo(text: string, lines: string[]): ParsedTransaction[] {
+  const transactions: ParsedTransaction[] = [];
+  // Two-date format (credit card): "03/14/2026 03/15/2026 AMAZON.COM*12345678 -45.99"
+  const CC_LINE_RE = /^(\d{2}\/\d{2}\/\d{4})\s+\d{2}\/\d{2}\/\d{4}\s+(.+?)\s+(-?[\d,]+\.\d{2})$/;
+  // Single-date format (checking): "03/14/2026 PURCHASE WHOLE FOODS -45.99 3,200.00"
+  const CHK_LINE_RE = /^(\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+(-?[\d,]+\.\d{2})(?:\s+[\d,]+\.\d{2})?$/;
+  const SKIP_RE = /^(DATE\s|TRANSACTION\s|Beginning|Ending|Total\s)/i;
+
+  const isCreditCard = /^\d{2}\/\d{2}\/\d{4}\s+\d{2}\/\d{2}\/\d{4}/m.test(text);
+  const LINE_RE = isCreditCard ? CC_LINE_RE : CHK_LINE_RE;
+
+  for (const line of lines) {
+    if (SKIP_RE.test(line)) continue;
+    const m = line.match(LINE_RE);
+    if (!m) continue;
+    const [, dateStr, description, amountStr] = m;
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) continue;
+    const raw = parseSignedAmount(amountStr);
+    if (raw === 0) continue;
+    // WF: positive = credit (deposit), negative = debit (purchase)
+    const isCredit = raw > 0;
+    transactions.push({
+      date,
+      description: description.trim(),
+      amount: Math.abs(raw),
+      isCredit,
+      hash: hashTransaction(date, description.trim(), Math.abs(raw)),
+    });
+  }
+  return transactions;
+}
+
+// ---------------------------------------------------------------------------
+// Citi — Credit Card
+// Format: MM/DD/YYYY  DESCRIPTION  DEBIT_AMOUNT  or  MM/DD/YYYY  DESCRIPTION  -CREDIT_AMOUNT
+// Some formats: TRANSACTION_DATE  POST_DATE  DESCRIPTION  AMOUNT
+// ---------------------------------------------------------------------------
+function parseCiti(text: string, lines: string[]): ParsedTransaction[] {
+  const transactions: ParsedTransaction[] = [];
+  // "04/01/2026   04/03/2026   AMAZON MKTPL*123456789        -89.99"
+  const CC_LINE_RE = /^(\d{2}\/\d{2}\/\d{4})\s+\d{2}\/\d{2}\/\d{4}\s+(.+?)\s{2,}(-?[\d,]+\.\d{2})$/;
+  // "04/01   AMAZON MKTPL*123456789        -89.99"
+  const SIMPLE_RE = /^(\d{2}\/\d{2}\/\d{4})\s+(.+?)\s{2,}(-?[\d,]+\.\d{2})$/;
+  const SKIP_RE = /^(Date\s|Transaction\s|Total\s|Payment\s+Thank\s+You)/i;
+
+  const hasTwoDates = /^\d{2}\/\d{2}\/\d{4}\s+\d{2}\/\d{2}\/\d{4}/m.test(text);
+  const LINE_RE = hasTwoDates ? CC_LINE_RE : SIMPLE_RE;
+
+  for (const line of lines) {
+    if (SKIP_RE.test(line)) continue;
+    const m = line.match(LINE_RE);
+    if (!m) continue;
+    const [, dateStr, description, amountStr] = m;
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) continue;
+    const raw = parseSignedAmount(amountStr);
+    if (raw === 0) continue;
+    // Citi: negative = credit (payment/refund), positive = debit (purchase)
+    const isCredit = raw < 0;
+    transactions.push({
+      date,
+      description: description.trim(),
+      amount: Math.abs(raw),
+      isCredit,
+      hash: hashTransaction(date, description.trim(), Math.abs(raw)),
+    });
+  }
+  return transactions;
+}
+
+// ---------------------------------------------------------------------------
+// Capital One — Credit Card
+// Format: MM/DD/YYYY  MM/DD/YYYY  CARD_LAST4  DESCRIPTION  CATEGORY  DEBIT  CREDIT
+// Or simplified: TRANSACTION_DATE  POSTED_DATE  DESCRIPTION  DEBIT  CREDIT
+// ---------------------------------------------------------------------------
+function parseCapitalOne(text: string, lines: string[]): ParsedTransaction[] {
+  const transactions: ParsedTransaction[] = [];
+  // "03/14/2026 03/15/2026 1234 AMAZON.COM Shopping 45.99"
+  // "03/20/2026 03/20/2026 1234 PAYMENT THANK YOU Payment  1,200.00"
+  const LINE_RE = /^(\d{2}\/\d{2}\/\d{4})\s+\d{2}\/\d{2}\/\d{4}\s+\d{4}\s+(.+?)\s+[\w\s&/]+\s+([\d,]+\.\d{2})\s*$/;
+  // Simpler fallback: date  description  debit  credit
+  const SIMPLE_RE = /^(\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+([\d,]+\.\d{2})\s*([\d,]+\.\d{2})?$/;
+  const SKIP_RE = /^(Trans(?:action)?\s+Date|Posted\s+Date|Total\s|Payment\s+Due)/i;
+
+  for (const line of lines) {
+    if (SKIP_RE.test(line)) continue;
+    let m = line.match(LINE_RE);
+    if (!m) m = line.match(SIMPLE_RE);
+    if (!m) continue;
+    const [, dateStr, description, debitStr, creditStr] = m;
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) continue;
+    const debit = parseSignedAmount(debitStr || "");
+    const credit = parseSignedAmount(creditStr || "");
+    let amount: number;
+    let isCredit: boolean;
+    if (credit > 0) {
+      amount = credit;
+      isCredit = true;
+    } else if (debit > 0) {
+      amount = debit;
+      isCredit = false;
+    } else continue;
+    transactions.push({
+      date,
+      description: description.trim(),
+      amount,
+      isCredit,
+      hash: hashTransaction(date, description.trim(), amount),
+    });
+  }
+  return transactions;
+}
+
+// ---------------------------------------------------------------------------
+// American Express — Credit Card
+// Format: MM/DD/YYYY  DESCRIPTION  AMOUNT
+// Credits shown as negative; purchases positive
+// ---------------------------------------------------------------------------
+function parseAmex(text: string, lines: string[]): ParsedTransaction[] {
+  const year = inferStatementYear(text);
+  const transactions: ParsedTransaction[] = [];
+  // "03/14/26  WHOLE FOODS #1234     NEW YORK NY       52.40"
+  // "03/20/26  PAYMENT RECEIVED                      -1,200.00"
+  const LINE_RE = /^(\d{2}\/\d{2}\/\d{2,4})\s+(.+?)\s{2,}(-?[\d,]+\.\d{2})$/;
+  const SKIP_RE = /^(Date\s|Reference\s|Total\s|Opening\s|Closing\s|New\s+Charges)/i;
+  void year; // year is already embedded in Amex dates
+
+  for (const line of lines) {
+    if (SKIP_RE.test(line)) continue;
+    const m = line.match(LINE_RE);
+    if (!m) continue;
+    const [, dateStr, description, amountStr] = m;
+    // Handle 2-digit years (03/14/26 → 2026)
+    const dateParts = dateStr.split("/");
+    if (dateParts[2].length === 2) dateParts[2] = `20${dateParts[2]}`;
+    const date = new Date(`${dateParts[0]}/${dateParts[1]}/${dateParts[2]}`);
+    if (isNaN(date.getTime())) continue;
+    const raw = parseSignedAmount(amountStr);
+    if (raw === 0) continue;
+    const isCredit = raw < 0;
+    transactions.push({
+      date,
+      description: description.trim(),
+      amount: Math.abs(raw),
+      isCredit,
+      hash: hashTransaction(date, description.trim(), Math.abs(raw)),
+    });
+  }
+  return transactions;
+}
+
+// ---------------------------------------------------------------------------
+// Discover — Credit Card
+// Format: Trans. Date  Post Date  Description  Amount
+// Credits shown as negative
+// ---------------------------------------------------------------------------
+function parseDiscover(text: string, lines: string[]): ParsedTransaction[] {
+  const transactions: ParsedTransaction[] = [];
+  const LINE_RE = /^(\d{2}\/\d{2}\/\d{4})\s+\d{2}\/\d{2}\/\d{4}\s+(.+?)\s{2,}(-?[\d,]+\.\d{2})$/;
+  const SKIP_RE = /^(Trans\.?\s+Date|Post\s+Date|Total\s)/i;
+
+  for (const line of lines) {
+    if (SKIP_RE.test(line)) continue;
+    const m = line.match(LINE_RE);
+    if (!m) continue;
+    const [, dateStr, description, amountStr] = m;
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) continue;
+    const raw = parseSignedAmount(amountStr);
+    if (raw === 0) continue;
+    const isCredit = raw < 0;
+    transactions.push({
+      date,
+      description: description.trim(),
+      amount: Math.abs(raw),
+      isCredit,
+      hash: hashTransaction(date, description.trim(), Math.abs(raw)),
+    });
+  }
+  return transactions;
+}
+
+// ---------------------------------------------------------------------------
+// Generic fallback — scans for any line with a date pattern and a money amount
+// ---------------------------------------------------------------------------
+function parseGeneric(text: string, lines: string[]): ParsedTransaction[] {
+  const year = inferStatementYear(text);
+  const transactions: ParsedTransaction[] = [];
+
+  const DATE_RE = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})/;
+  const AMOUNT_RE = /[£$€]?\s*(-?[\d,]+\.\d{2})/g;
+
+  for (const line of lines) {
     const dateMatch = line.match(DATE_RE);
     if (!dateMatch) continue;
 
-    const date = parseDate(dateMatch[1]);
-    if (!date) continue;
-
-    // Find all money amounts on this line (or next line)
-    let amountLine = line;
-    const directAmounts = line.match(AMOUNT_RE);
-    if (!directAmounts && i + 1 < lines.length) {
-      amountLine = lines[i + 1];
+    let date = new Date(dateMatch[1]);
+    if (isNaN(date.getTime())) {
+      // Try adding current year for MM/DD
+      const shortDate = dateMatch[1].match(/^(\d{1,2})\/(\d{1,2})$/);
+      if (shortDate) date = new Date(year, parseInt(shortDate[1]) - 1, parseInt(shortDate[2]));
     }
+    if (isNaN(date.getTime())) continue;
 
-    const amounts = amountLine.match(AMOUNT_RE);
-    if (!amounts || amounts.length === 0) continue;
+    const amounts = [...line.matchAll(AMOUNT_RE)];
+    if (amounts.length === 0) continue;
 
-    // Description: everything between date and first amount
-    const dateEnd = line.indexOf(dateMatch[1]) + dateMatch[1].length;
-    const firstAmountIdx = line.indexOf(amounts[0]);
-    let description: string;
-
-    if (firstAmountIdx > dateEnd) {
-      description = line.slice(dateEnd, firstAmountIdx).trim();
-    } else {
-      description = line.slice(dateEnd).trim();
-    }
-
-    if (!description) {
-      // Try to use the preceding non-date line as description
-      description = i > 0 ? lines[i - 1].slice(0, 60) : "Unknown";
-    }
-
-    // Determine amount and direction
-    // If there are 2 amounts: last one is usually running balance, first is transaction
-    const rawAmount = amounts[0];
-    const amount = Math.abs(parseAmount(rawAmount));
+    const rawAmount = amounts[0][1];
+    const amount = Math.abs(parseSignedAmount(rawAmount));
     if (amount === 0) continue;
 
-    // Heuristic: negative marker or keyword indicates debit
+    const dateEnd = line.indexOf(dateMatch[1]) + dateMatch[1].length;
+    const firstAmountIdx = line.indexOf(amounts[0][0]);
+    let description = firstAmountIdx > dateEnd
+      ? line.slice(dateEnd, firstAmountIdx).trim()
+      : line.slice(dateEnd).trim();
+    if (!description || description.length < 2) continue;
+
     const lineUpper = line.toUpperCase();
     const isCredit =
-      lineUpper.includes("CREDIT") ||
-      lineUpper.includes("DEPOSIT") ||
-      lineUpper.includes("REFUND") ||
-      lineUpper.includes("REVERSAL") ||
-      lineUpper.includes("CASHBACK") ||
-      (rawAmount.startsWith("+") && !rawAmount.startsWith("-"));
+      parseSignedAmount(rawAmount) > 0
+        ? true
+        : lineUpper.includes("CREDIT") ||
+          lineUpper.includes("DEPOSIT") ||
+          lineUpper.includes("REFUND") ||
+          lineUpper.includes("PAYMENT");
 
     transactions.push({
       date,
@@ -106,13 +448,82 @@ export function parsePdfText(text: string): PdfParseResult {
       hash: hashTransaction(date, description, amount),
     });
   }
+  return transactions;
+}
+
+// ---------------------------------------------------------------------------
+// Bank detection
+// ---------------------------------------------------------------------------
+function detectBank(text: string): string {
+  const upper = text.slice(0, 3000).toUpperCase();
+  if (upper.includes("BANK OF AMERICA")) return "bofa";
+  if (upper.includes("CHASE") || upper.includes("JPMORGAN")) return "chase";
+  if (upper.includes("WELLS FARGO")) return "wellsfargo";
+  if (upper.includes("CITIBANK") || upper.includes("CITI BANK") || upper.includes("CITICARDS")) return "citi";
+  if (upper.includes("CAPITAL ONE")) return "capitalone";
+  if (upper.includes("AMERICAN EXPRESS") || upper.includes("AMEX")) return "amex";
+  if (upper.includes("DISCOVER BANK") || upper.includes("DISCOVER CARD")) return "discover";
+  return "generic";
+}
+
+// ---------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------
+export function parsePdfText(text: string): PdfParseResult {
+  const errors: string[] = [];
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  const bank = detectBank(text);
+  let transactions: ParsedTransaction[] = [];
+  let detectedBank: string | undefined;
+
+  // BofA: distinguish credit card vs checking by statement structure
+  if (bank === "bofa") {
+    // Credit card statements have "Account #" with 16-digit format and "Visa/Mastercard/etc."
+    const isCreditCard =
+      /Visa|Mastercard|World\s+Master|Cash\s+Rewards|Travel\s+Rewards|Unlimited\s+Cash/i.test(text) ||
+      /Account\s*#\s*\d{4}\s+\d{4}\s+\d{4}\s+\d{4}/i.test(text);
+
+    if (isCreditCard) {
+      transactions = parseBofaCreditCard(text, lines);
+      detectedBank = "Bank of America Credit Card";
+    } else {
+      transactions = parseBofaChecking(text, lines);
+      detectedBank = "Bank of America Checking/Savings";
+    }
+  } else if (bank === "chase") {
+    transactions = parseChase(text, lines);
+    detectedBank = "Chase";
+  } else if (bank === "wellsfargo") {
+    transactions = parseWellsFargo(text, lines);
+    detectedBank = "Wells Fargo";
+  } else if (bank === "citi") {
+    transactions = parseCiti(text, lines);
+    detectedBank = "Citibank";
+  } else if (bank === "capitalone") {
+    transactions = parseCapitalOne(text, lines);
+    detectedBank = "Capital One";
+  } else if (bank === "amex") {
+    transactions = parseAmex(text, lines);
+    detectedBank = "American Express";
+  } else if (bank === "discover") {
+    transactions = parseDiscover(text, lines);
+    detectedBank = "Discover";
+  }
+
+  // If bank-specific parser found nothing, fall back to generic
+  if (transactions.length === 0) {
+    transactions = parseGeneric(text, lines);
+    detectedBank = detectedBank ? `${detectedBank} (generic fallback)` : "Unknown bank (generic)";
+  }
 
   if (transactions.length === 0) {
     errors.push(
-      "Could not automatically extract transactions from this PDF. " +
-      "The format may not be supported. Try exporting as CSV from your bank."
+      "Could not extract transactions from this PDF." +
+        (detectedBank ? ` Detected: ${detectedBank}.` : "") +
+        " Try exporting as CSV from your bank's website instead."
     );
   }
 
-  return { transactions, errors, rawText: text };
+  return { transactions, errors, rawText: text, detectedBank };
 }
