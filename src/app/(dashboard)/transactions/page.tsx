@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -15,6 +15,8 @@ import {
   Unlink,
   Scissors,
   Pencil,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -128,6 +130,10 @@ function TransactionsContent() {
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [selectedPair, setSelectedPair] = useState<string>("");
   const [linkingTransfer, setLinkingTransfer] = useState(false);
+
+  // Transfer pair collapse state
+  const [expandedPairs, setExpandedPairs] = useState<Set<string>>(new Set());
+  const [linkingBulk, setLinkingBulk] = useState(false);
 
   // Inline edit
   const [editTx, setEditTx] = useState<Transaction | null>(null);
@@ -379,6 +385,78 @@ function TransactionsContent() {
     }
   }
 
+  // For each tx that's in a pair where BOTH sides are on this page,
+  // record which side is "first" (keeps the collapsed row there) and
+  // a stable pair key used for expand state + React keys.
+  const pairInfo = useMemo(() => {
+    const byId = new Map(transactions.map((t) => [t.id, t]));
+    const info = new Map<string, { pairKey: string; isFirst: boolean; other: Transaction }>();
+    const firstSeen = new Set<string>();
+    for (const tx of transactions) {
+      if (!tx.transferPairId) continue;
+      const other = byId.get(tx.transferPairId);
+      if (!other) continue; // pair's other side not on this page — render normally
+      const pairKey = [tx.id, other.id].sort().join("_");
+      const isFirst = !firstSeen.has(pairKey);
+      if (isFirst) firstSeen.add(pairKey);
+      info.set(tx.id, { pairKey, isFirst, other });
+    }
+    return info;
+  }, [transactions]);
+
+  function togglePairExpanded(pairKey: string) {
+    setExpandedPairs((prev) => {
+      const next = new Set(prev);
+      if (next.has(pairKey)) next.delete(pairKey);
+      else next.add(pairKey);
+      return next;
+    });
+  }
+
+  function togglePairSelect(aId: string, bId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const both = next.has(aId) && next.has(bId);
+      if (both) { next.delete(aId); next.delete(bId); }
+      else { next.add(aId); next.add(bId); }
+      return next;
+    });
+  }
+
+  // Bulk-link: exactly 2 selected, different accounts, opposite direction, same amount
+  const bulkLinkEligible = useMemo(() => {
+    if (selected.size !== 2) return false;
+    const [aId, bId] = Array.from(selected);
+    const a = transactions.find((t) => t.id === aId);
+    const b = transactions.find((t) => t.id === bId);
+    if (!a || !b) return false;
+    if (a.transferPairId || b.transferPairId) return false;
+    if (a.account.id === b.account.id) return false;
+    if (a.isCredit === b.isCredit) return false;
+    if (Math.abs(a.amount - b.amount) > 0.01) return false;
+    return true;
+  }, [selected, transactions]);
+
+  async function handleBulkLink() {
+    if (!bulkLinkEligible) return;
+    const [aId, bId] = Array.from(selected);
+    setLinkingBulk(true);
+    const res = await fetch(`/api/transactions/${aId}/transfer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pairedTransactionId: bId }),
+    });
+    if (res.ok) {
+      toast.success("Transfer linked");
+      setSelected(new Set());
+      fetchTransactions();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error ?? "Failed to link transfer");
+    }
+    setLinkingBulk(false);
+  }
+
   function openSplitDialog(tx: Transaction) {
     setSplitTx(tx);
     if (tx.splits && tx.splits.length >= 2) {
@@ -592,12 +670,61 @@ function TransactionsContent() {
           <>
             {/* Mobile card list */}
             <div className="md:hidden divide-y divide-gray-50">
-              {transactions.map((tx) => (
+              {transactions.map((tx) => {
+                const info = pairInfo.get(tx.id);
+                if (info && !info.isFirst && !expandedPairs.has(info.pairKey)) return null;
+                const isFirstOfPair = !!info?.isFirst;
+                const isExpanded = info ? expandedPairs.has(info.pairKey) : false;
+                const showNormalRow = !info || isExpanded;
+
+                let pairCard = null;
+                if (isFirstOfPair && info) {
+                  const other = info.other;
+                  const outgoing = tx.isCredit ? other : tx;
+                  const incoming = tx.isCredit ? tx : other;
+                  const bothSelected = selected.has(tx.id) && selected.has(other.id);
+                  pairCard = (
+                    <div key={`pair-${info.pairKey}`} className="px-4 py-3 flex items-center gap-3 bg-blue-50/40">
+                      <input
+                        type="checkbox"
+                        checked={bothSelected}
+                        onChange={() => togglePairSelect(tx.id, other.id)}
+                        className="shrink-0"
+                      />
+                      <button
+                        onClick={() => togglePairExpanded(info.pairKey)}
+                        className="shrink-0 text-gray-400"
+                      >
+                        {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      </button>
+                      <ArrowRightLeft className="w-4 h-4 text-blue-500 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900">Transfer</p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {outgoing.account.name} → {incoming.account.name}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {format(new Date(outgoing.date), "dd MMM yyyy")}
+                        </p>
+                      </div>
+                      <span className="text-sm font-medium text-gray-700 shrink-0">
+                        {formatCurrency(outgoing.amount)}
+                      </span>
+                    </div>
+                  );
+                }
+
+                if (!showNormalRow) {
+                  return <Fragment key={tx.id}>{pairCard}</Fragment>;
+                }
+
+                return (
+                <Fragment key={tx.id}>
+                {pairCard}
                 <div
-                  key={tx.id}
                   className={`px-4 py-3 flex items-center gap-3 ${
                     selected.has(tx.id) ? "bg-blue-50" : ""
-                  }`}
+                  } ${info ? "bg-blue-50/10 pl-8" : ""}`}
                 >
                   <input
                     type="checkbox"
@@ -679,7 +806,9 @@ function TransactionsContent() {
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </div>
-              ))}
+                </Fragment>
+                );
+              })}
             </div>
 
             {/* Desktop table */}
@@ -710,12 +839,85 @@ function TransactionsContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {transactions.map((tx) => (
+                  {transactions.map((tx) => {
+                    const info = pairInfo.get(tx.id);
+                    // Collapsed pair: hide the second side — the pair header represents both
+                    if (info && !info.isFirst && !expandedPairs.has(info.pairKey)) return null;
+                    const isFirstOfPair = !!info?.isFirst;
+                    const isExpanded = info ? expandedPairs.has(info.pairKey) : false;
+                    const showNormalRow = !info || isExpanded;
+
+                    let pairHeader = null;
+                    if (isFirstOfPair && info) {
+                      const other = info.other;
+                      const outgoing = tx.isCredit ? other : tx;
+                      const incoming = tx.isCredit ? tx : other;
+                      const bothSelected = selected.has(tx.id) && selected.has(other.id);
+                      pairHeader = (
+                        <tr key={`pair-${info.pairKey}`} className="bg-blue-50/40 hover:bg-blue-50/60 transition-colors">
+                          <td className="px-4 py-3">
+                            <input
+                              type="checkbox"
+                              checked={bothSelected}
+                              onChange={() => togglePairSelect(tx.id, other.id)}
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                            {format(new Date(outgoing.date), "dd MMM yyyy")}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => togglePairExpanded(info.pairKey)}
+                                className="text-gray-400 hover:text-gray-700"
+                                title={isExpanded ? "Collapse" : "Expand"}
+                              >
+                                {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                              </button>
+                              <ArrowRightLeft className="w-4 h-4 text-blue-500 shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-900">Transfer</p>
+                                <p className="text-xs text-gray-500 truncate max-w-[240px]">
+                                  {outgoing.account.name} → {incoming.account.name}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-400">—</td>
+                          <td className="px-4 py-3">
+                            <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 gap-1">
+                              <ArrowRightLeft className="w-3 h-3" /> Transfer
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <span className="text-sm font-medium text-gray-700">{formatCurrency(outgoing.amount)}</span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-blue-400 hover:text-red-500"
+                              title="Unlink transfer"
+                              onClick={() => handleUnlinkTransfer(outgoing.id)}
+                            >
+                              <Unlink className="w-3.5 h-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    if (!showNormalRow) {
+                      return <Fragment key={tx.id}>{pairHeader}</Fragment>;
+                    }
+
+                    return (
+                    <Fragment key={tx.id}>
+                    {pairHeader}
                     <tr
-                      key={tx.id}
                       className={`hover:bg-gray-50 transition-colors ${
                         selected.has(tx.id) ? "bg-blue-50" : ""
-                      } ${tx.isPending ? "opacity-80" : ""}`}
+                      } ${tx.isPending ? "opacity-80" : ""} ${info ? "bg-blue-50/10" : ""}`}
                     >
                       <td className="px-4 py-3">
                         <input
@@ -882,7 +1084,9 @@ function TransactionsContent() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -957,6 +1161,17 @@ function TransactionsContent() {
               {applyingBulk ? "Applying..." : "Apply"}
             </Button>
           </div>
+          {bulkLinkEligible && (
+            <Button
+              size="sm"
+              disabled={linkingBulk}
+              onClick={handleBulkLink}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 gap-1"
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              {linkingBulk ? "Linking..." : "Link as transfer"}
+            </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"
