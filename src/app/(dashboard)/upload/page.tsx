@@ -66,20 +66,25 @@ export default function UploadPage() {
     setUploading(true);
     setResult(null);
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("accountId", accountId);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("accountId", accountId);
 
-    const res = await fetch("/api/upload", { method: "POST", body: formData });
-    const data = await res.json();
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
 
-    if (res.ok) {
-      setResult(data);
-      toast.success(`Imported ${data.imported} transactions`);
-    } else {
-      toast.error(data.error ?? "Upload failed");
+      if (res.ok) {
+        setResult(data);
+        toast.success(`Imported ${data.imported} transactions`);
+      } else {
+        toast.error(data.error ?? "Upload failed");
+      }
+    } catch {
+      toast.error("Upload failed — please try again");
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
   }
 
   const isCSV = file?.name.endsWith(".csv");
@@ -114,7 +119,9 @@ export default function UploadPage() {
               <Label>Which account does this statement belong to?</Label>
               <Select value={accountId} onValueChange={(v) => setAccountId(v ?? "")}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select account" />
+                  <SelectValue placeholder="Select account">
+                    {(() => { const a = accounts.find(x => x.id === accountId); return a ? `${a.name}${a.institution ? ` — ${a.institution}` : ""}` : undefined; })()}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {accounts.map((acc) => (

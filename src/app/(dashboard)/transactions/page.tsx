@@ -909,7 +909,9 @@ function TransactionsContent() {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {accounts.find(a => a.id === addForm.accountId)?.name}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {accounts.map((a) => (
@@ -964,7 +966,9 @@ function TransactionsContent() {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {addForm.isCredit ? "Credit (income / payment in)" : "Debit (expense / payment out)"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="debit">
@@ -990,7 +994,9 @@ function TransactionsContent() {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
+                  <SelectValue placeholder="Select category">
+                    {addForm.categoryId ? categories.find(c => c.id === addForm.categoryId)?.name : undefined}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">— None</SelectItem>

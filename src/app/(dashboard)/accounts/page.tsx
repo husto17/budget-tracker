@@ -244,7 +244,9 @@ export default function AccountsPage() {
               <Label>Account Type</Label>
               <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v ?? f.type }))}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {ACCOUNT_TYPES.find(t => t.value === form.type)?.label}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {ACCOUNT_TYPES.map((t) => (

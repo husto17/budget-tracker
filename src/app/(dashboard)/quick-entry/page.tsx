@@ -219,7 +219,9 @@ export default function QuickEntryPage() {
                 onValueChange={(v) => setAccountId(v ?? accountId)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select account" />
+                  <SelectValue placeholder="Select account">
+                    {accounts.find(a => a.id === accountId)?.name}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {accounts.map((a) => (
