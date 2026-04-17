@@ -35,10 +35,8 @@ export async function POST(request: Request) {
     // pdf-parse requires Buffer; for text extraction we use a server action workaround
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    // Use lib/pdf-parse.js directly to avoid pdf-parse's test-file side effect
-    // which crashes serverless environments (Vercel) on require("pdf-parse").
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require("pdf-parse/lib/pdf-parse.js") as (buf: Buffer) => Promise<{ text: string }>;
+    const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
     const pdfData = await pdfParse(buffer);
     parseResult = parsePdfText(pdfData.text);
   } else {
