@@ -1,10 +1,46 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 
+const DEFAULT_CATEGORIES = [
+  { name: "Groceries", color: "#22C55E", icon: "shopping-cart" },
+  { name: "Dining Out", color: "#F97316", icon: "utensils" },
+  { name: "Transport", color: "#3B82F6", icon: "car" },
+  { name: "Utilities", color: "#8B5CF6", icon: "zap" },
+  { name: "Rent / Mortgage", color: "#EF4444", icon: "home" },
+  { name: "Entertainment", color: "#EC4899", icon: "tv" },
+  { name: "Shopping", color: "#F59E0B", icon: "shopping-bag" },
+  { name: "Health", color: "#10B981", icon: "heart" },
+  { name: "Subscriptions", color: "#6366F1", icon: "repeat" },
+  { name: "Income", color: "#14B8A6", icon: "trending-up" },
+  { name: "Transfers", color: "#6B7280", icon: "arrow-right-left" },
+  { name: "Other", color: "#9CA3AF", icon: "circle" },
+];
+
+async function createUserWithDefaults(data: {
+  email: string;
+  name: string;
+  password?: string;
+  image?: string;
+}) {
+  return prisma.user.create({
+    data: {
+      ...data,
+      categories: {
+        create: DEFAULT_CATEGORIES.map((cat) => ({ ...cat, isDefault: true })),
+      },
+    },
+  });
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -12,39 +48,60 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
+        if (!credentials?.email || !credentials?.password) return null;
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
         });
 
-        if (!user) return null;
+        if (!user || !user.password) return null;
 
-        const isValid = await bcrypt.compare(
-          credentials.password,
-          user.password
-        );
-
+        const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) return null;
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-        };
+        return { id: user.id, email: user.email, name: user.name };
       },
     }),
   ],
-  session: {
-    strategy: "jwt",
-  },
+  session: { strategy: "jwt" },
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
+    async signIn({ user, account }) {
+      if (account?.provider === "google") {
+        const email = user.email!;
+        const existing = await prisma.user.findUnique({ where: { email } });
+
+        if (!existing) {
+          // First-time Google sign-in — create account with default categories
+          await createUserWithDefaults({
+            email,
+            name: user.name ?? email.split("@")[0],
+            image: user.image ?? undefined,
+          });
+        } else if (!existing.image && user.image) {
+          // Update profile picture if missing
+          await prisma.user.update({
+            where: { email },
+            data: { image: user.image },
+          });
+        }
       }
+      return true;
+    },
+    async jwt({ token, user, account, trigger }) {
+      if (user) {
+        // Initial sign-in — look up DB user to get our cuid id
+        const dbUser = await prisma.user.findUnique({
+          where: { email: user.email! },
+        });
+        if (dbUser) token.id = dbUser.id;
+      }
+      if (account?.provider === "google" && !token.id) {
+        const dbUser = await prisma.user.findUnique({
+          where: { email: token.email! },
+        });
+        if (dbUser) token.id = dbUser.id;
+      }
+      void trigger;
       return token;
     },
     async session({ session, token }) {
