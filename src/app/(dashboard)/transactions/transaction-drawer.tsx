@@ -79,6 +79,7 @@ export function TransactionDrawer({
     notes: "",
     categoryId: "",
   });
+  const [learn, setLearn] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -90,6 +91,7 @@ export function TransactionDrawer({
       notes: tx.notes ?? "",
       categoryId: tx.category?.id ?? "none",
     });
+    setLearn(true); // default back on each open
   }, [tx?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!tx) return null;
@@ -111,6 +113,7 @@ export function TransactionDrawer({
           date: form.date,
           notes: form.notes || null,
           categoryId: form.categoryId === "none" ? null : form.categoryId,
+          learn,
         }),
       });
       toast.success("Saved");
@@ -122,6 +125,16 @@ export function TransactionDrawer({
       setSaving(false);
     }
   }
+
+  // Gifts / Other / Transfers are auto-skipped by the server — show a hint
+  // so the user knows the "Remember" checkbox is irrelevant for those.
+  const chosenCategoryName =
+    form.categoryId === "none"
+      ? null
+      : categories.find((c) => c.id === form.categoryId)?.name ?? null;
+  const autoSkipped = chosenCategoryName
+    ? ["Gifts", "Other", "Transfers"].includes(chosenCategoryName)
+    : false;
 
   return (
     <Sheet open={isOpen} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -220,6 +233,34 @@ export function TransactionDrawer({
                   ))}
                 </SelectContent>
               </Select>
+
+              {form.categoryId !== "none" && form.categoryId !== (tx.category?.id ?? "") && (
+                <label
+                  className={`flex items-start gap-2 mt-2 text-xs cursor-pointer ${
+                    autoSkipped ? "opacity-60" : ""
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 dark:border-gray-700 accent-indigo-600"
+                    checked={learn && !autoSkipped}
+                    disabled={autoSkipped}
+                    onChange={(e) => setLearn(e.target.checked)}
+                  />
+                  <span className="text-gray-600 dark:text-gray-300">
+                    {autoSkipped ? (
+                      <>
+                        <strong>One-off only</strong> — {chosenCategoryName} is always a one-off (no rule created).
+                      </>
+                    ) : (
+                      <>
+                        Remember <strong>{form.merchant || tx.description}</strong> → {chosenCategoryName} for future uploads.{" "}
+                        <span className="text-gray-400 dark:text-gray-500">Uncheck for a one-off.</span>
+                      </>
+                    )}
+                  </span>
+                </label>
+              )}
             </div>
 
             <div className="space-y-1.5">
