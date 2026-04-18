@@ -12,7 +12,12 @@ export async function PATCH(
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const data = await request.json();
+  let data: Record<string, unknown>;
+  try {
+    data = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
 
   const householdAccountIds = await getHouseholdAccountIds(session.user.id);
   const tx = await prisma.transaction.findUnique({ where: { id } });
@@ -20,27 +25,46 @@ export async function PATCH(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // If merchant is being renamed, save the alias so future uploads auto-apply it
-  if (data.merchant !== undefined && data.merchant !== tx.merchant && tx.merchant) {
-    await prisma.merchantAlias.upsert({
-      where: { userId_fromName: { userId: session.user.id, fromName: tx.merchant } },
-      update: { toName: data.merchant },
-      create: { userId: session.user.id, fromName: tx.merchant, toName: data.merchant },
-    });
+  // If merchant is being renamed, save the alias so future uploads auto-apply it.
+  // Wrapped so a learning failure never blocks the update.
+  if (
+    typeof data.merchant === "string" &&
+    data.merchant !== tx.merchant &&
+    tx.merchant
+  ) {
+    try {
+      await prisma.merchantAlias.upsert({
+        where: { userId_fromName: { userId: session.user.id, fromName: tx.merchant } },
+        update: { toName: data.merchant },
+        create: { userId: session.user.id, fromName: tx.merchant, toName: data.merchant },
+      });
+    } catch (err) {
+      console.error("Failed to save merchant alias", err);
+    }
   }
 
-  const updated = await prisma.transaction.update({
-    where: { id },
-    data: {
-      categoryId: data.categoryId !== undefined ? (data.categoryId || null) : undefined,
-      notes: data.notes !== undefined ? data.notes : undefined,
-      description: data.description !== undefined ? data.description : undefined,
-      merchant: data.merchant !== undefined ? data.merchant : undefined,
-      amount: data.amount !== undefined ? parseFloat(data.amount) : undefined,
-      date: data.date !== undefined ? new Date(data.date) : undefined,
-    },
-    include: { category: true, account: { select: { id: true, name: true, type: true } } },
-  });
+  let updated;
+  try {
+    updated = await prisma.transaction.update({
+      where: { id },
+      data: {
+        categoryId:
+          data.categoryId !== undefined ? ((data.categoryId as string) || null) : undefined,
+        notes: data.notes !== undefined ? (data.notes as string | null) : undefined,
+        description: data.description !== undefined ? (data.description as string) : undefined,
+        merchant: data.merchant !== undefined ? (data.merchant as string) : undefined,
+        amount: data.amount !== undefined ? parseFloat(String(data.amount)) : undefined,
+        date: data.date !== undefined ? new Date(String(data.date)) : undefined,
+      },
+      include: { category: true, account: { select: { id: true, name: true, type: true } } },
+    });
+  } catch (err) {
+    console.error("Failed to update transaction", err, { id, data });
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Failed to update transaction" },
+      { status: 500 },
+    );
+  }
 
   // If the user set (or changed) the category, remember that decision as a rule
   // keyed by merchant name — so next time we see the same merchant it auto-fills.
