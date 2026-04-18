@@ -304,7 +304,9 @@ export default function DashboardPage() {
     .slice(0, 5);
 
   // This month's category totals for the stacked strip
-  const thisMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+  // Use the currently-selected month key so the strip reflects the viewed
+  // period, not always "today". Matches the same month the API anchored to.
+  const thisMonthKey = selectedMonth;
   const thisMonthByCategory = insights.monthlyByCategory[thisMonthKey] ?? {};
   const stripTotal = Object.values(thisMonthByCategory).reduce((s, v) => s + v, 0);
   const stripSegments = Object.entries(thisMonthByCategory)

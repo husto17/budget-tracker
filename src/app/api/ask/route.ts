@@ -10,7 +10,8 @@ export const maxDuration = 60;
 
 const client = new Anthropic();
 
-const SYSTEM_PROMPT = `You are a personal finance assistant embedded in a budget-tracker app.
+function buildSystemPrompt(): string {
+  return `You are a personal finance assistant embedded in a budget-tracker app.
 
 You can answer questions about the user's spending by calling the provided tools. Always use tools to fetch real data — never guess amounts, category names, or merchant names. If the user asks about a specific category, look it up first with list_categories to resolve the id.
 
@@ -22,6 +23,7 @@ Style:
 - The user's primary currency is USD.
 
 If a question can't be answered from the available tools (e.g. "should I invest in X?"), say so briefly and suggest what you CAN help with.`;
+}
 
 const TOOLS: Anthropic.Tool[] = [
   {
@@ -383,7 +385,7 @@ export async function POST(request: Request) {
       model: "claude-opus-4-7",
       max_tokens: 4000,
       thinking: { type: "adaptive" },
-      system: SYSTEM_PROMPT,
+      system: buildSystemPrompt(),
       tools: TOOLS,
       messages: apiMessages,
     });
