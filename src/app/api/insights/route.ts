@@ -276,6 +276,66 @@ export async function GET(request: Request) {
   const pendingCount = pendingTransactions.length;
   const pendingTotal = pendingTransactions.reduce((s, t) => s + t.amount, 0);
 
+  // Daily spending for the last 30 days (sparkline)
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
+  thirtyDaysAgo.setHours(0, 0, 0, 0);
+  const dailySpending: { date: string; amount: number }[] = [];
+  const dailyMap: Record<string, number> = {};
+  for (const tx of transactions) {
+    if (tx.date < thirtyDaysAgo) continue;
+    const key = tx.date.toISOString().slice(0, 10);
+    dailyMap[key] = (dailyMap[key] ?? 0) + tx.amount;
+  }
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(thirtyDaysAgo);
+    d.setDate(d.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    dailySpending.push({ date: key, amount: dailyMap[key] ?? 0 });
+  }
+
+  // Top merchants this month
+  const merchantThisMonth: Record<string, { amount: number; count: number; categoryName: string | null; categoryColor: string | null }> = {};
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  for (const tx of transactions) {
+    if (tx.date < thisMonthStart) continue;
+    const name = tx.merchant ?? tx.description;
+    if (!merchantThisMonth[name]) {
+      merchantThisMonth[name] = {
+        amount: 0,
+        count: 0,
+        categoryName: tx.category?.name ?? null,
+        categoryColor: tx.category?.color ?? null,
+      };
+    }
+    merchantThisMonth[name].amount += tx.amount;
+    merchantThisMonth[name].count += 1;
+  }
+  const topMerchants = Object.entries(merchantThisMonth)
+    .map(([merchant, d]) => ({ merchant, ...d }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 6);
+
+  // Recent transactions (last 8 across all accounts)
+  const recentTransactions = await prisma.transaction.findMany({
+    where: { accountId: { in: accountIds } },
+    include: {
+      category: { select: { name: true, color: true, icon: true } },
+      account: { select: { name: true } },
+    },
+    orderBy: { date: "desc" },
+    take: 8,
+  });
+  const recent = recentTransactions.map((tx) => ({
+    id: tx.id,
+    date: tx.date.toISOString().slice(0, 10),
+    description: tx.merchant ?? tx.description,
+    amount: tx.amount,
+    isCredit: tx.isCredit,
+    accountName: tx.account.name,
+    category: tx.category,
+  }));
+
   return NextResponse.json({
     monthlyByCategory,
     monthlyTotals,
@@ -294,5 +354,8 @@ export async function GET(request: Request) {
     subscriptions,
     pendingCount,
     pendingTotal,
+    dailySpending,
+    topMerchants,
+    recent,
   });
 }

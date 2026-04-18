@@ -1,19 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import {
-  BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
+  BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, AlertTriangle, Repeat, ArrowRightLeft, BarChart3 } from "lucide-react";
+import {
+  TrendingUp, TrendingDown, AlertTriangle, Repeat, BarChart3,
+  ArrowUpRight, ArrowDownRight, Receipt, Store,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/fetcher";
+import { CategoryIcon } from "@/components/ui/category-icon";
 
 interface InsightData {
   monthlyTotals: Record<string, number>;
@@ -31,6 +34,17 @@ interface InsightData {
   spendingByMember: Record<string, { name: string; amount: number }>;
   pendingCount: number;
   pendingTotal: number;
+  dailySpending: Array<{ date: string; amount: number }>;
+  topMerchants: Array<{ merchant: string; amount: number; count: number; categoryName: string | null; categoryColor: string | null }>;
+  recent: Array<{
+    id: string;
+    date: string;
+    description: string;
+    amount: number;
+    isCredit: boolean;
+    accountName: string;
+    category: { name: string; color: string; icon: string | null } | null;
+  }>;
 }
 
 interface Account {
@@ -48,8 +62,8 @@ function formatMonth(key: string) {
 }
 
 const CHART_COLORS = [
-  "#3B82F6", "#22C55E", "#F97316", "#8B5CF6", "#EC4899",
-  "#F59E0B", "#10B981", "#EF4444", "#6366F1", "#14B8A6",
+  "#6366F1", "#22C55E", "#F97316", "#8B5CF6", "#EC4899",
+  "#F59E0B", "#10B981", "#EF4444", "#3B82F6", "#14B8A6",
 ];
 
 type ViewFilter = "all" | "mine" | "partner" | "joint";
@@ -104,8 +118,9 @@ export default function DashboardPage() {
           <Skeleton className="h-7 w-40" />
           <Skeleton className="h-4 w-32" />
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <Skeleton className="h-44 w-full rounded-2xl" />
+        <div className="grid grid-cols-3 gap-3 md:gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
             <Card key={i}>
               <CardContent className="pt-5 pb-4 space-y-2">
                 <Skeleton className="h-3 w-20" />
@@ -176,7 +191,6 @@ export default function DashboardPage() {
     );
   }
 
-  // Empty state: accounts exist but no transactions
   if (accounts.length > 0 && insights.thisMonthTotal === 0 && Object.keys(insights.monthlyTotals).length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -221,16 +235,32 @@ export default function DashboardPage() {
     .slice(-6)
     .map(([month, total]) => ({ month: formatMonth(month), total }));
 
-  const pieData = insights.topCategories
-    .slice(0, 6)
-    .map(([name, value]) => ({ name, value }));
+  const pieData = insights.topCategories.slice(0, 6).map(([name, value]) => ({ name, value }));
+  const pieTotal = pieData.reduce((s, d) => s + d.value, 0);
 
-  const incomeSpendingData = insights.incomeVsSpending
-    .slice(-6)
-    .map((d) => ({ ...d, month: formatMonth(d.month) }));
+  const incomeSpendingData = insights.incomeVsSpending.slice(-6).map((d) => ({ ...d, month: formatMonth(d.month) }));
+
+  const momDelta = insights.thisMonthTotal - insights.previousMonthSpending;
+  const momUp = momDelta > 0;
+  const recurringMonthly = insights.recurring.reduce((s, r) => s + r.amount, 0);
+
+  // This month's category totals for the stacked strip
+  const thisMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+  const thisMonthByCategory = insights.monthlyByCategory[thisMonthKey] ?? {};
+  const stripTotal = Object.values(thisMonthByCategory).reduce((s, v) => s + v, 0);
+  const stripSegments = Object.entries(thisMonthByCategory)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 8)
+    .map(([name, value], i) => ({
+      name,
+      value,
+      pct: stripTotal > 0 ? (value / stripTotal) * 100 : 0,
+      color: CHART_COLORS[i % CHART_COLORS.length],
+    }));
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
@@ -255,44 +285,124 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Top stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white border-0">
+      {/* HERO: Net Balance with sparkline */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 text-white shadow-lg">
+        <div className="absolute inset-0 opacity-30 pointer-events-none">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-80 h-80 bg-purple-500 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+        </div>
+        <div className="relative grid md:grid-cols-[1fr_auto] gap-6 p-6 md:p-8 items-end">
+          <div>
+            <p className="text-indigo-200 text-xs font-medium uppercase tracking-wider">Net Balance</p>
+            <p className="text-4xl md:text-5xl font-bold mt-2 tracking-tight">{formatCurrency(netBalance)}</p>
+            <div className="flex items-center gap-2 mt-3 text-sm">
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                momUp ? "bg-red-500/20 text-red-200" : "bg-emerald-500/20 text-emerald-200"
+              }`}>
+                {momUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                {formatCurrency(Math.abs(momDelta))}
+              </span>
+              <span className="text-indigo-200">vs last month</span>
+            </div>
+          </div>
+          <div className="h-20 w-full md:w-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={insights.dailySpending}>
+                <defs>
+                  <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#a5b4fc" stopOpacity={0.6} />
+                    <stop offset="95%" stopColor="#a5b4fc" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Tooltip
+                  contentStyle={{ background: "rgba(15,23,42,0.9)", border: "none", borderRadius: 6, fontSize: 11, color: "#fff" }}
+                  labelStyle={{ color: "#c7d2fe" }}
+                  formatter={(v) => [formatCurrency(Number(v ?? 0)), "spent"]}
+                  labelFormatter={(d) => format(parseISO(d as string), "d MMM")}
+                />
+                <Area type="monotone" dataKey="amount" stroke="#c7d2fe" strokeWidth={2} fill="url(#sparkFill)" />
+              </AreaChart>
+            </ResponsiveContainer>
+            <p className="text-indigo-200 text-[10px] mt-1 text-center uppercase tracking-wide">Last 30 days</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Secondary stats */}
+      <div className="grid grid-cols-3 gap-3 md:gap-4">
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-rose-50 to-white ring-1 ring-rose-100/80">
+          <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center">
+            <TrendingDown className="w-4 h-4 text-rose-600" />
+          </div>
           <CardContent className="pt-5 pb-4">
-            <p className="text-blue-100 text-xs font-medium">Net Balance</p>
-            <p className="text-2xl font-bold mt-1">{formatCurrency(netBalance)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-5 pb-4">
-            <p className="text-gray-400 text-xs font-medium">This Month Spent</p>
-            <p className="text-2xl font-bold mt-1">{formatCurrency(insights.thisMonthTotal)}</p>
+            <p className="text-gray-500 text-xs font-medium">This Month</p>
+            <p className="text-2xl font-bold mt-1 text-gray-900">{formatCurrency(insights.thisMonthTotal)}</p>
             {insights.previousMonthSpending > 0 && (
-              <div className={`flex items-center gap-1 mt-1 text-xs ${insights.momChange > 0 ? "text-red-500" : "text-green-500"}`}>
-                {insights.momChange > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                {insights.momChange > 0 ? "+" : "−"}{formatCurrency(Math.abs(insights.thisMonthTotal - insights.previousMonthSpending))} vs last month
-              </div>
+              <p className={`text-xs mt-1 ${momUp ? "text-rose-600" : "text-emerald-600"}`}>
+                {momUp ? "↑" : "↓"} {formatCurrency(Math.abs(momDelta))} vs last
+              </p>
             )}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-sky-50 to-white ring-1 ring-sky-100/80">
+          <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center">
+            <Receipt className="w-4 h-4 text-sky-600" />
+          </div>
           <CardContent className="pt-5 pb-4">
-            <p className="text-gray-400 text-xs font-medium">Last Month Spent</p>
-            <p className="text-2xl font-bold mt-1">{formatCurrency(insights.lastMonthTotal)}</p>
+            <p className="text-gray-500 text-xs font-medium">Last Month</p>
+            <p className="text-2xl font-bold mt-1 text-gray-900">{formatCurrency(insights.lastMonthTotal)}</p>
+            <p className="text-xs text-gray-400 mt-1">Final total</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-violet-50 to-white ring-1 ring-violet-100/80">
+          <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
+            <Repeat className="w-4 h-4 text-violet-600" />
+          </div>
           <CardContent className="pt-5 pb-4">
-            <p className="text-gray-400 text-xs font-medium">Recurring / month</p>
-            <p className="text-2xl font-bold mt-1">
-              {formatCurrency(insights.recurring.reduce((s, r) => s + r.amount, 0))}
-            </p>
-            <p className="text-xs text-gray-400 mt-1">{insights.recurring.length} subscriptions detected</p>
+            <p className="text-gray-500 text-xs font-medium">Recurring</p>
+            <p className="text-2xl font-bold mt-1 text-gray-900">{formatCurrency(recurringMonthly)}</p>
+            <p className="text-xs text-gray-400 mt-1">{insights.recurring.length} subscriptions</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Pending transactions banner */}
+      {/* Month-at-a-glance strip */}
+      {stripSegments.length > 0 && (
+        <Card className="border-0 ring-1 ring-gray-200/80">
+          <CardContent className="pt-5 pb-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-gray-900">Month at a glance</p>
+              <p className="text-xs text-gray-400">{formatCurrency(stripTotal)} total</p>
+            </div>
+            <div className="flex h-2.5 rounded-full overflow-hidden bg-gray-100">
+              {stripSegments.map((s) => (
+                <Link
+                  key={s.name}
+                  href={`/transactions?categoryName=${encodeURIComponent(s.name)}`}
+                  style={{ width: `${s.pct}%`, backgroundColor: s.color }}
+                  className="group relative transition-opacity hover:opacity-80"
+                  title={`${s.name}: ${formatCurrency(s.value)}`}
+                />
+              ))}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs">
+              {stripSegments.map((s) => (
+                <Link
+                  key={s.name}
+                  href={`/transactions?categoryName=${encodeURIComponent(s.name)}`}
+                  className="flex items-center gap-1.5 text-gray-600 hover:text-gray-900"
+                >
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+                  <span>{s.name}</span>
+                  <span className="text-gray-400">{formatCurrency(s.value)}</span>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pending / anomaly banners */}
       {insights.pendingCount > 0 && (
         <Link
           href="/transactions?status=pending"
@@ -302,11 +412,10 @@ export default function DashboardPage() {
             {insights.pendingCount} pending transaction{insights.pendingCount !== 1 ? "s" : ""}{" "}
             &bull; {formatCurrency(insights.pendingTotal)} estimated
           </p>
-          <span className="text-xs text-amber-600 font-medium">View &rarr;</span>
+          <span className="text-xs text-amber-600 font-medium">View →</span>
         </Link>
       )}
 
-      {/* Anomaly alerts */}
       {insights.anomalies.length > 0 && (
         <div className="space-y-2">
           {insights.anomalies.map((a) => (
@@ -332,7 +441,7 @@ export default function DashboardPage() {
           <h2 className="text-sm font-semibold text-gray-700 mb-2">Household Breakdown — {thisMonth}</h2>
           <div className="grid grid-cols-2 gap-3">
             {Object.entries(insights.spendingByMember).map(([uid, member]) => (
-              <Card key={uid}>
+              <Card key={uid} className="border-0 ring-1 ring-gray-200/80">
                 <CardContent className="pt-4 pb-3">
                   <p className="text-xs text-gray-400 font-medium">{member.name}&apos;s spending</p>
                   <p className="text-xl font-bold mt-1">{formatCurrency(member.amount)}</p>
@@ -343,120 +452,149 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Charts row */}
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Monthly spending trend */}
-        <Card>
+        {/* Monthly spending trend (area with gradient) */}
+        <Card className="border-0 ring-1 ring-gray-200/80">
           <CardHeader>
-            <CardTitle className="text-base">Monthly Spending</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" /> Monthly Spending
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {monthlySpendingData.length === 0 ? (
-              <p className="text-sm text-gray-400 py-8 text-center">No data yet — upload a statement to get started</p>
+              <p className="text-sm text-gray-400 py-8 text-center">No data yet</p>
             ) : (
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={monthlySpendingData}>
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} />
-                  <Bar dataKey="total" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                </BarChart>
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={monthlySpendingData}>
+                  <defs>
+                    <linearGradient id="totalFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366F1" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#9ca3af" />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} stroke="#9ca3af" />
+                  <Tooltip
+                    contentStyle={{ background: "white", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12 }}
+                    formatter={(v) => formatCurrency(Number(v ?? 0))}
+                  />
+                  <Area type="monotone" dataKey="total" stroke="#6366F1" strokeWidth={2} fill="url(#totalFill)" />
+                </AreaChart>
               </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
 
-        {/* Spending by category pie */}
-        <Card>
+        {/* Donut: Spending this month */}
+        <Card className="border-0 ring-1 ring-gray-200/80">
           <CardHeader>
-            <CardTitle className="text-base">Spending This Month</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" /> Spending This Month
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {pieData.length === 0 ? (
               <p className="text-sm text-gray-400 py-8 text-center">No categorized transactions this month</p>
             ) : (
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    label={false}
-                    style={{ cursor: "pointer" }}
-                    onClick={(entry) => entry.name && router.push(`/transactions?categoryName=${encodeURIComponent(entry.name)}`)}
-                  >
-                    {pieData.map((_, i) => (
-                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="relative">
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={85}
+                      paddingAngle={2}
+                      stroke="none"
+                      style={{ cursor: "pointer" }}
+                      onClick={(entry) => entry.name && router.push(`/transactions?categoryName=${encodeURIComponent(entry.name)}`)}
+                    >
+                      {pieData.map((_, i) => (
+                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <p className="text-xs text-gray-400 uppercase tracking-wider">Total</p>
+                  <p className="text-lg font-bold text-gray-900">{formatCurrency(pieTotal)}</p>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Income vs spending */}
+      {/* Income vs spending line chart */}
       {incomeSpendingData.length > 0 && (
-        <Card>
+        <Card className="border-0 ring-1 ring-gray-200/80">
           <CardHeader>
             <CardTitle className="text-base">Income vs Spending</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={incomeSpendingData}>
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#9ca3af" />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} stroke="#9ca3af" />
                 <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} />
                 <Legend />
-                <Line type="monotone" dataKey="income" stroke="#22C55E" strokeWidth={2} dot={false} name="Income" />
-                <Line type="monotone" dataKey="spending" stroke="#EF4444" strokeWidth={2} dot={false} name="Spending" />
-                <Line type="monotone" dataKey="net" stroke="#3B82F6" strokeWidth={2} strokeDasharray="4 2" dot={false} name="Net" />
+                <Line type="monotone" dataKey="income" stroke="#22C55E" strokeWidth={2.5} dot={false} name="Income" />
+                <Line type="monotone" dataKey="spending" stroke="#EF4444" strokeWidth={2.5} dot={false} name="Spending" />
+                <Line type="monotone" dataKey="net" stroke="#6366F1" strokeWidth={2} strokeDasharray="4 2" dot={false} name="Net" />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       )}
 
-      {/* Budget utilization */}
+      {/* Budget utilization as rings */}
       {insights.budgetUtilization.length > 0 && (
-        <Card>
+        <Card className="border-0 ring-1 ring-gray-200/80">
           <CardHeader>
-            <CardTitle className="text-base">Budget Tracking — {thisMonth}</CardTitle>
+            <CardTitle className="text-base">Budgets — {thisMonth}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
               {insights.budgetUtilization.map((b) => {
-                const prevMonthAmt = insights.categorySpendingPrevMonth[b.category] ?? 0;
-                const momDiff = b.spent - prevMonthAmt;
+                const pct = Math.min(Math.max(b.pct, 0), 100);
+                const over = b.remaining < 0;
+                const ringColor = over ? "#EF4444" : b.color;
+                const circumference = 2 * Math.PI * 28;
+                const dash = (pct / 100) * circumference;
                 return (
-                  <div key={b.category}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: b.color }} />
-                        <span className="text-sm font-medium">{b.category}</span>
-                        {prevMonthAmt > 0 && (
-                          <span className={`text-xs ${momDiff > 0 ? "text-red-400" : "text-green-500"}`}>
-                            ({momDiff > 0 ? "+" : "−"}{formatCurrency(Math.abs(momDiff))} vs last mo)
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className={b.remaining < 0 ? "text-red-600 font-medium" : "text-gray-500"}>
-                          {b.remaining < 0 ? `Over by ${formatCurrency(Math.abs(b.remaining))}` : `${formatCurrency(b.remaining)} left`}
-                        </span>
-                        <span className="text-gray-300">|</span>
-                        <span className="text-gray-400 text-xs">{formatCurrency(b.spent)} / {formatCurrency(b.budget)}</span>
+                  <div key={b.category} className="flex items-center gap-3">
+                    <div className="relative w-16 h-16 shrink-0">
+                      <svg viewBox="0 0 64 64" className="w-16 h-16 -rotate-90">
+                        <circle cx="32" cy="32" r="28" fill="none" stroke="#f3f4f6" strokeWidth="6" />
+                        <circle
+                          cx="32"
+                          cy="32"
+                          r="28"
+                          fill="none"
+                          stroke={ringColor}
+                          strokeWidth="6"
+                          strokeLinecap="round"
+                          strokeDasharray={`${dash} ${circumference}`}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xs font-bold text-gray-900">{Math.round(pct)}%</span>
                       </div>
                     </div>
-                    <Progress
-                      value={b.pct}
-                      className="h-2"
-                      style={{ "--progress-color": b.pct >= 100 ? "#EF4444" : b.color } as React.CSSProperties}
-                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{b.category}</p>
+                      <p className="text-xs text-gray-500">
+                        {formatCurrency(b.spent)} / {formatCurrency(b.budget)}
+                      </p>
+                      <p className={`text-xs mt-0.5 ${over ? "text-red-600 font-medium" : "text-gray-400"}`}>
+                        {over ? `Over by ${formatCurrency(Math.abs(b.remaining))}` : `${formatCurrency(b.remaining)} left`}
+                      </p>
+                    </div>
                   </div>
                 );
               })}
@@ -465,31 +603,129 @@ export default function DashboardPage() {
         </Card>
       )}
 
+      {/* Recent activity + Top merchants */}
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Accounts summary */}
-        <Card>
+        <Card className="border-0 ring-1 ring-gray-200/80">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Receipt className="w-4 h-4" /> Recent Activity
+              </CardTitle>
+              <Link href="/transactions" className="text-xs text-blue-600 hover:underline">View all →</Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {insights.recent.length === 0 ? (
+              <p className="text-sm text-gray-400 py-4 text-center">No transactions yet</p>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {insights.recent.map((tx) => (
+                  <div key={tx.id} className="flex items-center gap-3 py-2.5">
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: tx.category?.color ? `${tx.category.color}1a` : "#f3f4f6" }}
+                    >
+                      {tx.category ? (
+                        <CategoryIcon icon={tx.category.icon} color={tx.category.color} size="sm" />
+                      ) : (
+                        <Store className="w-3.5 h-3.5 text-gray-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{tx.description}</p>
+                      <p className="text-xs text-gray-400">
+                        {format(parseISO(tx.date), "d MMM")} · {tx.accountName}
+                      </p>
+                    </div>
+                    <span className={`text-sm font-semibold shrink-0 ${tx.isCredit ? "text-emerald-600" : "text-gray-900"}`}>
+                      {tx.isCredit ? "+" : "−"}{formatCurrency(tx.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 ring-1 ring-gray-200/80">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Store className="w-4 h-4" /> Top Merchants — {thisMonth}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {insights.topMerchants.length === 0 ? (
+              <p className="text-sm text-gray-400 py-4 text-center">No merchants this month yet</p>
+            ) : (
+              <div className="space-y-2.5">
+                {insights.topMerchants.map((m, i) => {
+                  const maxAmount = insights.topMerchants[0].amount;
+                  const pct = maxAmount > 0 ? (m.amount / maxAmount) * 100 : 0;
+                  return (
+                    <Link
+                      key={m.merchant}
+                      href={`/transactions?search=${encodeURIComponent(m.merchant)}`}
+                      className="block group"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-4 text-xs text-gray-400 font-medium text-right shrink-0">{i + 1}</span>
+                          <span className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600">
+                            {m.merchant}
+                          </span>
+                          {m.categoryName && (
+                            <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0">
+                              {m.categoryName}
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="text-sm font-semibold shrink-0">{formatCurrency(m.amount)}</span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden ml-6">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${pct}%`,
+                            backgroundColor: m.categoryColor ?? "#6366F1",
+                          }}
+                        />
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Accounts + Recurring */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card className="border-0 ring-1 ring-gray-200/80">
           <CardHeader>
             <CardTitle className="text-base">Accounts</CardTitle>
           </CardHeader>
           <CardContent>
             {filteredAccounts.length === 0 ? (
-              <p className="text-sm text-gray-400">No accounts. <a href="/accounts" className="text-blue-600 hover:underline">Add one</a></p>
+              <p className="text-sm text-gray-400">
+                No accounts. <Link href="/accounts" className="text-blue-600 hover:underline">Add one</Link>
+              </p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {filteredAccounts.map((acc) => {
                   const isCredit = acc.type === "CREDIT_CARD";
                   const balance = isCredit ? -acc.computedBalance : acc.computedBalance;
                   return (
-                    <div key={acc.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                      <div>
-                        <p className="text-sm font-medium">
+                    <div key={acc.id} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
                           {acc.name}
                           {acc.isJoint && <span className="ml-1.5 text-xs text-purple-600 font-normal">(Joint)</span>}
                           {acc.owner === "partner" && <span className="ml-1.5 text-xs text-blue-500 font-normal">(Partner)</span>}
                         </p>
                         <p className="text-xs text-gray-400">{acc.type.replace("_", " ")}</p>
                       </div>
-                      <span className={`text-sm font-semibold ${isCredit && balance > 0 ? "text-red-600" : "text-gray-900"}`}>
+                      <span className={`text-sm font-semibold shrink-0 ml-2 ${isCredit && balance > 0 ? "text-red-600" : "text-gray-900"}`}>
                         {formatCurrency(balance)}
                       </span>
                     </div>
@@ -500,12 +736,10 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Recurring subscriptions */}
-        <Card>
+        <Card className="border-0 ring-1 ring-gray-200/80">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Repeat className="w-4 h-4" />
-              Recurring Spend
+              <Repeat className="w-4 h-4" /> Recurring Spend
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -516,9 +750,8 @@ export default function DashboardPage() {
                 {insights.recurring.slice(0, 8).map((r) => (
                   <div key={r.name} className="flex items-center justify-between py-1">
                     <div className="flex items-center gap-2 min-w-0">
-                      <ArrowRightLeft className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
                       <p className="text-sm truncate">{r.name}</p>
-                      <Badge variant="secondary" className="text-xs shrink-0">{r.months} months</Badge>
+                      <Badge variant="secondary" className="text-[10px] h-4 shrink-0">{r.months}mo</Badge>
                     </div>
                     <span className="text-sm font-medium ml-3 shrink-0">{formatCurrency(r.amount)}</span>
                   </div>
@@ -528,6 +761,25 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Bar chart (retained for legacy view, cleaner look) */}
+      {monthlySpendingData.length > 0 && (
+        <Card className="border-0 ring-1 ring-gray-200/80">
+          <CardHeader>
+            <CardTitle className="text-base">Monthly Totals (6 months)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={monthlySpendingData}>
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#9ca3af" />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} stroke="#9ca3af" />
+                <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} />
+                <Bar dataKey="total" fill="#6366F1" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
