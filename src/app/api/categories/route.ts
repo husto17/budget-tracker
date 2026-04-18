@@ -2,10 +2,15 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureDefaultCategories } from "@/lib/default-categories";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Backfill any default categories the user is missing (e.g. when we add
+  // a new default after they registered). No-op when already present.
+  await ensureDefaultCategories(session.user.id);
 
   const categories = await prisma.category.findMany({
     where: { userId: session.user.id },
