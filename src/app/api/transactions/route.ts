@@ -9,8 +9,8 @@ export async function GET(request: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const page = parseInt(searchParams.get("page") ?? "1");
-  const limit = parseInt(searchParams.get("limit") ?? "50");
+  const page = Math.max(parseInt(searchParams.get("page") ?? "1") || 1, 1);
+  const limit = Math.min(Math.max(parseInt(searchParams.get("limit") ?? "50") || 50, 1), 500);
   const accountId = searchParams.get("accountId");
   const categoryId = searchParams.get("categoryId");
   const search = searchParams.get("search");
@@ -93,18 +93,28 @@ export async function POST(request: Request) {
     .digest("hex")
     .slice(0, 16);
 
-  const transaction = await prisma.transaction.create({
+  const parsedAmount = typeof amount === "number" ? amount : parseFloat(String(amount));
+  if (!isFinite(parsedAmount) || parsedAmount < 0) {
+    return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
+  }
+
+  // Create then fetch with includes — a single create-with-include call
+  // starts an implicit transaction that the Neon HTTP adapter rejects.
+  const created = await prisma.transaction.create({
     data: {
       accountId,
       date: new Date(date),
       description,
       originalDescription: description,
-      amount: parseFloat(amount),
+      amount: parsedAmount,
       isCredit: isCredit ?? false,
       categoryId: categoryId || null,
       notes,
       hash,
     },
+  });
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: created.id },
     include: { category: true, account: { select: { id: true, name: true, type: true } } },
   });
 

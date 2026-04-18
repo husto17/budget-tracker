@@ -27,13 +27,12 @@ export async function POST(request: Request) {
     data: { email, name, password: hashedPassword },
   });
 
-  await prisma.category.createMany({
-    data: DEFAULT_CATEGORIES.map((cat) => ({
-      ...cat,
-      userId: user.id,
-      isDefault: true,
-    })),
-  });
+  // Sequential creates — Neon HTTP adapter can't run createMany batches.
+  for (const cat of DEFAULT_CATEGORIES) {
+    await prisma.category.create({
+      data: { ...cat, userId: user.id, isDefault: true },
+    });
+  }
 
   return NextResponse.json({ id: user.id, email: user.email, name: user.name });
 }

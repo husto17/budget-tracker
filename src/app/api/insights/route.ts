@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const monthsBack = parseInt(searchParams.get("months") ?? "6");
+  const monthsBack = Math.min(Math.max(parseInt(searchParams.get("months") ?? "6") || 6, 1), 24);
 
   const userId = session.user.id;
   const now = new Date();

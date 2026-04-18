@@ -18,13 +18,22 @@ export async function PATCH(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  let monthlyBudget: number | null = null;
+  if (data.monthlyBudget != null) {
+    const parsed = parseFloat(String(data.monthlyBudget));
+    if (!isFinite(parsed) || parsed < 0) {
+      return NextResponse.json({ error: "Invalid monthly budget" }, { status: 400 });
+    }
+    monthlyBudget = parsed;
+  }
+
   const updated = await prisma.category.update({
     where: { id },
     data: {
       name: data.name,
       color: data.color,
       icon: data.icon,
-      monthlyBudget: data.monthlyBudget != null ? parseFloat(data.monthlyBudget) : null,
+      monthlyBudget,
     },
   });
 

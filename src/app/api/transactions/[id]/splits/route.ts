@@ -67,8 +67,9 @@ export async function POST(
   // Delete existing splits
   await prisma.transactionSplit.deleteMany({ where: { transactionId: id } });
 
-  // Create new splits sequentially (no nested writes per constraint)
-  const created = [];
+  // Create new splits sequentially — Neon HTTP adapter rejects the implicit
+  // transaction that create-with-include uses, so create then re-fetch.
+  const createdIds: string[] = [];
   for (const split of splits) {
     const s = await prisma.transactionSplit.create({
       data: {
@@ -77,10 +78,14 @@ export async function POST(
         amount: split.amount,
         note: split.note || null,
       },
-      include: { category: true },
     });
-    created.push(s);
+    createdIds.push(s.id);
   }
+  const created = await prisma.transactionSplit.findMany({
+    where: { id: { in: createdIds } },
+    include: { category: true },
+    orderBy: { createdAt: "asc" },
+  });
 
   return NextResponse.json({ splits: created });
 }

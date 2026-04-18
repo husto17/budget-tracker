@@ -34,13 +34,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
   }
 
+  let budgetValue: number | null = null;
+  if (monthlyBudget != null && monthlyBudget !== "") {
+    const parsed = parseFloat(String(monthlyBudget));
+    if (!isFinite(parsed) || parsed < 0) {
+      return NextResponse.json({ error: "Invalid monthly budget" }, { status: 400 });
+    }
+    budgetValue = parsed;
+  }
+
   const category = await prisma.category.create({
     data: {
       userId: session.user.id,
       name,
       color: color ?? "#6B7280",
       icon,
-      monthlyBudget: monthlyBudget ? parseFloat(monthlyBudget) : null,
+      monthlyBudget: budgetValue,
     },
   });
 

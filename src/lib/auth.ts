@@ -11,15 +11,14 @@ async function createUserWithDefaults(data: {
   password?: string;
   image?: string;
 }) {
-  // Two separate queries to avoid implicit transactions (not supported by PrismaNeonHttp)
+  // Sequential single-row inserts — Neon HTTP adapter can't run createMany
+  // batches because it wraps them in an interactive transaction.
   const user = await prisma.user.create({ data });
-  await prisma.category.createMany({
-    data: DEFAULT_CATEGORIES.map((cat) => ({
-      ...cat,
-      userId: user.id,
-      isDefault: true,
-    })),
-  });
+  for (const cat of DEFAULT_CATEGORIES) {
+    await prisma.category.create({
+      data: { ...cat, userId: user.id, isDefault: true },
+    });
+  }
   return user;
 }
 

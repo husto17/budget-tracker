@@ -18,11 +18,22 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  if (typeof pattern !== "string" || pattern.trim().length === 0) {
+    return NextResponse.json({ error: "Pattern required" }, { status: 400 });
+  }
+  if (isRegex) {
+    try {
+      new RegExp(pattern, "i");
+    } catch {
+      return NextResponse.json({ error: "Invalid regex pattern" }, { status: 400 });
+    }
+  }
+
   const rule = await prisma.categoryRule.create({
     data: {
       userId: session.user.id,
       categoryId: id,
-      pattern,
+      pattern: pattern.trim(),
       isRegex: isRegex ?? false,
     },
   });

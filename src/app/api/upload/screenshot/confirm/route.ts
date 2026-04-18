@@ -37,6 +37,15 @@ export async function POST(request: Request) {
 
   for (const tx of transactions) {
     const dateStr = tx.date ?? new Date().toISOString().slice(0, 10);
+    const txDate = new Date(dateStr);
+    if (isNaN(txDate.getTime())) {
+      skipped++;
+      continue;
+    }
+    if (typeof tx.amount !== "number" || !isFinite(tx.amount) || tx.amount < 0) {
+      skipped++;
+      continue;
+    }
     const hash = crypto
       .createHash("sha256")
       .update(`${dateStr}|${tx.description}|${tx.amount}`)
@@ -58,7 +67,7 @@ export async function POST(request: Request) {
     await prisma.transaction.create({
       data: {
         accountId,
-        date: new Date(dateStr),
+        date: txDate,
         description: tx.description,
         originalDescription: tx.description,
         amount: tx.amount,
