@@ -10,6 +10,8 @@ export const DEFAULT_CATEGORIES = [
   { name: "Shopping", color: "#F59E0B", icon: "shopping-bag" },
   { name: "Health", color: "#10B981", icon: "heart" },
   { name: "Subscriptions", color: "#6366F1", icon: "repeat" },
+  { name: "Gifts", color: "#A855F7", icon: "gift" },
+  { name: "Family Support", color: "#8B5CF6", icon: "heart-handshake" },
   { name: "Income", color: "#14B8A6", icon: "trending-up" },
   { name: "Transfers", color: "#6B7280", icon: "arrow-right-left" },
   { name: "Fees & Interest", color: "#DC2626", icon: "percent" },
@@ -49,6 +51,8 @@ export const DEFAULT_RULES: Record<string, string[]> = {
   Subscriptions: [
     "SPOTIFY", "APPLE.COM/BILL", "OPENAI", "NYTIMES",
   ],
+  Gifts: [],
+  "Family Support": [],
   Income: [
     "DIRECT DEPOSIT", "PAYROLL", "SALARY",
   ],
