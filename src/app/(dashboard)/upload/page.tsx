@@ -191,8 +191,11 @@ export default function UploadPage() {
             ) : (
               <div className="flex flex-col items-center gap-2">
                 <Upload className="w-10 h-10 text-gray-300 dark:text-gray-600" />
-                <p className="font-medium text-gray-600 dark:text-gray-300">Drop your statement here</p>
-                <p className="text-sm text-gray-400 dark:text-gray-500">or click to browse</p>
+                <p className="font-medium text-gray-600 dark:text-gray-300">
+                  <span className="hidden sm:inline">Drop your statement here</span>
+                  <span className="sm:hidden">Tap to choose a statement</span>
+                </p>
+                <p className="hidden sm:block text-sm text-gray-400 dark:text-gray-500">or click to browse</p>
                 <div className="flex gap-2 mt-2">
                   <Badge variant="outline" className="text-xs">.CSV</Badge>
                   <Badge variant="outline" className="text-xs">.PDF</Badge>

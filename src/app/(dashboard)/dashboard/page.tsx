@@ -391,40 +391,40 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Secondary stats */}
-      <div className="grid grid-cols-3 gap-3 md:gap-4">
+      {/* Secondary stats — tighter on mobile so $x,xxx.xx fits all three in a row */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4">
         <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-rose-50 to-white ring-1 ring-rose-100/80">
-          <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center">
+          <div className="hidden sm:flex absolute top-4 right-4 w-8 h-8 rounded-full bg-rose-100 items-center justify-center">
             <TrendingDown className="w-4 h-4 text-rose-600" />
           </div>
-          <CardContent className="pt-5 pb-4">
-            <p className="text-gray-500 dark:text-gray-400 text-xs font-medium">This Month</p>
-            <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-100">{formatCurrency(insights.thisMonthTotal)}</p>
+          <CardContent className="p-3 sm:pt-5 sm:pb-4 sm:px-6">
+            <p className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs font-medium uppercase tracking-wide">This Month</p>
+            <p className="text-base sm:text-2xl font-bold mt-0.5 sm:mt-1 text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(insights.thisMonthTotal)}</p>
             {insights.previousMonthSpending > 0 && (
-              <p className={`text-xs mt-1 ${momUp ? "text-rose-600" : "text-emerald-600"}`}>
-                {momUp ? "↑" : "↓"} {formatCurrency(Math.abs(momDelta))} vs last
+              <p className={`text-[10px] sm:text-xs mt-0.5 sm:mt-1 tabular-nums ${momUp ? "text-rose-600" : "text-emerald-600"}`}>
+                {momUp ? "↑" : "↓"} {formatCurrency(Math.abs(momDelta))} <span className="hidden sm:inline">vs last</span>
               </p>
             )}
           </CardContent>
         </Card>
         <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-sky-50 to-white ring-1 ring-sky-100/80">
-          <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center">
+          <div className="hidden sm:flex absolute top-4 right-4 w-8 h-8 rounded-full bg-sky-100 items-center justify-center">
             <Receipt className="w-4 h-4 text-sky-600" />
           </div>
-          <CardContent className="pt-5 pb-4">
-            <p className="text-gray-500 dark:text-gray-400 text-xs font-medium">Last Month</p>
-            <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-100">{formatCurrency(insights.lastMonthTotal)}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Final total</p>
+          <CardContent className="p-3 sm:pt-5 sm:pb-4 sm:px-6">
+            <p className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs font-medium uppercase tracking-wide">Last Month</p>
+            <p className="text-base sm:text-2xl font-bold mt-0.5 sm:mt-1 text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(insights.lastMonthTotal)}</p>
+            <p className="hidden sm:block text-xs text-gray-400 dark:text-gray-500 mt-1">Final total</p>
           </CardContent>
         </Card>
         <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-violet-50 to-white ring-1 ring-violet-100/80">
-          <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
+          <div className="hidden sm:flex absolute top-4 right-4 w-8 h-8 rounded-full bg-violet-100 items-center justify-center">
             <Repeat className="w-4 h-4 text-violet-600" />
           </div>
-          <CardContent className="pt-5 pb-4">
-            <p className="text-gray-500 dark:text-gray-400 text-xs font-medium">Recurring</p>
-            <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-100">{formatCurrency(recurringMonthly)}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{insights.recurring.length} subscriptions</p>
+          <CardContent className="p-3 sm:pt-5 sm:pb-4 sm:px-6">
+            <p className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs font-medium uppercase tracking-wide">Recurring</p>
+            <p className="text-base sm:text-2xl font-bold mt-0.5 sm:mt-1 text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(recurringMonthly)}</p>
+            <p className="hidden sm:block text-xs text-gray-400 dark:text-gray-500 mt-1">{insights.recurring.length} subscriptions</p>
           </CardContent>
         </Card>
       </div>

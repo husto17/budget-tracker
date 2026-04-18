@@ -255,7 +255,7 @@ export default function QuickEntryPage() {
                   <img
                     src={preview}
                     alt="Screenshot preview"
-                    className="max-h-48 mx-auto rounded-lg object-contain"
+                    className="max-h-72 sm:max-h-48 mx-auto rounded-lg object-contain"
                   />
                   <p className="text-sm text-gray-500 dark:text-gray-400">{file?.name}</p>
                   <button
