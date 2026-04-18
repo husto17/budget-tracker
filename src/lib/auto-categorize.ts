@@ -86,6 +86,25 @@ const CANONICALS: Array<[RegExp, string]> = [
   [/\bAESOP\b/i, "Aesop"],
   [/\bINSTACART\b/i, "Instacart"],
   [/LASERAWAY/i, "LaserAway"],
+  [/\bSWEETGREEN\b/i, "Sweetgreen"],
+  [/\bCHIPOTLE\b/i, "Chipotle"],
+  [/\bSHAKE\s*SHACK\b/i, "Shake Shack"],
+  [/\bCAVA\b/i, "Cava"],
+  [/\bPANERA\b/i, "Panera"],
+  [/\bDUNKIN\b/i, "Dunkin'"],
+  [/\bMCDONALD/i, "McDonald's"],
+  [/\bWENDY'?S\b/i, "Wendy's"],
+  [/\bPEET'?S\b/i, "Peet's Coffee"],
+  [/\bBLUE\s*BOTTLE\b/i, "Blue Bottle Coffee"],
+  [/\bJUST\s*SALAD\b/i, "Just Salad"],
+  [/\bAIRBNB\b/i, "Airbnb"],
+  [/\bMARRIOTT\b/i, "Marriott"],
+  [/\bHILTON\b/i, "Hilton"],
+  [/\bHYATT\b/i, "Hyatt"],
+  [/\bHERTZ\b/i, "Hertz"],
+  [/\bZIPCAR\b/i, "Zipcar"],
+  [/\bEQUINOX\b/i, "Equinox"],
+  [/\bONE\s*MEDICAL\b/i, "One Medical"],
 ];
 
 // Common US city names for trailing-city stripping. Uppercase-canonical.
@@ -93,9 +112,11 @@ const KNOWN_CITIES =
   "CHICAGO|NEW\\s+YORK|LOS\\s+ANGELES|SAN\\s+FRANCISCO|SAN\\s+DIEGO|SAN\\s+JOSE|SEATTLE|BOSTON|AUSTIN|MIAMI|HOUSTON|DALLAS|DENVER|ATLANTA|PORTLAND|PHOENIX|PHILADELPHIA|WASHINGTON|NASHVILLE|BROOKLYN|MANHATTAN|QUEENS|BRONX|OAKLAND|LONG\\s+BEACH|SACRAMENTO|MINNEAPOLIS|DETROIT|CLEVELAND|PITTSBURGH|TAMPA|ORLANDO|RALEIGH|CHARLOTTE|MILWAUKEE|BALTIMORE|INDIANAPOLIS|COLUMBUS|KANSAS\\s+CITY|ST\\s+LOUIS|CINCINNATI|SALT\\s+LAKE\\s+CITY|LAS\\s+VEGAS|HONOLULU|ANCHORAGE|NEWARK|JERSEY\\s+CITY";
 
 // Processor/passthrough prefixes: the interesting merchant is after the prefix.
-// Matches PAYPAL* explicitly, plus any 2–5 letter processor tag followed by `*`
-// (TST*, SQ *, FSP*, HFD*, IC*, DLO*, SMB*, LNK*, PMT*, POS*, SP*, etc.).
-const PASSTHROUGH_RE = /^(?:PAYPAL\s*\*|[A-Z]{2,5}\s*\*)\s*(.+)$/i;
+// Matches PAYPAL* explicitly, plus any short processor tag (1–2 words, uppercase
+// with optional hyphens/digits, up to 8 chars per word) followed by `*`.
+// Catches TST*, SQ *, FSP*, HFD*, IC*, CLIP MX*, GLOBAL-E*, etc.
+const PASSTHROUGH_RE =
+  /^(?:PAYPAL\s*\*|[A-Z][A-Z0-9-]{0,7}(?:\s+[A-Z][A-Z0-9-]{0,7})?\s*\*)\s*(.+)$/i;
 
 // Common US state abbreviations used to identify "<...> CITY ST" suffixes.
 const STATE_ABBR =
