@@ -153,6 +153,22 @@ function TransactionsContent() {
   // Reprocess merchant names
   const [reprocessing, setReprocessing] = useState(false);
 
+  // Whether category edits teach a per-merchant rule. Flip OFF to mark a batch
+  // of edits as one-off (gifts, splurges, travel oddities).
+  const [learning, setLearning] = useState(true);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const v = sessionStorage.getItem("transactions:learning");
+    if (v === "false") setLearning(false);
+  }, []);
+  function toggleLearning() {
+    setLearning((prev) => {
+      const next = !prev;
+      try { sessionStorage.setItem("transactions:learning", String(next)); } catch {}
+      return next;
+    });
+  }
+
   const LIMIT = 50;
 
   const fetchTransactions = useCallback(async () => {
@@ -228,7 +244,7 @@ function TransactionsContent() {
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ categoryId }),
+          body: JSON.stringify({ categoryId, learn: learning }),
         },
       );
       fetchTransactions();
@@ -604,7 +620,22 @@ function TransactionsContent() {
           <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
           <p className="text-sm text-gray-500 mt-1">{total.toLocaleString()} total</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center flex-wrap">
+          <button
+            onClick={toggleLearning}
+            title={
+              learning
+                ? "ON: your category picks train future uploads. Click to stop learning."
+                : "OFF: your category picks won't create auto-rules. Click to resume."
+            }
+            className={`text-xs font-medium px-2.5 py-1.5 rounded-full border transition-colors ${
+              learning
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+            }`}
+          >
+            {learning ? "🧠 Learning on" : "⏸ Learning paused"}
+          </button>
           <Button variant="outline" size="sm" onClick={() => reprocessNames(false)} disabled={reprocessing}>
             {reprocessing ? "Cleaning..." : "Clean up + categorize"}
           </Button>
