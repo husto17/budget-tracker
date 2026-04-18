@@ -20,10 +20,21 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson, FetchError, formatCurrency } from "@/lib/fetcher";
 
+// Matches CHART_COLORS on /dashboard and /insights — perceptually-spaced
+// hues so any two picks look visibly different.
 const PRESET_COLORS = [
-  "#EF4444", "#F97316", "#F59E0B", "#22C55E", "#10B981",
-  "#14B8A6", "#3B82F6", "#6366F1", "#8B5CF6", "#EC4899",
-  "#6B7280", "#1F2937",
+  "#EF4444", // red
+  "#F97316", // orange
+  "#EAB308", // yellow
+  "#84CC16", // lime
+  "#10B981", // emerald
+  "#06B6D4", // cyan
+  "#3B82F6", // blue
+  "#8B5CF6", // violet
+  "#EC4899", // pink
+  "#64748B", // slate
+  "#A855F7", // purple
+  "#1F2937", // near-black
 ];
 
 interface CategoryRule {
