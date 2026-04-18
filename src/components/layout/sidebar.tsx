@@ -17,11 +17,14 @@ import {
   Camera,
   Sparkles,
   Target,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 import { fetchJson } from "@/lib/fetcher";
 
 const navGroups: Array<{
@@ -58,8 +61,12 @@ const navGroups: Array<{
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { setTheme, resolvedTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const [uncategorized, setUncategorized] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isDark = mounted && resolvedTheme === "dark";
 
   useEffect(() => {
     let cancelled = false;
@@ -77,14 +84,14 @@ export function Sidebar() {
     .slice(0, 2) ?? "?";
 
   const sidebarContent = (
-    <aside className="flex flex-col w-60 h-full bg-white border-r border-gray-200 py-6 px-4">
+    <aside className="flex flex-col w-60 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 py-6 px-4">
       <div className="mb-8 px-2 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Budget Tracker</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Personal Finance</p>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Budget Tracker</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Personal Finance</p>
         </div>
         <button
-          className="md:hidden text-gray-400 hover:text-gray-600"
+          className="md:hidden text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-200"
           onClick={() => setOpen(false)}
         >
           <X className="w-5 h-5" />
@@ -93,7 +100,7 @@ export function Sidebar() {
 
       <nav className="flex-1 space-y-1">
         {navGroups.map((group, gi) => (
-          <div key={gi} className={cn(gi > 0 && "pt-2 mt-2 border-t border-gray-100")}>
+          <div key={gi} className={cn(gi > 0 && "pt-2 mt-2 border-t border-gray-100 dark:border-gray-800")}>
             {group.items.map(({ href, icon: Icon, label }) => {
               const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
               const showBadge = href === "/transactions" && uncategorized && uncategorized > 0;
@@ -103,8 +110,8 @@ export function Sidebar() {
                     className={cn(
                       "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                       active
-                        ? "bg-gray-100 text-gray-900"
-                        : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                        ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:bg-gray-800 dark:text-gray-100"
+                        : "text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
                     )}
                   >
                     <Icon className="w-4 h-4 shrink-0" />
@@ -122,7 +129,7 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="mt-auto pt-4 border-t border-gray-100">
+      <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800">
         <div className="flex items-center gap-3 px-2 mb-3">
           <Avatar className="w-8 h-8">
             {session?.user?.image && (
@@ -133,23 +140,36 @@ export function Sidebar() {
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
               {session?.user?.name}
             </p>
-            <p className="text-xs text-gray-400 truncate">
+            <p className="text-xs text-gray-400 dark:text-gray-400 truncate">
               {session?.user?.email}
             </p>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start text-gray-500 hover:text-gray-900"
-          onClick={() => signOut({ callbackUrl: "/login" })}
-        >
-          <LogOut className="w-4 h-4 mr-2" />
-          Sign out
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1 justify-start text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+            onClick={() => signOut({ callbackUrl: "/login" })}
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Sign out
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-gray-500 dark:text-gray-400"
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            title={isDark ? "Switch to light" : "Switch to dark"}
+            aria-label="Toggle theme"
+            suppressHydrationWarning
+          >
+            {mounted ? (isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />) : <Moon className="w-4 h-4" />}
+          </Button>
+        </div>
       </div>
     </aside>
   );
@@ -158,11 +178,11 @@ export function Sidebar() {
     <>
       {/* Mobile hamburger button — shown in mobile header */}
       <button
-        className="md:hidden fixed top-4 left-4 z-50 bg-white border border-gray-200 rounded-lg p-2 shadow-sm"
+        className="md:hidden fixed top-4 left-4 z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-2 shadow-sm"
         onClick={() => setOpen(true)}
         aria-label="Open menu"
       >
-        <Menu className="w-5 h-5 text-gray-600" />
+        <Menu className="w-5 h-5 text-gray-600 dark:text-gray-300" />
       </button>
 
       {/* Desktop sidebar */}

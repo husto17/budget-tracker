@@ -27,7 +27,7 @@ function renderMarkdown(text: string): string {
     .replace(/>/g, "&gt;");
   return esc
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded text-[0.85em]">$1</code>')
+    .replace(/`([^`]+)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-[0.85em]">$1</code>')
     .replace(/\n/g, "<br />");
 }
 
@@ -92,10 +92,10 @@ export default function AskPage() {
     <div className="flex flex-col h-[calc(100vh-8rem)] max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-indigo-500" /> Ask
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Ask anything about your spending. I can query transactions, categories, and subscriptions live.
           </p>
         </div>
@@ -113,7 +113,7 @@ export default function AskPage() {
               <button
                 key={s}
                 onClick={() => send(s)}
-                className="text-left text-sm border border-gray-200 rounded-xl px-4 py-3 bg-white hover:bg-gray-50 transition-colors"
+                className="text-left text-sm border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-3 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
                 {s}
               </button>
@@ -132,7 +132,7 @@ export default function AskPage() {
               className={`${
                 m.role === "user"
                   ? "bg-indigo-600 text-white border-0 ml-10"
-                  : "bg-white"
+                  : "bg-white dark:bg-gray-900"
               } max-w-[80%]`}
             >
               <CardContent className="px-4 py-2.5">
@@ -143,8 +143,8 @@ export default function AskPage() {
               </CardContent>
             </Card>
             {m.role === "user" && (
-              <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                <User className="w-4 h-4 text-gray-500" />
+              <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0">
+                <User className="w-4 h-4 text-gray-500 dark:text-gray-400" />
               </div>
             )}
           </div>
@@ -155,7 +155,7 @@ export default function AskPage() {
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shrink-0">
               <Bot className="w-4 h-4 text-white" />
             </div>
-            <Card className="bg-white max-w-[80%]">
+            <Card className="bg-white dark:bg-gray-900 max-w-[80%]">
               <CardContent className="px-4 py-3">
                 <div className="flex gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-gray-300 animate-pulse" />

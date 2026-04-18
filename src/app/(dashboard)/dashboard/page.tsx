@@ -147,7 +147,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <p className="text-sm text-red-600 font-medium">Couldn&apos;t load dashboard</p>
-          <p className="text-xs text-gray-400 mt-1">{loadError}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{loadError}</p>
           <button
             onClick={() => window.location.reload()}
             className="mt-3 text-sm text-blue-600 hover:underline"
@@ -167,14 +167,14 @@ export default function DashboardPage() {
   if (accounts.length === 0 && insights.thisMonthTotal === 0) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center max-w-md mx-auto p-8 bg-white rounded-2xl border border-gray-200 shadow-sm space-y-4">
+        <div className="text-center max-w-md mx-auto p-8 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
           <div className="flex justify-center">
             <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center">
               <BarChart3 className="w-8 h-8 text-blue-500" />
             </div>
           </div>
-          <h2 className="text-xl font-bold text-gray-900">Welcome to Budget Tracker</h2>
-          <p className="text-gray-500 text-sm">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Welcome to Budget Tracker</h2>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">
             Get started by adding your accounts and uploading your first bank statement.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
@@ -199,14 +199,14 @@ export default function DashboardPage() {
   if (accounts.length > 0 && insights.thisMonthTotal === 0 && Object.keys(insights.monthlyTotals).length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center max-w-md mx-auto p-8 bg-white rounded-2xl border border-gray-200 shadow-sm space-y-4">
+        <div className="text-center max-w-md mx-auto p-8 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
           <div className="flex justify-center">
             <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center">
               <BarChart3 className="w-8 h-8 text-green-500" />
             </div>
           </div>
-          <h2 className="text-xl font-bold text-gray-900">Your accounts are set up!</h2>
-          <p className="text-gray-500 text-sm">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Your accounts are set up!</h2>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">
             Now upload your statements to start tracking your spending.
           </p>
           <Link
@@ -300,19 +300,19 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">{thisMonth}</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{thisMonth}</p>
         </div>
         {hasPartner && (
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
             {(["all", "mine", "partner", "joint"] as ViewFilter[]).map((f) => (
               <button
                 key={f}
                 onClick={() => setViewFilter(f)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors capitalize ${
                   viewFilter === f
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200"
                 }`}
               >
                 {f === "all" ? "All" : f === "mine" ? "Mine" : f === "partner" ? "Partner's" : "Joint"}
@@ -367,25 +367,25 @@ export default function DashboardPage() {
 
       {/* Forecast strip — extrapolates spend to end-of-month */}
       {insights.thisMonthTotal > 0 && dayOfMonth < daysInMonth && (
-        <div className="bg-white ring-1 ring-gray-200/80 rounded-xl px-4 py-3 flex items-center gap-4 flex-wrap">
+        <div className="bg-white dark:bg-gray-900 ring-1 ring-gray-200 dark:ring-gray-800/80 rounded-xl px-4 py-3 flex items-center gap-4 flex-wrap">
           <div className="flex-1 min-w-[180px]">
-            <p className="text-xs text-gray-500 uppercase tracking-wide">Projected end of {thisMonth.split(" ")[0]}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Projected end of {thisMonth.split(" ")[0]}</p>
             <p className="text-xl font-bold mt-0.5">{formatCurrency(projectedMonthTotal)}</p>
           </div>
           <div className="flex-1 min-w-[140px]">
-            <p className="text-xs text-gray-400">vs last month</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">vs last month</p>
             <p className={`text-sm font-semibold ${forecastDelta > 0 ? "text-rose-600" : "text-emerald-600"}`}>
               {forecastDelta > 0 ? "+" : "−"}{formatCurrency(Math.abs(forecastDelta))}
               {insights.previousMonthSpending > 0 && (
-                <span className="text-gray-400 font-normal"> ({forecastPct > 0 ? "+" : ""}{forecastPct.toFixed(0)}%)</span>
+                <span className="text-gray-400 dark:text-gray-500 font-normal"> ({forecastPct > 0 ? "+" : ""}{forecastPct.toFixed(0)}%)</span>
               )}
             </p>
           </div>
           <div className="flex-1 min-w-[160px]">
-            <p className="text-xs text-gray-400">Pace</p>
-            <p className="text-sm text-gray-700">
+            <p className="text-xs text-gray-400 dark:text-gray-500">Pace</p>
+            <p className="text-sm text-gray-700 dark:text-gray-200">
               {formatCurrency(insights.thisMonthTotal / dayOfMonth)}/day
-              <span className="text-gray-400"> · {daysLeft} day{daysLeft !== 1 ? "s" : ""} left</span>
+              <span className="text-gray-400 dark:text-gray-500"> · {daysLeft} day{daysLeft !== 1 ? "s" : ""} left</span>
             </p>
           </div>
         </div>
@@ -398,8 +398,8 @@ export default function DashboardPage() {
             <TrendingDown className="w-4 h-4 text-rose-600" />
           </div>
           <CardContent className="pt-5 pb-4">
-            <p className="text-gray-500 text-xs font-medium">This Month</p>
-            <p className="text-2xl font-bold mt-1 text-gray-900">{formatCurrency(insights.thisMonthTotal)}</p>
+            <p className="text-gray-500 dark:text-gray-400 text-xs font-medium">This Month</p>
+            <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-100">{formatCurrency(insights.thisMonthTotal)}</p>
             {insights.previousMonthSpending > 0 && (
               <p className={`text-xs mt-1 ${momUp ? "text-rose-600" : "text-emerald-600"}`}>
                 {momUp ? "↑" : "↓"} {formatCurrency(Math.abs(momDelta))} vs last
@@ -412,9 +412,9 @@ export default function DashboardPage() {
             <Receipt className="w-4 h-4 text-sky-600" />
           </div>
           <CardContent className="pt-5 pb-4">
-            <p className="text-gray-500 text-xs font-medium">Last Month</p>
-            <p className="text-2xl font-bold mt-1 text-gray-900">{formatCurrency(insights.lastMonthTotal)}</p>
-            <p className="text-xs text-gray-400 mt-1">Final total</p>
+            <p className="text-gray-500 dark:text-gray-400 text-xs font-medium">Last Month</p>
+            <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-100">{formatCurrency(insights.lastMonthTotal)}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Final total</p>
           </CardContent>
         </Card>
         <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-violet-50 to-white ring-1 ring-violet-100/80">
@@ -422,22 +422,22 @@ export default function DashboardPage() {
             <Repeat className="w-4 h-4 text-violet-600" />
           </div>
           <CardContent className="pt-5 pb-4">
-            <p className="text-gray-500 text-xs font-medium">Recurring</p>
-            <p className="text-2xl font-bold mt-1 text-gray-900">{formatCurrency(recurringMonthly)}</p>
-            <p className="text-xs text-gray-400 mt-1">{insights.recurring.length} subscriptions</p>
+            <p className="text-gray-500 dark:text-gray-400 text-xs font-medium">Recurring</p>
+            <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-100">{formatCurrency(recurringMonthly)}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{insights.recurring.length} subscriptions</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Month-at-a-glance strip */}
       {stripSegments.length > 0 && (
-        <Card className="border-0 ring-1 ring-gray-200/80">
+        <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
           <CardContent className="pt-5 pb-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold text-gray-900">Month at a glance</p>
-              <p className="text-xs text-gray-400">{formatCurrency(stripTotal)} total</p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Month at a glance</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">{formatCurrency(stripTotal)} total</p>
             </div>
-            <div className="flex h-2.5 rounded-full overflow-hidden bg-gray-100">
+            <div className="flex h-2.5 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800">
               {stripSegments.map((s) => (
                 <Link
                   key={s.name}
@@ -453,11 +453,11 @@ export default function DashboardPage() {
                 <Link
                   key={s.name}
                   href={`/transactions?categoryName=${encodeURIComponent(s.name)}`}
-                  className="flex items-center gap-1.5 text-gray-600 hover:text-gray-900"
+                  className="flex items-center gap-1.5 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:text-gray-100"
                 >
                   <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
                   <span>{s.name}</span>
-                  <span className="text-gray-400">{formatCurrency(s.value)}</span>
+                  <span className="text-gray-400 dark:text-gray-500">{formatCurrency(s.value)}</span>
                 </Link>
               ))}
             </div>
@@ -500,14 +500,14 @@ export default function DashboardPage() {
 
       {/* Upcoming bills — next 21 days */}
       {upcomingBills.length > 0 && (
-        <Card className="border-0 ring-1 ring-gray-200/80">
+        <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Repeat className="w-4 h-4" /> Upcoming bills
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-gray-50 dark:divide-gray-800">
               {upcomingBills.map((b) => {
                 const due =
                   b.daysUntil < 0
@@ -522,14 +522,14 @@ export default function DashboardPage() {
                   <Link
                     key={b.merchant}
                     href={`/transactions?search=${encodeURIComponent(b.merchant)}`}
-                    className="flex items-center gap-3 py-2.5 hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"
+                    className="flex items-center gap-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800 -mx-2 px-2 rounded-lg transition-colors"
                   >
                     <MerchantLogo merchant={b.merchant} fallbackColor={null} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{b.merchant}</p>
-                      <p className={`text-xs ${urgent ? "text-amber-600 font-medium" : "text-gray-400"}`}>
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{b.merchant}</p>
+                      <p className={`text-xs ${urgent ? "text-amber-600 font-medium" : "text-gray-400 dark:text-gray-500"}`}>
                         {due} · {format(new Date(b.nextDate), "d MMM")}
-                        {b.categoryName && <span className="text-gray-400"> · {b.categoryName}</span>}
+                        {b.categoryName && <span className="text-gray-400 dark:text-gray-500"> · {b.categoryName}</span>}
                       </p>
                     </div>
                     <span className="text-sm font-semibold shrink-0">{formatCurrency(b.amount)}</span>
@@ -544,12 +544,12 @@ export default function DashboardPage() {
       {/* Household breakdown */}
       {Object.keys(insights.spendingByMember).length > 0 && (
         <div>
-          <h2 className="text-sm font-semibold text-gray-700 mb-2">Household Breakdown — {thisMonth}</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Household Breakdown — {thisMonth}</h2>
           <div className="grid grid-cols-2 gap-3">
             {Object.entries(insights.spendingByMember).map(([uid, member]) => (
-              <Card key={uid} className="border-0 ring-1 ring-gray-200/80">
+              <Card key={uid} className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
                 <CardContent className="pt-4 pb-3">
-                  <p className="text-xs text-gray-400 font-medium">{member.name}&apos;s spending</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">{member.name}&apos;s spending</p>
                   <p className="text-xl font-bold mt-1">{formatCurrency(member.amount)}</p>
                 </CardContent>
               </Card>
@@ -561,7 +561,7 @@ export default function DashboardPage() {
       {/* Charts row */}
       <div className="grid md:grid-cols-2 gap-6">
         {/* Monthly spending trend (area with gradient) */}
-        <Card className="border-0 ring-1 ring-gray-200/80">
+        <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <TrendingUp className="w-4 h-4" /> Monthly Spending
@@ -569,7 +569,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {monthlySpendingData.length === 0 ? (
-              <p className="text-sm text-gray-400 py-8 text-center">No data yet</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 py-8 text-center">No data yet</p>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <AreaChart data={monthlySpendingData}>
@@ -593,7 +593,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Donut: Spending this month */}
-        <Card className="border-0 ring-1 ring-gray-200/80">
+        <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <BarChart3 className="w-4 h-4" /> Spending This Month
@@ -601,7 +601,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {pieData.length === 0 ? (
-              <p className="text-sm text-gray-400 py-8 text-center">No categorized transactions this month</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 py-8 text-center">No categorized transactions this month</p>
             ) : (
               <div className="relative">
                 <ResponsiveContainer width="100%" height={220}>
@@ -627,8 +627,8 @@ export default function DashboardPage() {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <p className="text-xs text-gray-400 uppercase tracking-wider">Total</p>
-                  <p className="text-lg font-bold text-gray-900">{formatCurrency(pieTotal)}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total</p>
+                  <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{formatCurrency(pieTotal)}</p>
                 </div>
               </div>
             )}
@@ -638,7 +638,7 @@ export default function DashboardPage() {
 
       {/* Income vs spending line chart */}
       {incomeSpendingData.length > 0 && (
-        <Card className="border-0 ring-1 ring-gray-200/80">
+        <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
           <CardHeader>
             <CardTitle className="text-base">Income vs Spending</CardTitle>
           </CardHeader>
@@ -660,7 +660,7 @@ export default function DashboardPage() {
 
       {/* Budget utilization as rings */}
       {insights.budgetUtilization.length > 0 && (
-        <Card className="border-0 ring-1 ring-gray-200/80">
+        <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
           <CardHeader>
             <CardTitle className="text-base">Budgets — {thisMonth}</CardTitle>
           </CardHeader>
@@ -689,15 +689,15 @@ export default function DashboardPage() {
                         />
                       </svg>
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-xs font-bold text-gray-900">{Math.round(pct)}%</span>
+                        <span className="text-xs font-bold text-gray-900 dark:text-gray-100">{Math.round(pct)}%</span>
                       </div>
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{b.category}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
                         {formatCurrency(b.spent)} / {formatCurrency(b.budget)}
                       </p>
-                      <p className={`text-xs mt-0.5 ${over ? "text-red-600 font-medium" : "text-gray-400"}`}>
+                      <p className={`text-xs mt-0.5 ${over ? "text-red-600 font-medium" : "text-gray-400 dark:text-gray-500"}`}>
                         {over ? `Over by ${formatCurrency(Math.abs(b.remaining))}` : `${formatCurrency(b.remaining)} left`}
                       </p>
                     </div>
@@ -711,7 +711,7 @@ export default function DashboardPage() {
 
       {/* Recent activity + Top merchants */}
       <div className="grid md:grid-cols-2 gap-6">
-        <Card className="border-0 ring-1 ring-gray-200/80">
+        <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
@@ -722,28 +722,28 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {insights.recent.length === 0 ? (
-              <p className="text-sm text-gray-400 py-4 text-center">No transactions yet</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">No transactions yet</p>
             ) : (
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-gray-50 dark:divide-gray-800">
                 {insights.recent.map((tx) => (
                   <div key={tx.id} className="flex items-center gap-3 py-2.5">
                     <MerchantLogo merchant={tx.description} fallbackColor={tx.category?.color} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{tx.description}</p>
-                      <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{tx.description}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
                         {tx.category && (
                           <span className="inline-flex items-center gap-1">
                             <CategoryIcon icon={tx.category.icon} color={tx.category.color} size="sm" />
                             {tx.category.name}
                           </span>
                         )}
-                        {tx.category && <span className="text-gray-300">·</span>}
+                        {tx.category && <span className="text-gray-300 dark:text-gray-600">·</span>}
                         <span>{format(parseISO(tx.date), "d MMM")}</span>
-                        <span className="text-gray-300">·</span>
+                        <span className="text-gray-300 dark:text-gray-600">·</span>
                         <span className="truncate">{tx.accountName}</span>
                       </p>
                     </div>
-                    <span className={`text-sm font-semibold shrink-0 ${tx.isCredit ? "text-emerald-600" : "text-gray-900"}`}>
+                    <span className={`text-sm font-semibold shrink-0 ${tx.isCredit ? "text-emerald-600" : "text-gray-900 dark:text-gray-100"}`}>
                       {tx.isCredit ? "+" : "−"}{formatCurrency(tx.amount)}
                     </span>
                   </div>
@@ -753,7 +753,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-0 ring-1 ring-gray-200/80">
+        <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Store className="w-4 h-4" /> Top Merchants — {thisMonth}
@@ -761,7 +761,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {insights.topMerchants.length === 0 ? (
-              <p className="text-sm text-gray-400 py-4 text-center">No merchants this month yet</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">No merchants this month yet</p>
             ) : (
               <div className="space-y-2.5">
                 {insights.topMerchants.map((m, i) => {
@@ -776,7 +776,7 @@ export default function DashboardPage() {
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <div className="flex items-center gap-2 min-w-0">
                           <MerchantLogo merchant={m.merchant} fallbackColor={m.categoryColor} size="sm" />
-                          <span className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600">
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600">
                             {m.merchant}
                           </span>
                           {m.categoryName && (
@@ -787,7 +787,7 @@ export default function DashboardPage() {
                         </div>
                         <span className="text-sm font-semibold shrink-0">{formatCurrency(m.amount)}</span>
                       </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden ml-10">
+                      <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden ml-10">
                         <div
                           className="h-full rounded-full transition-all"
                           style={{
@@ -807,13 +807,13 @@ export default function DashboardPage() {
 
       {/* Accounts + Recurring */}
       <div className="grid md:grid-cols-2 gap-6">
-        <Card className="border-0 ring-1 ring-gray-200/80">
+        <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
           <CardHeader>
             <CardTitle className="text-base">Accounts</CardTitle>
           </CardHeader>
           <CardContent>
             {filteredAccounts.length === 0 ? (
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-gray-400 dark:text-gray-500">
                 No accounts. <Link href="/accounts" className="text-blue-600 hover:underline">Add one</Link>
               </p>
             ) : (
@@ -829,9 +829,9 @@ export default function DashboardPage() {
                           {acc.isJoint && <span className="ml-1.5 text-xs text-purple-600 font-normal">(Joint)</span>}
                           {acc.owner === "partner" && <span className="ml-1.5 text-xs text-blue-500 font-normal">(Partner)</span>}
                         </p>
-                        <p className="text-xs text-gray-400">{acc.type.replace("_", " ")}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">{acc.type.replace("_", " ")}</p>
                       </div>
-                      <span className={`text-sm font-semibold shrink-0 ml-2 ${isCredit && balance > 0 ? "text-red-600" : "text-gray-900"}`}>
+                      <span className={`text-sm font-semibold shrink-0 ml-2 ${isCredit && balance > 0 ? "text-red-600" : "text-gray-900 dark:text-gray-100"}`}>
                         {formatCurrency(balance)}
                       </span>
                     </div>
@@ -842,7 +842,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-0 ring-1 ring-gray-200/80">
+        <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Repeat className="w-4 h-4" /> Recurring Spend
@@ -850,7 +850,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {insights.recurring.length === 0 ? (
-              <p className="text-sm text-gray-400">Not enough data yet to detect recurring transactions</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500">Not enough data yet to detect recurring transactions</p>
             ) : (
               <div className="space-y-2">
                 {insights.recurring.slice(0, 8).map((r) => (
@@ -870,7 +870,7 @@ export default function DashboardPage() {
 
       {/* Bar chart (retained for legacy view, cleaner look) */}
       {monthlySpendingData.length > 0 && (
-        <Card className="border-0 ring-1 ring-gray-200/80">
+        <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
           <CardHeader>
             <CardTitle className="text-base">Monthly Totals (6 months)</CardTitle>
           </CardHeader>

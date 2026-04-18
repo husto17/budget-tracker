@@ -75,12 +75,12 @@ export default function UploadsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Upload History</h1>
-        <p className="text-sm text-gray-500 mt-1">All statements you have imported</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Upload History</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">All statements you have imported</p>
       </div>
 
       {loading ? (
-        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-50">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl divide-y divide-gray-50 dark:divide-gray-800">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="px-4 py-3 flex items-center gap-3">
               <Skeleton className="w-8 h-8 rounded" />
@@ -100,10 +100,10 @@ export default function UploadsPage() {
           </Button>
         </div>
       ) : uploads.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl text-center py-16">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-center py-16">
           <Upload className="w-12 h-12 mx-auto mb-4 text-gray-200" />
-          <p className="text-gray-500 font-medium">No statements uploaded yet.</p>
-          <p className="text-sm text-gray-400 mt-1">Upload your first statement.</p>
+          <p className="text-gray-500 dark:text-gray-400 font-medium">No statements uploaded yet.</p>
+          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Upload your first statement.</p>
           <Button
             variant="outline"
             size="sm"
@@ -114,12 +114,12 @@ export default function UploadsPage() {
           </Button>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
           {/* Desktop table */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide">
+                <tr className="border-b border-gray-100 dark:border-gray-800 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">
                   <th className="px-4 py-3 text-left">File Name</th>
                   <th className="px-4 py-3 text-left">Account</th>
                   <th className="px-4 py-3 text-left">Date Uploaded</th>
@@ -128,9 +128,9 @@ export default function UploadsPage() {
                   <th className="px-4 py-3 text-right w-16"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
                 {uploads.map((u) => (
-                  <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {u.fileType === "pdf" ? (
@@ -138,13 +138,13 @@ export default function UploadsPage() {
                         ) : (
                           <FileSpreadsheet className="w-4 h-4 text-green-500 shrink-0" />
                         )}
-                        <span className="text-sm font-medium text-gray-900 truncate max-w-[240px]">
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[240px]">
                           {u.fileName}
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{u.account.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{u.account.name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
                       {format(new Date(u.createdAt), "dd MMM yyyy, HH:mm")}
                     </td>
                     <td className="px-4 py-3">
@@ -152,14 +152,14 @@ export default function UploadsPage() {
                         {u.fileType}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-right text-sm text-gray-700 font-medium">
+                    <td className="px-4 py-3 text-right text-sm text-gray-700 dark:text-gray-200 font-medium">
                       {u._count.transactions.toLocaleString()}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-gray-300 hover:text-red-500"
+                        className="h-7 w-7 text-gray-300 dark:text-gray-600 hover:text-red-500"
                         onClick={() => setDeleteTarget(u)}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -172,7 +172,7 @@ export default function UploadsPage() {
           </div>
 
           {/* Mobile list */}
-          <div className="md:hidden divide-y divide-gray-50">
+          <div className="md:hidden divide-y divide-gray-50 dark:divide-gray-800">
             {uploads.map((u) => (
               <div key={u.id} className="px-4 py-3 flex items-center gap-3">
                 {u.fileType === "pdf" ? (
@@ -181,18 +181,18 @@ export default function UploadsPage() {
                   <FileSpreadsheet className="w-8 h-8 text-green-500 shrink-0" />
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{u.fileName}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{u.fileName}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     {u.account.name} &middot; {format(new Date(u.createdAt), "dd MMM yyyy")}
                   </p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
                     {u._count.transactions} transaction{u._count.transactions !== 1 ? "s" : ""}
                   </p>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 text-gray-300 hover:text-red-500 shrink-0"
+                  className="h-7 w-7 text-gray-300 dark:text-gray-600 hover:text-red-500 shrink-0"
                   onClick={() => setDeleteTarget(u)}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -209,7 +209,7 @@ export default function UploadsPage() {
           <DialogHeader>
             <DialogTitle>Delete upload?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
             This will delete{" "}
             <strong>
               {deleteTarget?._count.transactions ?? 0} transaction

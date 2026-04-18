@@ -66,7 +66,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-800 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">Budget Tracker</CardTitle>
@@ -88,7 +88,7 @@ export default function LoginPage() {
 
           <div className="flex items-center gap-3">
             <Separator className="flex-1" />
-            <span className="text-xs text-gray-400">or</span>
+            <span className="text-xs text-gray-400 dark:text-gray-500">or</span>
             <Separator className="flex-1" />
           </div>
 
@@ -112,7 +112,7 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="text-center text-sm text-gray-500">
+          <p className="text-center text-sm text-gray-500 dark:text-gray-400">
             Don&apos;t have an account?{" "}
             <Link href="/register" className="text-blue-600 hover:underline">
               Sign up

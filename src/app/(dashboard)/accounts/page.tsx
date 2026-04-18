@@ -148,8 +148,8 @@ export default function AccountsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Accounts</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage your bank accounts and credit cards</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Accounts</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your bank accounts and credit cards</p>
         </div>
         <Button onClick={openAdd}>
           <Plus className="w-4 h-4 mr-2" />
@@ -193,7 +193,7 @@ export default function AccountsPage() {
           </Button>
         </div>
       ) : accounts.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
+        <div className="text-center py-12 text-gray-400 dark:text-gray-500">
           <Landmark className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="font-medium">No accounts yet</p>
           <p className="text-sm mt-1">Add your first bank account to get started</p>
@@ -210,7 +210,7 @@ export default function AccountsPage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
+                      <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300">
                         <AccountIcon type={account.type} />
                       </div>
                       <div>
@@ -223,7 +223,7 @@ export default function AccountsPage() {
                             <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">Partner&apos;s</Badge>
                           )}
                         </div>
-                        <p className="text-xs text-gray-400 mt-0.5">
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                           {account.institution ?? typeInfo?.label}
                           {account.lastFour && ` •••• ${account.lastFour}`}
                         </p>
@@ -242,7 +242,7 @@ export default function AccountsPage() {
                 <CardContent>
                   <div className="flex items-end justify-between">
                     <div>
-                      <p className={`text-2xl font-bold ${isCredit && balance > 0 ? "text-red-600" : "text-gray-900"}`}>
+                      <p className={`text-2xl font-bold ${isCredit && balance > 0 ? "text-red-600" : "text-gray-900 dark:text-gray-100"}`}>
                         {formatCurrency(balance)}
                       </p>
                       {isCredit && balance > 0 && (
@@ -294,7 +294,7 @@ export default function AccountsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Bank / Institution <span className="text-gray-400">(optional)</span></Label>
+              <Label>Bank / Institution <span className="text-gray-400 dark:text-gray-500">(optional)</span></Label>
               <Input
                 value={form.institution}
                 onChange={(e) => setForm((f) => ({ ...f, institution: e.target.value }))}
@@ -302,7 +302,7 @@ export default function AccountsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Last 4 digits <span className="text-gray-400">(optional)</span></Label>
+              <Label>Last 4 digits <span className="text-gray-400 dark:text-gray-500">(optional)</span></Label>
               <Input
                 value={form.lastFour}
                 onChange={(e) => setForm((f) => ({ ...f, lastFour: e.target.value }))}

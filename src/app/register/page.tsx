@@ -47,7 +47,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-800 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
@@ -80,7 +80,7 @@ export default function RegisterPage() {
               {loading ? "Creating account..." : "Create Account"}
             </Button>
           </form>
-          <p className="text-center text-sm text-gray-500 mt-4">
+          <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
             Already have an account?{" "}
             <Link href="/login" className="text-blue-600 hover:underline">
               Sign in

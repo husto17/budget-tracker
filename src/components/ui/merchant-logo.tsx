@@ -57,7 +57,7 @@ export function MerchantLogo({ merchant, fallbackColor, size = "sm", className }
     <img
       src={src}
       alt=""
-      className={cn(dim, "rounded-full object-cover bg-white shrink-0", className)}
+      className={cn(dim, "rounded-full object-cover bg-white dark:bg-gray-900 shrink-0", className)}
       onError={() => setFailed(true)}
     />
   );

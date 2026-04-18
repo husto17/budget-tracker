@@ -123,23 +123,23 @@ export function HouseholdSettings({ currentUserId, household, pendingInvite }: P
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-gray-500">You are sharing finances with your household.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">You are sharing finances with your household.</p>
           <div className="space-y-3">
             {me && (
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
                 <Avatar className="w-9 h-9">
                   <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
                     {getInitials(me.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="text-sm font-medium">{me.name} <span className="text-gray-400 font-normal">(you)</span></p>
-                  <p className="text-xs text-gray-400">{me.email}</p>
+                  <p className="text-sm font-medium">{me.name} <span className="text-gray-400 dark:text-gray-500 font-normal">(you)</span></p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">{me.email}</p>
                 </div>
               </div>
             )}
             {partner ? (
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
                 <Avatar className="w-9 h-9">
                   <AvatarFallback className="text-xs bg-green-100 text-green-700">
                     {getInitials(partner.name)}
@@ -147,11 +147,11 @@ export function HouseholdSettings({ currentUserId, household, pendingInvite }: P
                 </Avatar>
                 <div>
                   <p className="text-sm font-medium">{partner.name}</p>
-                  <p className="text-xs text-gray-400">{partner.email}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">{partner.email}</p>
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-gray-400 italic">Waiting for partner to accept invite...</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 italic">Waiting for partner to accept invite...</p>
             )}
           </div>
           <Button variant="outline" size="sm" onClick={handleLeave} disabled={leaving} className="text-red-600 border-red-200 hover:bg-red-50">
@@ -196,7 +196,7 @@ export function HouseholdSettings({ currentUserId, household, pendingInvite }: P
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-gray-500 mb-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             Invite your partner to join your household. You will both be able to see all accounts, transactions, and combined spending.
           </p>
           <div className="space-y-3">

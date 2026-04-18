@@ -621,8 +621,8 @@ function TransactionsContent() {
     <div className="space-y-6 pb-24">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
-          <p className="text-sm text-gray-500 mt-1">{total.toLocaleString()} total</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Transactions</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{total.toLocaleString()} total</p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
           <button
@@ -650,14 +650,14 @@ function TransactionsContent() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
-        <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
           <Filter className="w-4 h-4" /> Filters
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           {/* Search — full-width on mobile */}
           <div className="relative col-span-1 md:col-span-1 w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
             <Input
               value={searchInput}
               onChange={(e) => handleSearchChange(e.target.value)}
@@ -721,7 +721,7 @@ function TransactionsContent() {
         </div>
         {/* Status filter */}
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-gray-500 font-medium mr-1">Show:</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400 font-medium mr-1">Show:</span>
           {(["all", "posted", "pending"] as const).map((s) => (
             <button
               key={s}
@@ -734,7 +734,7 @@ function TransactionsContent() {
                   ? s === "pending"
                     ? "bg-amber-100 text-amber-700"
                     : "bg-gray-900 text-white"
-                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200"
               }`}
             >
               {s.charAt(0).toUpperCase() + s.slice(1)}
@@ -775,7 +775,7 @@ function TransactionsContent() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 text-gray-400"
+              className="h-8 text-gray-400 dark:text-gray-500"
               onClick={() => {
                 setSearchInput("");
                 setSearch("");
@@ -794,9 +794,9 @@ function TransactionsContent() {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
         {loading ? (
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-gray-50 dark:divide-gray-800">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="px-4 py-4 flex items-center gap-3">
                 <Skeleton className="w-8 h-8 rounded-full" />
@@ -816,14 +816,14 @@ function TransactionsContent() {
             </Button>
           </div>
         ) : transactions.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
+          <div className="text-center py-12 text-gray-400 dark:text-gray-500">
             <ArrowUpDown className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p>No transactions found</p>
           </div>
         ) : (
           <>
             {/* Mobile card list */}
-            <div className="md:hidden divide-y divide-gray-50">
+            <div className="md:hidden divide-y divide-gray-50 dark:divide-gray-800">
               {transactions.map((tx) => {
                 const info = pairInfo.get(tx.id);
                 if (info && !info.isFirst && !expandedPairs.has(info.pairKey)) return null;
@@ -850,21 +850,21 @@ function TransactionsContent() {
                       />
                       <button
                         onClick={() => togglePairExpanded(info.pairKey)}
-                        className="shrink-0 text-gray-400"
+                        className="shrink-0 text-gray-400 dark:text-gray-500"
                       >
                         {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                       </button>
                       <ArrowRightLeft className="w-4 h-4 text-blue-500 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">{pairLabel}</p>
-                        <p className="text-xs text-gray-500 truncate">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{pairLabel}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                           {outgoing.account.name} → {incoming.account.name}
                         </p>
-                        <p className="text-xs text-gray-400 mt-0.5">
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                           {format(new Date(outgoing.date), "dd MMM yyyy")}
                         </p>
                       </div>
-                      <span className="text-sm font-medium text-gray-700 shrink-0">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200 shrink-0">
                         {formatCurrency(outgoing.amount)}
                       </span>
                     </div>
@@ -893,13 +893,13 @@ function TransactionsContent() {
                     <div className="flex items-center justify-between gap-2">
                       <button
                         onClick={() => setDrawerTx(tx)}
-                        className="text-sm font-medium text-gray-900 truncate text-left hover:text-blue-600 transition-colors"
+                        className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate text-left hover:text-blue-600 transition-colors"
                       >
                         {tx.merchant ?? tx.description}
                       </button>
                       <span
                         className={`text-sm font-medium shrink-0 ${
-                          tx.isCredit ? "text-green-600" : "text-gray-900"
+                          tx.isCredit ? "text-green-600" : "text-gray-900 dark:text-gray-100"
                         }`}
                       >
                         {tx.isCredit ? "+" : "−"}
@@ -907,7 +907,7 @@ function TransactionsContent() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
                         {format(new Date(tx.date), "dd MMM yyyy")}
                       </span>
                       {tx.isPending && !tx.isReconciled && (
@@ -948,7 +948,7 @@ function TransactionsContent() {
                         </Badge>
                       ) : (
                         <button
-                          className="text-xs text-gray-400 hover:text-blue-600 flex items-center gap-1"
+                          className="text-xs text-gray-400 dark:text-gray-500 hover:text-blue-600 flex items-center gap-1"
                           onClick={() => openLinkTransferDialog(tx)}
                         >
                           <Link2 className="w-3 h-3" />
@@ -960,7 +960,7 @@ function TransactionsContent() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 text-gray-300 hover:text-red-500 shrink-0"
+                    className="h-7 w-7 text-gray-300 dark:text-gray-600 hover:text-red-500 shrink-0"
                     onClick={() => setDeleteTargetId(tx.id)}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -975,7 +975,7 @@ function TransactionsContent() {
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide">
+                  <tr className="border-b border-gray-100 dark:border-gray-800 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">
                     <th className="px-4 py-3 text-left w-8">
                       <input
                         type="checkbox"
@@ -998,7 +998,7 @@ function TransactionsContent() {
                     <th className="px-4 py-3 text-right w-24"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
                   {transactions.map((tx) => {
                     const info = pairInfo.get(tx.id);
                     // Collapsed pair: hide the second side — the pair header represents both
@@ -1025,35 +1025,35 @@ function TransactionsContent() {
                               onChange={() => togglePairSelect(tx.id, other.id)}
                             />
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                          <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
                             {format(new Date(outgoing.date), "dd MMM yyyy")}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => togglePairExpanded(info.pairKey)}
-                                className="text-gray-400 hover:text-gray-700"
+                                className="text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:text-gray-200"
                                 title={isExpanded ? "Collapse" : "Expand"}
                               >
                                 {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                               </button>
                               <ArrowRightLeft className="w-4 h-4 text-blue-500 shrink-0" />
                               <div className="min-w-0">
-                                <p className="text-sm font-medium text-gray-900">{pairLabel}</p>
-                                <p className="text-xs text-gray-500 truncate max-w-[240px]">
+                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{pairLabel}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[240px]">
                                   {outgoing.account.name} → {incoming.account.name}
                                 </p>
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-400">—</td>
+                          <td className="px-4 py-3 text-sm text-gray-400 dark:text-gray-500">—</td>
                           <td className="px-4 py-3">
                             <Badge variant="outline" className="text-xs text-blue-600 border-blue-200 gap-1">
                               <ArrowRightLeft className="w-3 h-3" /> Transfer
                             </Badge>
                           </td>
                           <td className="px-4 py-3 text-right whitespace-nowrap">
-                            <span className="text-sm font-medium text-gray-700">{formatCurrency(outgoing.amount)}</span>
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{formatCurrency(outgoing.amount)}</span>
                           </td>
                           <td className="px-4 py-3 text-right">
                             <Button
@@ -1078,7 +1078,7 @@ function TransactionsContent() {
                     <Fragment key={tx.id}>
                     {pairHeader}
                     <tr
-                      className={`hover:bg-gray-50 transition-colors ${
+                      className={`hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
                         selected.has(tx.id) ? "bg-blue-50" : ""
                       } ${tx.isPending ? "opacity-80" : ""} ${info ? "bg-blue-50/10" : ""}`}
                     >
@@ -1089,7 +1089,7 @@ function TransactionsContent() {
                           onChange={() => toggleSelect(tx.id)}
                         />
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
                         {format(new Date(tx.date), "dd MMM yyyy")}
                       </td>
                       <td className="px-4 py-3">
@@ -1097,12 +1097,12 @@ function TransactionsContent() {
                           <div>
                             <button
                               onClick={() => setDrawerTx(tx)}
-                              className="text-sm font-medium text-gray-900 truncate max-w-[200px] text-left hover:text-blue-600 transition-colors"
+                              className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[200px] text-left hover:text-blue-600 transition-colors"
                             >
                               {tx.merchant ?? tx.description}
                             </button>
                             {tx.merchant && tx.merchant !== tx.description && (
-                              <p className="text-xs text-gray-400 truncate max-w-[200px]">
+                              <p className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[200px]">
                                 {tx.description}
                               </p>
                             )}
@@ -1129,7 +1129,7 @@ function TransactionsContent() {
                             </Badge>
                           ) : (
                             <button
-                              className="opacity-0 group-hover:opacity-100 text-xs text-gray-400 hover:text-blue-600 flex items-center gap-1 transition-opacity"
+                              className="opacity-0 group-hover:opacity-100 text-xs text-gray-400 dark:text-gray-500 hover:text-blue-600 flex items-center gap-1 transition-opacity"
                               onClick={() => openLinkTransferDialog(tx)}
                               title="Link as transfer"
                             >
@@ -1138,7 +1138,7 @@ function TransactionsContent() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
                         {tx.account.name}
                       </td>
                       <td className="px-4 py-3">
@@ -1157,7 +1157,7 @@ function TransactionsContent() {
                               updateCategory(tx.id, v === "none" ? null : v)
                             }
                           >
-                            <SelectTrigger className="h-7 text-xs border-0 bg-transparent p-0 gap-1 w-36 hover:bg-gray-100 rounded px-2">
+                            <SelectTrigger className="h-7 text-xs border-0 bg-transparent p-0 gap-1 w-36 hover:bg-gray-100 dark:hover:bg-gray-800 rounded px-2">
                               <div className="flex items-center gap-1.5 min-w-0">
                                 {tx.category ? (
                                   <>
@@ -1169,7 +1169,7 @@ function TransactionsContent() {
                                     <span className="truncate">{tx.category.name}</span>
                                   </>
                                 ) : (
-                                  <span className="text-gray-300">— Uncategorized</span>
+                                  <span className="text-gray-300 dark:text-gray-600">— Uncategorized</span>
                                 )}
                               </div>
                             </SelectTrigger>
@@ -1190,7 +1190,7 @@ function TransactionsContent() {
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         <span
                           className={`text-sm font-medium ${
-                            tx.isCredit ? "text-green-600" : "text-gray-900"
+                            tx.isCredit ? "text-green-600" : "text-gray-900 dark:text-gray-100"
                           }`}
                         >
                           {tx.isCredit ? "+" : "−"}
@@ -1202,7 +1202,7 @@ function TransactionsContent() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-gray-300 hover:text-gray-700"
+                            className="h-7 w-7 text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:text-gray-200"
                             title="Edit transaction"
                             onClick={() => openEditDialog(tx)}
                           >
@@ -1211,7 +1211,7 @@ function TransactionsContent() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-gray-300 hover:text-purple-500"
+                            className="h-7 w-7 text-gray-300 dark:text-gray-600 hover:text-purple-500"
                             title="Split transaction"
                             onClick={() => openSplitDialog(tx)}
                           >
@@ -1221,7 +1221,7 @@ function TransactionsContent() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-gray-300 hover:text-blue-500"
+                              className="h-7 w-7 text-gray-300 dark:text-gray-600 hover:text-blue-500"
                               title="Link as transfer"
                               onClick={() => openLinkTransferDialog(tx)}
                             >
@@ -1232,7 +1232,7 @@ function TransactionsContent() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-blue-400 hover:text-gray-500"
+                              className="h-7 w-7 text-blue-400 hover:text-gray-500 dark:text-gray-400"
                               title="Unlink transfer"
                               onClick={() => handleUnlinkTransfer(tx.id)}
                             >
@@ -1242,7 +1242,7 @@ function TransactionsContent() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-gray-300 hover:text-red-500"
+                            className="h-7 w-7 text-gray-300 dark:text-gray-600 hover:text-red-500"
                             onClick={() => setDeleteTargetId(tx.id)}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1263,7 +1263,7 @@ function TransactionsContent() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             Showing {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, total)} of{" "}
             {total}
           </p>
@@ -1295,7 +1295,7 @@ function TransactionsContent() {
             {selected.size} transaction{selected.size !== 1 ? "s" : ""} selected
           </span>
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Tag className="w-4 h-4 text-gray-400 shrink-0" />
+            <Tag className="w-4 h-4 text-gray-400 dark:text-gray-500 shrink-0" />
             <Select
               value={bulkCatId}
               onValueChange={(v) => setBulkCatId(v ?? "")}
@@ -1341,7 +1341,7 @@ function TransactionsContent() {
           <Button
             size="sm"
             variant="ghost"
-            className="text-gray-400 hover:text-white shrink-0"
+            className="text-gray-400 dark:text-gray-500 hover:text-white shrink-0"
             onClick={() => {
               setSelected(new Set());
               setBulkCatId("");
@@ -1441,7 +1441,7 @@ function TransactionsContent() {
             </div>
             <div className="space-y-2">
               <Label>
-                Category <span className="text-gray-400">(optional)</span>
+                Category <span className="text-gray-400 dark:text-gray-500">(optional)</span>
               </Label>
               <Select
                 value={addForm.categoryId || "none"}
@@ -1475,7 +1475,7 @@ function TransactionsContent() {
             </div>
             <div className="space-y-2">
               <Label>
-                Notes <span className="text-gray-400">(optional)</span>
+                Notes <span className="text-gray-400 dark:text-gray-500">(optional)</span>
               </Label>
               <textarea
                 value={addForm.notes}
@@ -1542,7 +1542,7 @@ function TransactionsContent() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Notes <span className="text-gray-400">(optional)</span></Label>
+                <Label>Notes <span className="text-gray-400 dark:text-gray-500">(optional)</span></Label>
                 <textarea
                   value={editForm.notes}
                   onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
@@ -1572,12 +1572,12 @@ function TransactionsContent() {
           </DialogHeader>
           {splitTx && (
             <div className="space-y-4">
-              <div className="bg-gray-50 rounded-lg p-3 text-sm">
-                <p className="font-medium text-gray-900">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-sm">
+                <p className="font-medium text-gray-900 dark:text-gray-100">
                   {splitTx.merchant ?? splitTx.description}
                 </p>
-                <p className="text-gray-500 text-xs mt-0.5">
-                  Total: <span className="font-semibold text-gray-900">{formatCurrency(splitTx.amount)}</span>
+                <p className="text-gray-500 dark:text-gray-400 text-xs mt-0.5">
+                  Total: <span className="font-semibold text-gray-900 dark:text-gray-100">{formatCurrency(splitTx.amount)}</span>
                 </p>
               </div>
 
@@ -1636,7 +1636,7 @@ function TransactionsContent() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-gray-300 hover:text-red-500"
+                        className="h-8 w-8 text-gray-300 dark:text-gray-600 hover:text-red-500"
                         onClick={() =>
                           setSplitRows((rows) => rows.filter((_, idx) => idx !== i))
                         }
@@ -1705,23 +1705,23 @@ function TransactionsContent() {
           </DialogHeader>
           {linkTransferTx && (
             <div className="space-y-4">
-              <div className="bg-gray-50 rounded-lg p-3 text-sm">
-                <p className="font-medium text-gray-900">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-sm">
+                <p className="font-medium text-gray-900 dark:text-gray-100">
                   {linkTransferTx.merchant ?? linkTransferTx.description}
                 </p>
-                <p className="text-gray-500 text-xs mt-0.5">
+                <p className="text-gray-500 dark:text-gray-400 text-xs mt-0.5">
                   {format(new Date(linkTransferTx.date), "dd MMM yyyy")} &middot;{" "}
                   {linkTransferTx.account.name} &middot;{" "}
                   {linkTransferTx.isCredit ? "+" : "−"}
                   {formatCurrency(linkTransferTx.amount)}
                 </p>
               </div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
                 Select the matching transaction in the other account (showing
                 transactions within ±7 days):
               </p>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
                 <Input
                   value={transferSearch}
                   onChange={(e) => {
@@ -1732,20 +1732,20 @@ function TransactionsContent() {
                   className="pl-9"
                 />
               </div>
-              <div className="max-h-64 overflow-y-auto space-y-1 border border-gray-100 rounded-lg">
+              <div className="max-h-64 overflow-y-auto space-y-1 border border-gray-100 dark:border-gray-800 rounded-lg">
                 {loadingCandidates ? (
-                  <p className="text-center text-sm text-gray-400 py-4">
+                  <p className="text-center text-sm text-gray-400 dark:text-gray-500 py-4">
                     Loading...
                   </p>
                 ) : transferCandidates.length === 0 ? (
-                  <p className="text-center text-sm text-gray-400 py-4">
+                  <p className="text-center text-sm text-gray-400 dark:text-gray-500 py-4">
                     No transactions found
                   </p>
                 ) : (
                   transferCandidates.map((t) => (
                     <label
                       key={t.id}
-                      className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 rounded transition-colors ${
+                      className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition-colors ${
                         selectedPair === t.id ? "bg-blue-50" : ""
                       }`}
                     >
@@ -1758,17 +1758,17 @@ function TransactionsContent() {
                         className="shrink-0"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                           {t.merchant ?? t.description}
                         </p>
-                        <p className="text-xs text-gray-400">
+                        <p className="text-xs text-gray-400 dark:text-gray-500">
                           {format(new Date(t.date), "dd MMM yyyy")} &middot;{" "}
                           {t.account.name}
                         </p>
                       </div>
                       <span
                         className={`text-sm font-medium shrink-0 ${
-                          t.isCredit ? "text-green-600" : "text-gray-900"
+                          t.isCredit ? "text-green-600" : "text-gray-900 dark:text-gray-100"
                         }`}
                       >
                         {t.isCredit ? "+" : "−"}
@@ -1820,7 +1820,7 @@ function TransactionsContent() {
 
 export default function TransactionsPage() {
   return (
-    <Suspense fallback={<div className="text-center py-12 text-gray-400">Loading...</div>}>
+    <Suspense fallback={<div className="text-center py-12 text-gray-400 dark:text-gray-500">Loading...</div>}>
       <TransactionsContent />
     </Suspense>
   );

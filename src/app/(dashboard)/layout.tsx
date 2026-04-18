@@ -18,7 +18,7 @@ export default async function DashboardLayout({
       <KeyboardShortcuts />
       <CommandPalette />
       <Sidebar />
-      <main className="flex-1 overflow-y-auto bg-gray-50">
+      <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950">
         {/* Mobile header spacer so content isn't under the hamburger button */}
         <div className="md:hidden h-14" />
         <div className="p-4 md:p-8">{children}</div>

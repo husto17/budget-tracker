@@ -95,8 +95,8 @@ export default function UploadPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Upload Statement</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Upload Statement</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Import transactions from a CSV or PDF bank statement
           </p>
         </div>
@@ -111,7 +111,7 @@ export default function UploadPage() {
         </CardHeader>
         <CardContent>
           {accounts.length === 0 ? (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               No accounts yet.{" "}
               <a href="/accounts" className="text-blue-600 hover:underline">Add an account first.</a>
             </p>
@@ -154,7 +154,7 @@ export default function UploadPage() {
                 ? "border-blue-400 bg-blue-50"
                 : file
                 ? "border-green-300 bg-green-50"
-                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                : "border-gray-200 dark:border-gray-800 hover:border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
             }`}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
@@ -175,14 +175,14 @@ export default function UploadPage() {
                 ) : (
                   <FileText className="w-10 h-10 text-red-500" />
                 )}
-                <p className="font-medium text-gray-900">{file.name}</p>
-                <p className="text-sm text-gray-400">
+                <p className="font-medium text-gray-900 dark:text-gray-100">{file.name}</p>
+                <p className="text-sm text-gray-400 dark:text-gray-500">
                   {(file.size / 1024).toFixed(1)} KB
                 </p>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-300"
                   onClick={(e) => { e.stopPropagation(); setFile(null); setResult(null); }}
                 >
                   <X className="w-3.5 h-3.5 mr-1" /> Remove
@@ -190,9 +190,9 @@ export default function UploadPage() {
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2">
-                <Upload className="w-10 h-10 text-gray-300" />
-                <p className="font-medium text-gray-600">Drop your statement here</p>
-                <p className="text-sm text-gray-400">or click to browse</p>
+                <Upload className="w-10 h-10 text-gray-300 dark:text-gray-600" />
+                <p className="font-medium text-gray-600 dark:text-gray-300">Drop your statement here</p>
+                <p className="text-sm text-gray-400 dark:text-gray-500">or click to browse</p>
                 <div className="flex gap-2 mt-2">
                   <Badge variant="outline" className="text-xs">.CSV</Badge>
                   <Badge variant="outline" className="text-xs">.PDF</Badge>
@@ -221,17 +221,17 @@ export default function UploadPage() {
               <span className="font-semibold">Import complete</span>
             </div>
             <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="bg-white rounded-lg p-3 border border-green-200">
+              <div className="bg-white dark:bg-gray-900 rounded-lg p-3 border border-green-200">
                 <p className="text-2xl font-bold text-green-700">{result.imported}</p>
-                <p className="text-xs text-gray-500">Imported</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Imported</p>
               </div>
-              <div className="bg-white rounded-lg p-3 border border-green-200">
-                <p className="text-2xl font-bold text-gray-400">{result.skipped}</p>
-                <p className="text-xs text-gray-500">Duplicates skipped</p>
+              <div className="bg-white dark:bg-gray-900 rounded-lg p-3 border border-green-200">
+                <p className="text-2xl font-bold text-gray-400 dark:text-gray-500">{result.skipped}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Duplicates skipped</p>
               </div>
-              <div className="bg-white rounded-lg p-3 border border-green-200">
+              <div className="bg-white dark:bg-gray-900 rounded-lg p-3 border border-green-200">
                 <p className="text-2xl font-bold text-blue-600">{result.transferPairsLinked}</p>
-                <p className="text-xs text-gray-500">Transfers linked</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Transfers linked</p>
               </div>
             </div>
             {result.transferPairsLinked > 0 && (

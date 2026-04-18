@@ -131,7 +131,7 @@ export function TransactionDrawer({
             <MerchantLogo merchant={form.merchant || tx.description} fallbackColor={tx.category?.color} size="md" />
             <div className="min-w-0">
               <SheetTitle className="text-lg truncate">{form.merchant || tx.description}</SheetTitle>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-400 dark:text-gray-500">
                 {format(parseISO(tx.date), "EEE d MMM yyyy")} · {tx.account.name}
               </p>
             </div>
@@ -140,9 +140,9 @@ export function TransactionDrawer({
 
         <div className="px-4 pb-6 space-y-5">
           {/* Amount */}
-          <div className="flex items-baseline justify-between pb-3 border-b border-gray-100">
-            <span className="text-sm text-gray-500">Amount</span>
-            <span className={`text-2xl font-bold ${tx.isCredit ? "text-emerald-600" : "text-gray-900"}`}>
+          <div className="flex items-baseline justify-between pb-3 border-b border-gray-100 dark:border-gray-800">
+            <span className="text-sm text-gray-500 dark:text-gray-400">Amount</span>
+            <span className={`text-2xl font-bold ${tx.isCredit ? "text-emerald-600" : "text-gray-900 dark:text-gray-100"}`}>
               {tx.isCredit ? "+" : "−"}{formatCurrency(tx.amount)}
             </span>
           </div>
@@ -169,7 +169,7 @@ export function TransactionDrawer({
                 onChange={(e) => setForm((f) => ({ ...f, merchant: e.target.value }))}
               />
               {tx.description !== form.merchant && (
-                <p className="text-xs text-gray-400 truncate">Raw: {tx.description}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 truncate">Raw: {tx.description}</p>
               )}
             </div>
 
@@ -202,7 +202,7 @@ export function TransactionDrawer({
                 <SelectTrigger>
                   <SelectValue>
                     {form.categoryId === "none" ? (
-                      <span className="text-gray-400">— Uncategorized</span>
+                      <span className="text-gray-400 dark:text-gray-500">— Uncategorized</span>
                     ) : (
                       categories.find((c) => c.id === form.categoryId)?.name ?? "—"
                     )}
@@ -235,13 +235,13 @@ export function TransactionDrawer({
 
           {/* Splits */}
           {hasSplits && (
-            <div className="space-y-2 pt-2 border-t border-gray-100">
-              <p className="text-xs font-medium text-gray-700">Splits</p>
+            <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+              <p className="text-xs font-medium text-gray-700 dark:text-gray-200">Splits</p>
               {tx.splits.map((s) => (
                 <div key={s.id} className="flex items-center gap-2 text-sm">
                   {s.category && <CategoryIcon icon={s.category.icon} color={s.category.color} size="sm" />}
                   <span className="flex-1 truncate">{s.category?.name ?? "Uncategorized"}</span>
-                  <span className="text-gray-400 text-xs truncate">{s.note}</span>
+                  <span className="text-gray-400 dark:text-gray-500 text-xs truncate">{s.note}</span>
                   <span className="font-medium">{formatCurrency(s.amount)}</span>
                 </div>
               ))}
@@ -250,14 +250,14 @@ export function TransactionDrawer({
 
           {/* Transfer link */}
           {tx.transferPairId && tx.transferPair && (
-            <div className="text-xs text-gray-500 pt-2 border-t border-gray-100 flex items-center gap-2">
+            <div className="text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-100 dark:border-gray-800 flex items-center gap-2">
               <ArrowRightLeft className="w-3.5 h-3.5 text-blue-500" />
               Transfer paired with <strong>{tx.transferPair.account.name}</strong>
             </div>
           )}
 
           {/* Actions */}
-          <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100">
+          <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100 dark:border-gray-800">
             <Button size="sm" variant="outline" onClick={() => onSplit(tx)}>
               <Scissors className="w-3.5 h-3.5 mr-1.5" /> {hasSplits ? "Edit split" : "Split"}
             </Button>

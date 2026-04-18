@@ -173,11 +173,11 @@ export default function QuickEntryPage() {
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
           <Camera className="w-6 h-6" />
           Quick Entry
         </h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Upload a screenshot of your bank app to extract transactions with AI.
         </p>
       </div>
@@ -203,7 +203,7 @@ export default function QuickEntryPage() {
               </Link>
               <button
                 onClick={() => setSaveResult(null)}
-                className="text-sm text-gray-500 hover:text-gray-700"
+                className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200"
               >
                 Upload another
               </button>
@@ -215,7 +215,7 @@ export default function QuickEntryPage() {
           <CardContent className="pt-6 space-y-4">
             {/* Account selector */}
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-700">Account</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Account</label>
               <Select
                 value={accountId}
                 onValueChange={(v) => setAccountId(v ?? accountId)}
@@ -240,7 +240,7 @@ export default function QuickEntryPage() {
               onDrop={handleDrop}
               onDragOver={(e) => e.preventDefault()}
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-gray-200 rounded-xl p-10 text-center cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-colors"
+              className="border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-xl p-10 text-center cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-colors"
             >
               <input
                 ref={fileInputRef}
@@ -257,7 +257,7 @@ export default function QuickEntryPage() {
                     alt="Screenshot preview"
                     className="max-h-48 mx-auto rounded-lg object-contain"
                   />
-                  <p className="text-sm text-gray-500">{file?.name}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{file?.name}</p>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -265,18 +265,18 @@ export default function QuickEntryPage() {
                       setPreview(null);
                       setExtractError(null);
                     }}
-                    className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1 mx-auto"
+                    className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 flex items-center gap-1 mx-auto"
                   >
                     <X className="w-3 h-3" /> Remove
                   </button>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <Upload className="w-8 h-8 text-gray-300 mx-auto" />
-                  <p className="text-sm font-medium text-gray-600">
+                  <Upload className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto" />
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
                     Drag and drop a screenshot here
                   </p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
                     or click to browse — JPEG, PNG, HEIC
                   </p>
                 </div>
@@ -311,7 +311,7 @@ export default function QuickEntryPage() {
       ) : (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
               {transactions.length} transaction{transactions.length !== 1 ? "s" : ""} found — review and confirm
             </p>
             <div className="flex gap-2">
@@ -343,10 +343,10 @@ export default function QuickEntryPage() {
             </p>
           )}
 
-          <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+          <div className="border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden bg-white dark:bg-gray-900">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr className="text-xs text-gray-400 uppercase tracking-wide">
+              <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-800">
+                <tr className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">
                   <th className="px-3 py-2 text-left w-8">
                     <input
                       type="checkbox"
@@ -365,7 +365,7 @@ export default function QuickEntryPage() {
                   <th className="px-3 py-2 text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
                 {transactions.map((tx, i) => (
                   <tr
                     key={i}
@@ -411,7 +411,7 @@ export default function QuickEntryPage() {
                         className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
                           tx.isCredit
                             ? "bg-green-100 text-green-700 hover:bg-green-200"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
                         }`}
                       >
                         {tx.isCredit ? "Credit" : "Debit"}
@@ -423,7 +423,7 @@ export default function QuickEntryPage() {
                           Pending
                         </Badge>
                       ) : (
-                        <span className="text-xs text-gray-400">Posted</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">Posted</span>
                       )}
                     </td>
                   </tr>
@@ -432,7 +432,7 @@ export default function QuickEntryPage() {
             </table>
           </div>
 
-          <div className="text-xs text-gray-400 text-right">
+          <div className="text-xs text-gray-400 dark:text-gray-500 text-right">
             Total selected: {formatCurrency(
               transactions
                 .filter((t) => t.selected && !t.isCredit)

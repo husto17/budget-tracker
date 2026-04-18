@@ -103,9 +103,9 @@ export function CommandPalette() {
                 value={`tx-${t.id}`}
                 onSelect={() => go(`/transactions?search=${encodeURIComponent(t.merchant ?? t.description)}`)}
               >
-                <Search className="mr-2 h-4 w-4 text-gray-400" />
+                <Search className="mr-2 h-4 w-4 text-gray-400 dark:text-gray-500" />
                 <span className="flex-1 truncate">{t.merchant ?? t.description}</span>
-                <span className="text-xs text-gray-400 ml-2">
+                <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">
                   {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(t.amount)}
                 </span>
               </CommandItem>

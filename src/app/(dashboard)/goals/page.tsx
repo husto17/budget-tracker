@@ -123,10 +123,10 @@ export default function GoalsPage() {
     <div className="space-y-6 max-w-3xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
             <Target className="w-5 h-5 text-indigo-500" /> Goals
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Track savings targets, trip funds, emergency reserves.
           </p>
         </div>
@@ -150,8 +150,8 @@ export default function GoalsPage() {
         <Card>
           <CardContent className="py-12 text-center">
             <Target className="w-10 h-10 mx-auto mb-3 text-gray-200" />
-            <p className="text-sm text-gray-500 font-medium">No goals yet</p>
-            <p className="text-xs text-gray-400 mt-1">Create one to start tracking progress.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">No goals yet</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Create one to start tracking progress.</p>
             <Button className="mt-4" size="sm" onClick={openAdd}>
               <Plus className="w-4 h-4 mr-2" /> Create your first goal
             </Button>
@@ -172,7 +172,7 @@ export default function GoalsPage() {
                         <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
                         {g.name}
                       </CardTitle>
-                      <p className="text-xs text-gray-400 mt-1 flex items-center gap-3 flex-wrap">
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-3 flex-wrap">
                         <span>
                           {formatCurrency(g.currentAmount)} of {formatCurrency(g.targetAmount)}
                         </span>
@@ -181,7 +181,7 @@ export default function GoalsPage() {
                             <Calendar className="w-3 h-3" />
                             {format(parseISO(g.targetDate), "d MMM yyyy")}
                             {days !== null && days >= 0 && (
-                              <span className="text-gray-400">({days}d left)</span>
+                              <span className="text-gray-400 dark:text-gray-500">({days}d left)</span>
                             )}
                             {days !== null && days < 0 && (
                               <span className="text-red-500">(overdue)</span>
@@ -208,7 +208,7 @@ export default function GoalsPage() {
                 <CardContent>
                   <div className="flex items-center gap-3">
                     <div className="flex-1">
-                      <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-2.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                         <div
                           className="h-full rounded-full transition-all"
                           style={{ width: `${pct}%`, backgroundColor: g.color }}
@@ -217,7 +217,7 @@ export default function GoalsPage() {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-semibold">{Math.round(pct)}%</p>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
                         {remaining > 0 ? `${formatCurrency(remaining)} to go` : "Complete 🎉"}
                       </p>
                     </div>
@@ -247,7 +247,7 @@ export default function GoalsPage() {
               <div className="space-y-1.5">
                 <Label>Target</Label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm">$</span>
                   <Input
                     type="number"
                     step="0.01"
@@ -262,7 +262,7 @@ export default function GoalsPage() {
               <div className="space-y-1.5">
                 <Label>Saved so far</Label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm">$</span>
                   <Input
                     type="number"
                     step="0.01"
@@ -276,7 +276,7 @@ export default function GoalsPage() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Target date <span className="text-gray-400 text-xs">(optional)</span></Label>
+              <Label>Target date <span className="text-gray-400 dark:text-gray-500 text-xs">(optional)</span></Label>
               <Input
                 type="date"
                 value={form.targetDate}

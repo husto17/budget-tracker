@@ -49,7 +49,7 @@ export function ConfirmDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        {description && <div className="text-sm text-gray-600">{description}</div>}
+        {description && <div className="text-sm text-gray-600 dark:text-gray-300">{description}</div>}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             {cancelLabel}

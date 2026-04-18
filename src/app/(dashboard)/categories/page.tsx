@@ -179,8 +179,8 @@ export default function CategoriesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Categories</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Categories</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Budget buckets • Monthly budget: {formatCurrency(totalBudget)}
           </p>
         </div>
@@ -220,10 +220,10 @@ export default function CategoriesPage() {
           </Button>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden">
           {categories.map((cat) => (
             <div key={cat.id}>
-              <div className="px-4 py-2.5 hover:bg-gray-50 transition-colors">
+              <div className="px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                 <div className="flex items-center justify-between gap-3">
                   <Link
                     href={`/transactions?categoryId=${cat.id}`}
@@ -238,7 +238,7 @@ export default function CategoriesPage() {
                         {cat.name}
                       </CardTitle>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span className={cat._count.transactions > 0 ? "text-xs text-gray-500" : "text-xs text-gray-400"}>
+                        <span className={cat._count.transactions > 0 ? "text-xs text-gray-500 dark:text-gray-400" : "text-xs text-gray-400 dark:text-gray-500"}>
                           {cat._count.transactions} transaction{cat._count.transactions !== 1 ? "s" : ""}
                         </span>
                         {cat.monthlyBudget && (
@@ -286,9 +286,9 @@ export default function CategoriesPage() {
                       title={expanded === cat.id ? "Hide rules" : "Show rules"}
                     >
                       {expanded === cat.id ? (
-                        <ChevronUp className="w-4 h-4 text-gray-400" />
+                        <ChevronUp className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                       ) : (
-                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                        <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                       )}
                     </Button>
                   </div>
@@ -296,13 +296,13 @@ export default function CategoriesPage() {
               </div>
 
               {expanded === cat.id && (
-                <div className="px-4 pt-0 pb-4 border-t border-gray-100 bg-gray-50/50">
+                <div className="px-4 pt-0 pb-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
                   <div className="mt-3">
-                    <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2 flex items-center gap-1.5">
                       <Tag className="w-3.5 h-3.5" />
                       Auto-categorization rules
                     </p>
-                    <p className="text-xs text-gray-400 mb-3">
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
                       When a transaction description contains any of these keywords, it will automatically be assigned to this category.
                     </p>
 
@@ -317,7 +317,7 @@ export default function CategoriesPage() {
                             {rule.isRegex ? "regex:" : ""}{rule.pattern}
                             <button
                               onClick={() => deleteRule(cat, rule.id)}
-                              className="ml-1 hover:text-red-600 font-normal text-gray-400"
+                              className="ml-1 hover:text-red-600 font-normal text-gray-400 dark:text-gray-500"
                             >
                               ×
                             </button>
@@ -325,7 +325,7 @@ export default function CategoriesPage() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-gray-400 mb-3 italic">No rules yet</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 italic">No rules yet</p>
                     )}
 
                     <div className="flex gap-2">
@@ -374,9 +374,9 @@ export default function CategoriesPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Monthly Budget <span className="text-gray-400">(optional)</span></Label>
+              <Label>Monthly Budget <span className="text-gray-400 dark:text-gray-500">(optional)</span></Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm">$</span>
                 <Input
                   value={form.monthlyBudget}
                   onChange={(e) => setForm((f) => ({ ...f, monthlyBudget: e.target.value }))}

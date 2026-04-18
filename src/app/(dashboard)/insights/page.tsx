@@ -124,8 +124,8 @@ export default function InsightsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Insights</h1>
-        <p className="text-sm text-gray-500 mt-1">Patterns, anomalies, and trends in your spending</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Insights</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Patterns, anomalies, and trends in your spending</p>
       </div>
 
       {/* Anomalies */}
@@ -142,14 +142,14 @@ export default function InsightsPage() {
               <Link
                 key={a.category}
                 href={`/transactions?categoryName=${encodeURIComponent(a.category)}`}
-                className="flex items-center justify-between bg-white rounded-lg p-3 border border-amber-100 hover:bg-amber-50 transition-colors"
+                className="flex items-center justify-between bg-white dark:bg-gray-900 rounded-lg p-3 border border-amber-100 hover:bg-amber-50 transition-colors"
               >
                 <div>
-                  <p className="font-medium text-gray-900 flex items-center gap-1.5">
+                  <p className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
                     {a.category}
-                    <ExternalLink className="w-3 h-3 text-gray-400" />
+                    <ExternalLink className="w-3 h-3 text-gray-400 dark:text-gray-500" />
                   </p>
-                  <p className="text-xs text-gray-500">Average: {formatCurrency(a.average)}/month</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Average: {formatCurrency(a.average)}/month</p>
                 </div>
                 <div className="text-right">
                   <p className="font-bold text-amber-700">{formatCurrency(a.thisMonth)}</p>
@@ -171,7 +171,7 @@ export default function InsightsPage() {
         </CardHeader>
         <CardContent>
           {stackedData.length === 0 ? (
-            <p className="text-sm text-gray-400 py-8 text-center">No data yet</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 py-8 text-center">No data yet</p>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={stackedData}>
@@ -195,7 +195,7 @@ export default function InsightsPage() {
         </CardHeader>
         <CardContent>
           {incomeData.length === 0 ? (
-            <p className="text-sm text-gray-400 py-8 text-center">No data yet</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 py-8 text-center">No data yet</p>
           ) : (
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={incomeData}>
@@ -222,26 +222,26 @@ export default function InsightsPage() {
         </CardHeader>
         <CardContent>
           {insights.recurring.length === 0 ? (
-            <p className="text-sm text-gray-400">Upload several months of statements to detect recurring transactions</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">Upload several months of statements to detect recurring transactions</p>
           ) : (
             <div className="space-y-1">
-              <p className="text-xs text-gray-400 mb-3">
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
                 Transactions appearing at a similar amount across multiple months
               </p>
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-gray-50 dark:divide-gray-800">
                 {insights.recurring.map((r) => (
                   <div key={r.name} className="flex items-center justify-between py-3">
                     <div>
                       <p className="text-sm font-medium">{r.name}</p>
-                      <p className="text-xs text-gray-400">Seen in {r.months} months</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">Seen in {r.months} months</p>
                     </div>
                     <p className="text-sm font-semibold">{formatCurrency(r.amount)}/month</p>
                   </div>
                 ))}
               </div>
-              <div className="pt-3 border-t border-gray-100 mt-2">
+              <div className="pt-3 border-t border-gray-100 dark:border-gray-800 mt-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500 font-medium">Estimated recurring total</span>
+                  <span className="text-gray-500 dark:text-gray-400 font-medium">Estimated recurring total</span>
                   <span className="font-bold">{formatCurrency(insights.recurring.reduce((s, r) => s + r.amount, 0))}/month</span>
                 </div>
               </div>
@@ -260,46 +260,46 @@ export default function InsightsPage() {
         </CardHeader>
         <CardContent>
           {!insights.subscriptions || insights.subscriptions.length === 0 ? (
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-400 dark:text-gray-500">
               No recurring subscriptions detected yet. Upload more statements to detect patterns.
             </p>
           ) : (
             <div className="space-y-2">
-              <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 text-xs text-gray-400 uppercase tracking-wide pb-2 border-b border-gray-100">
+              <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800">
                 <span>Merchant</span>
                 <span className="text-right">Monthly</span>
                 <span className="text-right">Category</span>
                 <span className="text-right">Last charged</span>
                 <span className="text-right">Annual cost</span>
               </div>
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-gray-50 dark:divide-gray-800">
                 {insights.subscriptions.map((sub) => (
                   <div key={sub.merchant} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 py-3 items-center text-sm">
                     <div>
                       <Link
                         href={`/transactions?search=${encodeURIComponent(sub.merchant)}`}
-                        className="font-medium text-gray-900 hover:text-blue-600 flex items-center gap-1 group"
+                        className="font-medium text-gray-900 dark:text-gray-100 hover:text-blue-600 flex items-center gap-1 group"
                       >
                         {sub.merchant}
-                        <ExternalLink className="w-3 h-3 text-gray-300 group-hover:text-blue-400" />
+                        <ExternalLink className="w-3 h-3 text-gray-300 dark:text-gray-600 group-hover:text-blue-400" />
                       </Link>
-                      <p className="text-xs text-gray-400">{sub.monthlyCount} months detected</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">{sub.monthlyCount} months detected</p>
                     </div>
                     <span className="text-right font-medium">{formatCurrency(sub.amount)}</span>
-                    <span className="text-right text-gray-500 text-xs">
-                      {sub.categoryName ?? <span className="text-gray-300">—</span>}
+                    <span className="text-right text-gray-500 dark:text-gray-400 text-xs">
+                      {sub.categoryName ?? <span className="text-gray-300 dark:text-gray-600">—</span>}
                     </span>
-                    <span className="text-right text-gray-400 text-xs whitespace-nowrap">
+                    <span className="text-right text-gray-400 dark:text-gray-500 text-xs whitespace-nowrap">
                       {format(new Date(sub.lastDate), "dd MMM yy")}
                     </span>
-                    <span className="text-right font-semibold text-gray-700">
+                    <span className="text-right font-semibold text-gray-700 dark:text-gray-200">
                       {formatCurrency(sub.amount * 12)}
                     </span>
                   </div>
                 ))}
               </div>
-              <div className="pt-3 border-t border-gray-100 flex justify-between text-sm font-semibold">
-                <span className="text-gray-600">Total annual subscriptions</span>
+              <div className="pt-3 border-t border-gray-100 dark:border-gray-800 flex justify-between text-sm font-semibold">
+                <span className="text-gray-600 dark:text-gray-300">Total annual subscriptions</span>
                 <span>{formatCurrency(insights.subscriptions.reduce((s, sub) => s + sub.amount * 12, 0))}</span>
               </div>
             </div>
@@ -314,7 +314,7 @@ export default function InsightsPage() {
         </CardHeader>
         <CardContent>
           {insights.topCategories.length === 0 ? (
-            <p className="text-sm text-gray-400">No data this month</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">No data this month</p>
           ) : (
             <div className="space-y-3">
               {insights.topCategories.map(([cat, amount], i) => {
@@ -324,10 +324,10 @@ export default function InsightsPage() {
                   <Link
                     key={cat}
                     href={`/transactions?categoryName=${encodeURIComponent(cat)}`}
-                    className="flex items-center gap-3 hover:bg-gray-50 rounded-lg px-1 -mx-1 transition-colors"
+                    className="flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg px-1 -mx-1 transition-colors"
                   >
-                    <span className="w-5 text-xs text-gray-400 font-medium text-right shrink-0">{i + 1}</span>
-                    <div className="flex-1 min-w-0 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <span className="w-5 text-xs text-gray-400 dark:text-gray-500 font-medium text-right shrink-0">{i + 1}</span>
+                    <div className="flex-1 min-w-0 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all"
                         style={{
