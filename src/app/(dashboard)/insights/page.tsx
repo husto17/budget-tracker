@@ -39,9 +39,18 @@ function formatMonth(key: string) {
   return format(new Date(parseInt(year), parseInt(month) - 1, 1), "MMM yy");
 }
 
+// See dashboard/page.tsx CHART_COLORS — same perceptually-spaced palette.
 const CAT_COLORS = [
-  "#3B82F6", "#22C55E", "#F97316", "#8B5CF6", "#EC4899",
-  "#F59E0B", "#10B981", "#EF4444", "#6366F1", "#14B8A6",
+  "#EF4444", // red
+  "#F97316", // orange
+  "#EAB308", // yellow
+  "#84CC16", // lime
+  "#10B981", // emerald
+  "#06B6D4", // cyan
+  "#3B82F6", // blue
+  "#8B5CF6", // violet
+  "#EC4899", // pink
+  "#64748B", // slate
 ];
 
 export default function InsightsPage() {

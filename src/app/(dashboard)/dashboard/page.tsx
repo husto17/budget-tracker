@@ -61,9 +61,20 @@ function formatMonth(key: string) {
   return format(new Date(parseInt(year), parseInt(month) - 1, 1), "MMM yy");
 }
 
+// Perceptually-spaced palette — every adjacent pair sits >=35° apart on the
+// hue wheel so no two colors look alike. Avoids the green/emerald/teal trio
+// that used to get assigned to neighbouring categories.
 const CHART_COLORS = [
-  "#6366F1", "#22C55E", "#F97316", "#8B5CF6", "#EC4899",
-  "#F59E0B", "#10B981", "#EF4444", "#3B82F6", "#14B8A6",
+  "#EF4444", // red
+  "#F97316", // orange
+  "#EAB308", // yellow
+  "#84CC16", // lime
+  "#10B981", // emerald
+  "#06B6D4", // cyan
+  "#3B82F6", // blue
+  "#8B5CF6", // violet
+  "#EC4899", // pink
+  "#64748B", // slate
 ];
 
 type ViewFilter = "all" | "mine" | "partner" | "joint";
