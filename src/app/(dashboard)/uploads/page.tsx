@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Upload, Trash2, FileText, FileSpreadsheet } from "lucide-react";
+import { Upload, Trash2, FileText, FileSpreadsheet, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import {
@@ -40,6 +41,30 @@ export default function UploadsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UploadRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [nameQuery, setNameQuery] = useState("");
+  const [accountFilter, setAccountFilter] = useState<string>("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+
+  const accountOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const u of uploads) seen.set(u.account.id, u.account.name);
+    return Array.from(seen, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [uploads]);
+
+  const filtered = useMemo(() => {
+    const q = nameQuery.trim().toLowerCase();
+    const fromMs = from ? new Date(from + "T00:00:00").getTime() : -Infinity;
+    const toMs = to ? new Date(to + "T23:59:59").getTime() : Infinity;
+    return uploads.filter((u) => {
+      if (q && !u.fileName.toLowerCase().includes(q)) return false;
+      if (accountFilter !== "all" && u.account.id !== accountFilter) return false;
+      const ts = new Date(u.createdAt).getTime();
+      return ts >= fromMs && ts <= toMs;
+    });
+  }, [uploads, nameQuery, accountFilter, from, to]);
+
+  const hasActiveFilter = nameQuery.length > 0 || accountFilter !== "all" || from.length > 0 || to.length > 0;
 
   async function fetchUploads() {
     setLoading(true);
@@ -76,8 +101,67 @@ export default function UploadsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Upload History</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">All statements you have imported</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          {hasActiveFilter
+            ? `${filtered.length} of ${uploads.length} statements`
+            : "All statements you have imported"}
+        </p>
       </div>
+
+      {uploads.length > 0 && (
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto_auto] gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+              <Input
+                placeholder="Search filename..."
+                value={nameQuery}
+                onChange={(e) => setNameQuery(e.target.value)}
+                className="pl-9 h-9 text-sm"
+              />
+            </div>
+            <select
+              value={accountFilter}
+              onChange={(e) => setAccountFilter(e.target.value)}
+              className="h-9 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2"
+            >
+              <option value="all">All accounts</option>
+              {accountOptions.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+            <Input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className="h-9 text-sm"
+              title="From"
+            />
+            <Input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className="h-9 text-sm"
+              title="To"
+            />
+            {hasActiveFilter && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 text-gray-400 dark:text-gray-500"
+                onClick={() => {
+                  setNameQuery("");
+                  setAccountFilter("all");
+                  setFrom("");
+                  setTo("");
+                }}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl divide-y divide-gray-50 dark:divide-gray-800">
@@ -113,6 +197,23 @@ export default function UploadsPage() {
             Go to Upload
           </Button>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-center py-12">
+          <p className="text-gray-500 dark:text-gray-400 font-medium">No uploads match your filters.</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={() => {
+              setNameQuery("");
+              setAccountFilter("all");
+              setFrom("");
+              setTo("");
+            }}
+          >
+            Clear filters
+          </Button>
+        </div>
       ) : (
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
           {/* Desktop table */}
@@ -129,7 +230,7 @@ export default function UploadsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                {uploads.map((u) => (
+                {filtered.map((u) => (
                   <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -173,7 +274,7 @@ export default function UploadsPage() {
 
           {/* Mobile list */}
           <div className="md:hidden divide-y divide-gray-50 dark:divide-gray-800">
-            {uploads.map((u) => (
+            {filtered.map((u) => (
               <div key={u.id} className="px-4 py-3 flex items-center gap-3">
                 {u.fileType === "pdf" ? (
                   <FileText className="w-8 h-8 text-red-400 shrink-0" />

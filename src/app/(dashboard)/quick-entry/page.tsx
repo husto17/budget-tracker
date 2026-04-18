@@ -175,10 +175,10 @@ export default function QuickEntryPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
           <Camera className="w-6 h-6" />
-          Quick Entry
+          Snap
         </h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Upload a screenshot of your bank app to extract transactions with AI.
+          Snap a photo or upload a screenshot — Claude extracts the transactions for you.
         </p>
       </div>
 

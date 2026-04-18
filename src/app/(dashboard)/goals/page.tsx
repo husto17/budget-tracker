@@ -119,6 +119,20 @@ export default function GoalsPage() {
     return t;
   }
 
+  function monthlyPaceNeeded(goal: Goal): number | null {
+    if (!goal.targetDate) return null;
+    const remaining = goal.targetAmount - goal.currentAmount;
+    if (remaining <= 0) return 0;
+    const target = new Date(goal.targetDate);
+    const now = new Date();
+    const monthsLeft =
+      (target.getFullYear() - now.getFullYear()) * 12 +
+      (target.getMonth() - now.getMonth()) +
+      (target.getDate() >= now.getDate() ? 0 : -1);
+    if (monthsLeft <= 0) return remaining; // overdue or this month → need it now
+    return remaining / monthsLeft;
+  }
+
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       <div className="flex items-center justify-between">
@@ -163,6 +177,7 @@ export default function GoalsPage() {
             const pct = Math.min((g.currentAmount / g.targetAmount) * 100, 100);
             const remaining = g.targetAmount - g.currentAmount;
             const days = daysUntil(g.targetDate);
+            const monthlyPace = monthlyPaceNeeded(g);
             return (
               <Card key={g.id} className="overflow-hidden">
                 <CardHeader className="pb-3">
@@ -222,6 +237,16 @@ export default function GoalsPage() {
                       </p>
                     </div>
                   </div>
+                  {monthlyPace !== null && monthlyPace > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between text-xs">
+                      <span className="text-gray-500 dark:text-gray-400">
+                        Pace to hit target{days !== null && days >= 0 ? " on time" : " (already overdue)"}
+                      </span>
+                      <span className="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
+                        {formatCurrency(monthlyPace)}<span className="font-normal text-gray-400 dark:text-gray-500"> / month</span>
+                      </span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );

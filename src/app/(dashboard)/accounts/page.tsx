@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, CreditCard, Landmark, Wallet, PiggyBank, DollarSign, ArrowRight } from "lucide-react";
+import { Plus, Pencil, Trash2, CreditCard, Landmark, Wallet, PiggyBank, DollarSign, ArrowRight, Upload as UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -230,6 +230,11 @@ export default function AccountsPage() {
                       </div>
                     </div>
                     <div className="flex gap-1">
+                      <Link href={`/upload?accountId=${account.id}`}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Upload statement for this account">
+                          <UploadIcon className="w-3.5 h-3.5" />
+                        </Button>
+                      </Link>
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(account)}>
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>

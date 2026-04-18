@@ -127,8 +127,8 @@ export function CommandPalette() {
             <ArrowUpDown className="mr-2 h-4 w-4" /> Transactions
             <CommandShortcut>g t</CommandShortcut>
           </CommandItem>
-          <CommandItem value="quick entry" onSelect={() => go("/quick-entry")}>
-            <Camera className="mr-2 h-4 w-4" /> Quick Entry
+          <CommandItem value="snap quick entry receipt" onSelect={() => go("/quick-entry")}>
+            <Camera className="mr-2 h-4 w-4" /> Snap a receipt
             <CommandShortcut>g q</CommandShortcut>
           </CommandItem>
           <CommandItem value="upload" onSelect={() => go("/upload")}>

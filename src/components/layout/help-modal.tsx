@@ -26,7 +26,7 @@ const SECTIONS: Section[] = [
       { keys: "g g", label: "Go to Goals" },
       { keys: "g i", label: "Go to Insights" },
       { keys: "g u", label: "Go to Upload Statement" },
-      { keys: "g q", label: "Go to Quick Entry" },
+      { keys: "g q", label: "Go to Snap (photo capture)" },
       { keys: "g s", label: "Go to Settings" },
       { keys: "g ?", label: "Go to Ask (AI)" },
       { keys: "/", label: "Focus the search input (when on a page with one)" },

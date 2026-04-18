@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   TrendingUp, TrendingDown, AlertTriangle, Repeat, BarChart3,
-  ArrowUpRight, ArrowDownRight, Receipt, Store,
+  ArrowUpRight, ArrowDownRight, Receipt, Store, Target,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -79,10 +79,20 @@ function currentMonthKey(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+interface GoalLite {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  targetDate: string | null;
+  color: string;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [insights, setInsights] = useState<InsightData | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [goals, setGoals] = useState<GoalLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
@@ -118,10 +128,12 @@ export default function DashboardPage() {
         if (!r.ok) throw new Error(`accounts ${r.status}`);
         return r.json();
       }),
+      fetch("/api/goals").then((r) => (r.ok ? r.json() : [])).catch(() => []),
     ])
-      .then(([ins, accs]) => {
+      .then(([ins, accs, gls]) => {
         setInsights(ins);
         setAccounts(accs);
+        setGoals(gls ?? []);
       })
       .catch((e: Error) => {
         setLoadError(e.message);
@@ -842,6 +854,69 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Goals widget — compact strip of in-progress goals */}
+      {goals.length > 0 && (
+        <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
+          <CardHeader className="pb-3 flex-row items-center justify-between gap-2 space-y-0">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Target className="w-4 h-4 text-indigo-500" /> Goals
+            </CardTitle>
+            <Link href="/goals" className="text-xs text-blue-600 hover:underline">See all</Link>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {goals
+                .filter((g) => g.currentAmount < g.targetAmount)
+                .sort((a, b) => {
+                  const ad = a.targetDate ? new Date(a.targetDate).getTime() : Infinity;
+                  const bd = b.targetDate ? new Date(b.targetDate).getTime() : Infinity;
+                  return ad - bd;
+                })
+                .slice(0, 3)
+                .map((g) => {
+                  const pct = Math.min((g.currentAmount / g.targetAmount) * 100, 100);
+                  const remaining = g.targetAmount - g.currentAmount;
+                  let monthly: number | null = null;
+                  if (g.targetDate) {
+                    const target = new Date(g.targetDate);
+                    const now = new Date();
+                    const monthsLeft =
+                      (target.getFullYear() - now.getFullYear()) * 12 +
+                      (target.getMonth() - now.getMonth());
+                    monthly = monthsLeft > 0 ? remaining / monthsLeft : remaining;
+                  }
+                  return (
+                    <Link
+                      key={g.id}
+                      href="/goals"
+                      className="block p-3 rounded-lg border border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <p className="text-sm font-semibold truncate flex items-center gap-2 min-w-0">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
+                          <span className="truncate">{g.name}</span>
+                        </p>
+                        <span className="text-xs font-semibold tabular-nums shrink-0">{Math.round(pct)}%</span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: g.color }} />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                        <span>{formatCurrency(remaining)} to go</span>
+                        {monthly !== null && monthly > 0 && (
+                          <span className="font-medium text-gray-700 dark:text-gray-300 tabular-nums">
+                            {formatCurrency(monthly)}/mo
+                          </span>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Accounts + Recurring */}
       <div className="grid md:grid-cols-2 gap-6">

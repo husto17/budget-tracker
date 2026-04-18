@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Upload, FileText, FileSpreadsheet, CheckCircle, AlertCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,8 +27,10 @@ interface UploadResult {
 
 export default function UploadPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preselectedAccountId = searchParams.get("accountId") ?? "";
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [accountId, setAccountId] = useState("");
+  const [accountId, setAccountId] = useState(preselectedAccountId);
   const [dragOver, setDragOver] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -39,10 +41,12 @@ export default function UploadPage() {
     fetchJson<Account[]>("/api/accounts")
       .then((data) => {
         setAccounts(data);
-        if (data.length > 0) setAccountId(data[0].id);
+        if (data.length === 0) return;
+        const preselected = preselectedAccountId && data.find((a) => a.id === preselectedAccountId);
+        setAccountId(preselected ? preselected.id : data[0].id);
       })
       .catch(() => toast.error("Couldn't load accounts"));
-  }, []);
+  }, [preselectedAccountId]);
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();

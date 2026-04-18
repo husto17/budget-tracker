@@ -43,7 +43,7 @@ const navGroups: Array<{
     items: [
       { href: "/transactions", icon: ArrowUpDown, label: "Transactions" },
       { href: "/upload", icon: Upload, label: "Upload Statement" },
-      { href: "/quick-entry", icon: Camera, label: "Quick Entry" },
+      { href: "/quick-entry", icon: Camera, label: "Snap" },
     ],
   },
   {

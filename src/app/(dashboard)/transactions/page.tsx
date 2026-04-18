@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronRight,
   Brain,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -660,6 +661,71 @@ function TransactionsContent() {
     reprocessNames(true);
   }, [reprocessNames]);
 
+  const [exporting, setExporting] = useState(false);
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      // Pull the entire filtered set by paging through the API.
+      const params = new URLSearchParams({
+        limit: "500",
+        ...(filterAccount !== "all" ? { accountId: filterAccount } : {}),
+        ...(filterCategory !== "all" ? { categoryId: filterCategory } : {}),
+        ...(filterUncategorized ? { uncategorized: "true" } : {}),
+        ...(search ? { search } : {}),
+        ...(from ? { from } : {}),
+        ...(to ? { to } : {}),
+        ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+      });
+      const rows: Transaction[] = [];
+      let p = 1;
+      const cap = 20; // hard cap → 10,000 rows
+      while (p <= cap) {
+        params.set("page", String(p));
+        const data = await fetchJson<{ transactions: Transaction[]; total: number }>(
+          `/api/transactions?${params}`,
+        );
+        rows.push(...data.transactions);
+        if (rows.length >= data.total || data.transactions.length === 0) break;
+        p++;
+      }
+      const esc = (v: string | number | null | undefined) => {
+        if (v == null) return "";
+        const s = String(v);
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const header = ["Date", "Merchant", "Amount", "Type", "Category", "Account", "Status", "Notes"];
+      const csv = [
+        header.join(","),
+        ...rows.map((t) =>
+          [
+            format(new Date(t.date), "yyyy-MM-dd"),
+            esc(t.description),
+            t.isCredit ? t.amount : -t.amount,
+            t.isCredit ? "Credit" : "Debit",
+            esc(t.category?.name ?? ""),
+            esc(t.account?.name ?? ""),
+            t.isPending ? "Pending" : "Posted",
+            esc(t.notes ?? ""),
+          ].join(","),
+        ),
+      ].join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `transactions-${format(new Date(), "yyyy-MM-dd")}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${rows.length} transactions`);
+    } catch (e) {
+      toast.error(e instanceof FetchError ? e.message : "Couldn't export");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="space-y-6 pb-24">
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -802,7 +868,7 @@ function TransactionsContent() {
             </button>
           ))}
         </div>
-        <div className="flex gap-3 items-end">
+        <div className="flex gap-3 items-end flex-wrap">
           <div className="space-y-1">
             <Label className="text-xs">From</Label>
             <Input
@@ -826,6 +892,56 @@ function TransactionsContent() {
               }}
               className="h-8 text-sm"
             />
+          </div>
+          {/* Quick date chips */}
+          <div className="flex items-center gap-1.5 flex-wrap pb-0.5">
+            {([
+              { label: "7d", days: 7 },
+              { label: "30d", days: 30 },
+              { label: "90d", days: 90 },
+            ] as const).map((chip) => (
+              <button
+                key={chip.label}
+                type="button"
+                onClick={() => {
+                  const today = new Date();
+                  const start = subDays(today, chip.days);
+                  setFrom(format(start, "yyyy-MM-dd"));
+                  setTo(format(today, "yyyy-MM-dd"));
+                  setPage(1);
+                }}
+                className="px-2.5 py-1 text-xs rounded-full font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+              >
+                {chip.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                const now = new Date();
+                const start = new Date(now.getFullYear(), now.getMonth(), 1);
+                setFrom(format(start, "yyyy-MM-dd"));
+                setTo(format(now, "yyyy-MM-dd"));
+                setPage(1);
+              }}
+              className="px-2.5 py-1 text-xs rounded-full font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+            >
+              This month
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const now = new Date();
+                const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                const end = new Date(now.getFullYear(), now.getMonth(), 0);
+                setFrom(format(start, "yyyy-MM-dd"));
+                setTo(format(end, "yyyy-MM-dd"));
+                setPage(1);
+              }}
+              className="px-2.5 py-1 text-xs rounded-full font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+            >
+              Last month
+            </button>
           </div>
           {(searchInput ||
             filterAccount !== "all" ||
@@ -851,6 +967,17 @@ function TransactionsContent() {
               Clear filters
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 ml-auto"
+            onClick={exportCsv}
+            disabled={exporting || total === 0}
+            title="Download current filtered view as CSV"
+          >
+            <Download className="w-3.5 h-3.5 mr-1.5" />
+            {exporting ? "Exporting..." : "Export CSV"}
+          </Button>
         </div>
       </div>
 

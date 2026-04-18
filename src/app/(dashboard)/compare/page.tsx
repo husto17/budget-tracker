@@ -30,6 +30,16 @@ function prevMonthKey(month: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function prevYearKey(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return `${y - 1}-${String(m).padStart(2, "0")}`;
+}
+
+function yearStartKey(month: string): string {
+  const [y] = month.split("-").map(Number);
+  return `${y}-01`;
+}
+
 function CompareContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -95,6 +105,23 @@ function CompareContent() {
   const totalDelta = totalB - totalA;
   const totalPct = totalA > 0 ? (totalDelta / totalA) * 100 : 0;
 
+  // Merge merchant totals across both months and sort by biggest absolute delta.
+  const merchantsA = new Map((dataA?.topMerchants ?? []).map((m) => [m.merchant, m]));
+  const merchantsB = new Map((dataB?.topMerchants ?? []).map((m) => [m.merchant, m]));
+  const allMerchants = Array.from(new Set([...merchantsA.keys(), ...merchantsB.keys()]));
+  const merchantRows = allMerchants
+    .map((name) => {
+      const a = merchantsA.get(name)?.amount ?? 0;
+      const b = merchantsB.get(name)?.amount ?? 0;
+      const ref = merchantsB.get(name) ?? merchantsA.get(name)!;
+      return { name, a, b, delta: b - a, categoryColor: ref.categoryColor };
+    })
+    .filter((r) => Math.abs(r.delta) > 0.5)
+    .sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta))
+    .slice(0, 10);
+
+  const thisMonth = currentMonthKey();
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -110,17 +137,66 @@ function CompareContent() {
 
       {/* Period pickers */}
       <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
-        <CardContent className="p-4 flex items-center justify-center gap-3 flex-wrap">
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">Month A</span>
-            <MonthPicker value={monthA} onChange={setMonthA} max={currentMonthKey()} />
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">Month A</span>
+              <MonthPicker value={monthA} onChange={setMonthA} max={currentMonthKey()} />
+            </div>
+            <Button variant="ghost" size="icon" onClick={swap} title="Swap" aria-label="Swap periods">
+              <ArrowRightLeft className="w-4 h-4" />
+            </Button>
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">Month B</span>
+              <MonthPicker value={monthB} onChange={setMonthB} max={currentMonthKey()} />
+            </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={swap} title="Swap" aria-label="Swap periods">
-            <ArrowRightLeft className="w-4 h-4" />
-          </Button>
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">Month B</span>
-            <MonthPicker value={monthB} onChange={setMonthB} max={currentMonthKey()} />
+          <div className="flex items-center justify-center gap-2 flex-wrap pt-1 border-t border-gray-100 dark:border-gray-800">
+            <span className="text-xs text-gray-400 dark:text-gray-500 mr-1">Presets:</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => {
+                setMonthA(prevMonthKey(thisMonth));
+                setMonthB(thisMonth);
+              }}
+            >
+              This vs last month
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => {
+                setMonthA(prevYearKey(thisMonth));
+                setMonthB(thisMonth);
+              }}
+            >
+              This vs last year
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => {
+                setMonthA(prevYearKey(monthB));
+                // keep monthB as-is
+              }}
+            >
+              Same month, last year
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => {
+                setMonthA(yearStartKey(thisMonth));
+                setMonthB(thisMonth);
+              }}
+            >
+              YTD vs January
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -239,6 +315,49 @@ function CompareContent() {
               </Card>
             ))}
           </div>
+
+          {/* Merchant deltas: who moved the most */}
+          {merchantRows.length > 0 && (
+            <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Biggest merchant moves</CardTitle>
+                <p className="text-xs text-gray-400 dark:text-gray-500">Ranked by absolute change between the two periods</p>
+              </CardHeader>
+              <CardContent>
+                <div className="divide-y divide-gray-50 dark:divide-gray-800">
+                  <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-3 pb-2 text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    <span className="w-6" />
+                    <span>Merchant</span>
+                    <span className="text-right w-20 sm:w-24">{labelA}</span>
+                    <span className="text-right w-20 sm:w-24">{labelB}</span>
+                    <span className="text-right w-20 sm:w-24">Δ</span>
+                  </div>
+                  {merchantRows.map((row) => {
+                    const up = row.delta > 0;
+                    return (
+                      <Link
+                        key={row.name}
+                        href={`/transactions?search=${encodeURIComponent(row.name)}`}
+                        className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-3 py-2.5 items-center hover:bg-gray-50 dark:hover:bg-gray-800/40 rounded-md transition-colors"
+                      >
+                        <MerchantLogo merchant={row.name} fallbackColor={row.categoryColor} size="sm" />
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{row.name}</span>
+                        <span className="text-sm text-gray-600 dark:text-gray-300 tabular-nums text-right w-20 sm:w-24">
+                          {row.a > 0 ? formatCurrency(row.a) : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                        </span>
+                        <span className="text-sm text-gray-900 dark:text-gray-100 tabular-nums text-right w-20 sm:w-24 font-medium">
+                          {row.b > 0 ? formatCurrency(row.b) : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                        </span>
+                        <span className={`text-sm tabular-nums text-right w-20 sm:w-24 ${up ? "text-rose-600" : "text-emerald-600"}`}>
+                          {(up ? "+" : "−") + formatCurrency(Math.abs(row.delta))}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </>
       ) : null}
     </div>
