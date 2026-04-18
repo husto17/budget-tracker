@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Tag, ChevronDown, ChevronUp, Zap, ArrowRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Tag, ChevronDown, ChevronUp, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -223,33 +223,24 @@ export default function CategoriesPage() {
         <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
           {categories.map((cat) => (
             <div key={cat.id}>
-              <div
-                className="px-4 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors"
-                onClick={() => setExpanded(expanded === cat.id ? null : cat.id)}
-              >
+              <div className="px-4 py-2.5 hover:bg-gray-50 transition-colors">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
+                  <Link
+                    href={`/transactions?categoryId=${cat.id}`}
+                    className="flex items-center gap-3 min-w-0 flex-1 group"
+                  >
                     <div
                       className="w-3 h-3 rounded-full flex-shrink-0"
                       style={{ backgroundColor: cat.color }}
                     />
                     <div className="min-w-0">
-                      <CardTitle className="text-sm font-medium">{cat.name}</CardTitle>
+                      <CardTitle className="text-sm font-medium group-hover:text-blue-600 transition-colors">
+                        {cat.name}
+                      </CardTitle>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        {cat._count.transactions > 0 ? (
-                          <Link
-                            href={`/transactions?categoryId=${cat.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1"
-                          >
-                            {cat._count.transactions} transactions
-                            <ArrowRight className="w-3 h-3" />
-                          </Link>
-                        ) : (
-                          <span className="text-xs text-gray-400">
-                            0 transactions
-                          </span>
-                        )}
+                        <span className={cat._count.transactions > 0 ? "text-xs text-gray-500" : "text-xs text-gray-400"}>
+                          {cat._count.transactions} transaction{cat._count.transactions !== 1 ? "s" : ""}
+                        </span>
                         {cat.monthlyBudget && (
                           <Badge variant="outline" className="text-xs">
                             Budget: {formatCurrency(cat.monthlyBudget)}/mo
@@ -265,13 +256,14 @@ export default function CategoriesPage() {
                         )}
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
+                  </Link>
+                  <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7 shrink-0"
-                      onClick={(e) => { e.stopPropagation(); openEdit(cat); }}
+                      onClick={() => openEdit(cat)}
+                      title="Edit"
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
@@ -280,16 +272,25 @@ export default function CategoriesPage() {
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-red-400 hover:text-red-600 shrink-0"
-                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(cat); }}
+                        onClick={() => setDeleteTarget(cat)}
+                        title="Delete"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     )}
-                    {expanded === cat.id ? (
-                      <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      onClick={() => setExpanded(expanded === cat.id ? null : cat.id)}
+                      title={expanded === cat.id ? "Hide rules" : "Show rules"}
+                    >
+                      {expanded === cat.id ? (
+                        <ChevronUp className="w-4 h-4 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                      )}
+                    </Button>
                   </div>
                 </div>
               </div>
