@@ -227,22 +227,22 @@ export default function CategoriesPage() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
           {categories.map((cat) => (
-            <Card key={cat.id} className="overflow-hidden">
-              <CardHeader
-                className="py-4 cursor-pointer hover:bg-gray-50 transition-colors"
+            <div key={cat.id}>
+              <div
+                className="px-4 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors"
                 onClick={() => setExpanded(expanded === cat.id ? null : cat.id)}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div
-                      className="w-4 h-4 rounded-full flex-shrink-0"
+                      className="w-3 h-3 rounded-full flex-shrink-0"
                       style={{ backgroundColor: cat.color }}
                     />
-                    <div>
-                      <CardTitle className="text-base">{cat.name}</CardTitle>
-                      <div className="flex items-center gap-2 mt-0.5">
+                    <div className="min-w-0">
+                      <CardTitle className="text-sm font-medium">{cat.name}</CardTitle>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         {cat._count.transactions > 0 ? (
                           <Link
                             href={`/transactions?categoryId=${cat.id}`}
@@ -277,7 +277,7 @@ export default function CategoriesPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className="h-7 w-7 shrink-0"
                       onClick={(e) => { e.stopPropagation(); openEdit(cat); }}
                     >
                       <Pencil className="w-3.5 h-3.5" />
@@ -286,23 +286,23 @@ export default function CategoriesPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-red-400 hover:text-red-600"
+                        className="h-7 w-7 text-red-400 hover:text-red-600 shrink-0"
                         onClick={(e) => { e.stopPropagation(); setDeleteTarget(cat); }}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     )}
                     {expanded === cat.id ? (
-                      <ChevronUp className="w-4 h-4 text-gray-400" />
+                      <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" />
                     ) : (
-                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                      <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
                     )}
                   </div>
                 </div>
-              </CardHeader>
+              </div>
 
               {expanded === cat.id && (
-                <CardContent className="pt-0 pb-4 border-t border-gray-100">
+                <div className="px-4 pt-0 pb-4 border-t border-gray-100 bg-gray-50/50">
                   <div className="mt-3">
                     <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5">
                       <Tag className="w-3.5 h-3.5" />
@@ -358,9 +358,9 @@ export default function CategoriesPage() {
                       </Button>
                     )}
                   </div>
-                </CardContent>
+                </div>
               )}
-            </Card>
+            </div>
           ))}
         </div>
       )}

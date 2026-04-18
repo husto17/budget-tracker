@@ -51,6 +51,7 @@ const CANONICALS: Array<[RegExp, string]> = [
   [/\bUBER\s*EATS\b/i, "Uber Eats"],
   [/\bUBER\b/i, "Uber"],
   [/\bLYFT\b/i, "Lyft"],
+  [/\bCURB\b/i, "Curb"],
   [/\bDOORDASH\b/i, "DoorDash"],
   [/\bGRUBHUB\b/i, "Grubhub"],
   [/\bSTARBUCKS\b/i, "Starbucks"],

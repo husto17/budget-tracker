@@ -18,63 +18,47 @@ export const DEFAULT_CATEGORIES = [
 
 // Starter auto-categorize rules seeded alongside the default categories.
 // These match against the raw transaction description (case-insensitive substring).
-// Keep patterns conservative — they should hit obvious merchants only; users
-// can always add/remove their own.
+// Intentionally small — ~6–10 obvious patterns per category. Every manual
+// category assignment also creates a rule, so the list grows naturally per
+// user rather than shipping with a wall of defaults.
 export const DEFAULT_RULES: Record<string, string[]> = {
   Groceries: [
-    "TRADER JOE", "WHOLE FOODS", "ALDI", "KROGER", "SAFEWAY", "PUBLIX",
-    "H MART", "HMART", "JEWEL OSCO", "JEWEL-OSCO", "MARIANO", "WEGMANS",
-    "SPROUTS", "COSTCO WHSE", "INSTACART",
+    "TRADER JOE", "WHOLE FOODS", "ALDI", "KROGER", "SAFEWAY",
+    "JEWEL OSCO", "INSTACART",
   ],
   "Dining Out": [
-    "STARBUCKS", "CHIPOTLE", "DOORDASH", "GRUBHUB", "UBER EATS", "UBEREATS",
-    "PIZZERIA", "PIZZA", "CAFE", "COFFEE", "RESTAURANT", "BAR ", "GRILL",
-    "TAQUERIA", "SUSHI", "RAMEN", "BISTRO", "CANTINA", "BBQ",
-    "MCDONALD", "CHICK-FIL-A", "CHICKFIL", "PANERA", "SHAKE SHACK",
-    "SWEETGREEN", "DUNKIN", "TST*", "SQ *",
+    "STARBUCKS", "CHIPOTLE", "DOORDASH", "GRUBHUB", "UBER EATS",
+    "PIZZERIA", "RESTAURANT", "COFFEE", "CAFE",
   ],
   Transport: [
-    "UBER", "LYFT", "METRA", "CTA", "AMTRAK", "DELTA AIR", "AMERICAN AIR",
-    "UNITED AIR", "SOUTHWEST", "SPIRIT AIR", "JETBLUE", "SHELL", "EXXON",
-    "CHEVRON", "BP ", "MOBIL", "SUNOCO", "PARKING", "TOLL",
+    "UBER", "LYFT", "CURB", "AMTRAK", "PARKING", "TOLL", "AIRLINES",
   ],
   Utilities: [
-    "COMED", "PEOPLES GAS", "PEOPLESGAS", "NICOR", "CONED", "PG&E",
-    "XFINITY", "COMCAST", "VERIZON", "AT&T", "T-MOBILE", "TMOBILE",
-    "SPECTRUM", "INTERNET", "ELECTRIC", "WATER BILL",
+    "COMED", "PEOPLES GAS", "XFINITY", "COMCAST", "VERIZON", "T-MOBILE",
   ],
-  Rent: ["RENT PAYMENT", "LANDLORD", "HOA"],
+  Rent: ["RENT PAYMENT", "LANDLORD"],
   Entertainment: [
-    "NETFLIX", "HULU", "DISNEY+", "DISNEYPLUS", "HBO", "MAX ",
-    "YOUTUBE", "PARAMOUNT", "PEACOCK", "APPLE TV", "STUBHUB",
-    "TICKETMASTER", "LIVE NATION", "AMC THEATRES", "MUSIC BOX",
-    "CINEMA", "THEATRE",
+    "NETFLIX", "HULU", "STUBHUB", "TICKETMASTER", "THEATRE", "CINEMA",
   ],
   Shopping: [
-    "AMAZON", "TARGET", "WALMART", "COSTCO", "BEST BUY", "HOME DEPOT",
-    "LOWES", "IKEA", "MACY", "NORDSTROM", "GAP ", "OLD NAVY",
-    "BATH & BODY", "BATHANDBODY", "SEPHORA", "ULTA", "ETSY",
+    "AMAZON", "TARGET", "WALMART", "COSTCO", "USPS", "FEDEX", "UPS ",
   ],
   Health: [
-    "CVS", "WALGREENS", "RITE AID", "PHARMACY", "HOSPITAL", "CLINIC",
-    "DOCTOR", "DENTAL", "DENTIST", "ONE MEDICAL", "ZOCDOC",
-    "PELOTON", "CLASSPASS", "EQUINOX", "LIFE TIME", "LIFETIME",
+    "CVS", "WALGREENS", "PHARMACY", "DENTAL", "ONE MEDICAL",
   ],
   Subscriptions: [
-    "SPOTIFY", "APPLE.COM/BILL", "APPLE.COM BILL", "OPENAI", "PERPLEXITY",
-    "GYMPASS", "GOOGLE *", "NYTIMES", "NEW YORK TIMES", "WASHINGTONPOST",
-    "SUBSTACK", "MEDIUM", "DROPBOX", "LINKEDIN PREMIUM",
+    "SPOTIFY", "APPLE.COM/BILL", "OPENAI", "NYTIMES",
   ],
   Income: [
-    "DIRECT DEPOSIT", "PAYROLL", "ACH CREDIT", "SALARY",
+    "DIRECT DEPOSIT", "PAYROLL", "SALARY",
   ],
   Transfers: [
-    "ZELLE", "VENMO", "CASH APP", "TRANSFER TO", "TRANSFER FROM",
-    "PAYMENT FROM CHK", "PAYMENT TO CHK", "ONLINE TRANSFER",
+    "ZELLE", "VENMO", "CASH APP", "PAYMENT FROM CHK", "PAYMENT TO CHK",
+    "ONLINE TRANSFER",
   ],
   "Fees & Interest": [
     "INTEREST CHARGE", "FOREIGN TRANSACTION", "LATE FEE", "OVERDRAFT",
-    "ATM FEE", "SERVICE CHARGE", "MONTHLY FEE", "ANNUAL FEE",
+    "ATM FEE",
   ],
 };
 
@@ -82,6 +66,7 @@ export const DEFAULT_RULES: Record<string, string[]> = {
 // transparently on the next GET /api/categories.
 const CATEGORY_RENAMES: Array<{ from: string; to: string }> = [
   { from: "Rent / Mortgage", to: "Rent" },
+  { from: "Transportation", to: "Transport" },
 ];
 
 // Creates any default categories the user is missing, and seeds starter rules
