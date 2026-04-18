@@ -26,26 +26,37 @@ export async function PATCH(
   }
 
   // If merchant is being renamed, save the alias so future uploads auto-apply it.
-  // Wrapped so a learning failure never blocks the update.
+  // Manual find-then-create/update instead of prisma.upsert — the Neon HTTP
+  // adapter can't start the transaction that upsert uses internally.
   if (
     typeof data.merchant === "string" &&
     data.merchant !== tx.merchant &&
     tx.merchant
   ) {
     try {
-      await prisma.merchantAlias.upsert({
+      const existingAlias = await prisma.merchantAlias.findUnique({
         where: { userId_fromName: { userId: session.user.id, fromName: tx.merchant } },
-        update: { toName: data.merchant },
-        create: { userId: session.user.id, fromName: tx.merchant, toName: data.merchant },
       });
+      if (existingAlias) {
+        await prisma.merchantAlias.update({
+          where: { id: existingAlias.id },
+          data: { toName: data.merchant },
+        });
+      } else {
+        await prisma.merchantAlias.create({
+          data: { userId: session.user.id, fromName: tx.merchant, toName: data.merchant },
+        });
+      }
     } catch (err) {
       console.error("Failed to save merchant alias", err);
     }
   }
 
-  let updated;
+  // Update without `include` so Prisma issues a single UPDATE (no implicit
+  // UPDATE+SELECT transaction which the Neon HTTP adapter refuses), then
+  // fetch the joined row separately.
   try {
-    updated = await prisma.transaction.update({
+    await prisma.transaction.update({
       where: { id },
       data: {
         categoryId:
@@ -56,7 +67,6 @@ export async function PATCH(
         amount: data.amount !== undefined ? parseFloat(String(data.amount)) : undefined,
         date: data.date !== undefined ? new Date(String(data.date)) : undefined,
       },
-      include: { category: true, account: { select: { id: true, name: true, type: true } } },
     });
   } catch (err) {
     console.error("Failed to update transaction", err, { id, data });
@@ -64,6 +74,13 @@ export async function PATCH(
       { error: err instanceof Error ? err.message : "Failed to update transaction" },
       { status: 500 },
     );
+  }
+  const updated = await prisma.transaction.findUnique({
+    where: { id },
+    include: { category: true, account: { select: { id: true, name: true, type: true } } },
+  });
+  if (!updated) {
+    return NextResponse.json({ error: "Transaction vanished after update" }, { status: 500 });
   }
 
   // If the user set (or changed) the category, remember that decision as a rule
