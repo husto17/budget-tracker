@@ -69,6 +69,15 @@ const CANONICALS: Array<[RegExp, string]> = [
   [/\bUSPS\b/i, "USPS"],
   [/\bUPS\b/i, "UPS"],
   [/\bFEDEX\b/i, "FedEx"],
+  // Airlines — match "UNITED 01234", "UNITED.COM", "UNITED AIRLINES"
+  [/\bUNITED(?:\s+AIR(?:LINES)?|\.COM|\s+0\d)/i, "United Airlines"],
+  [/\bDELTA(?:\s+AIR(?:LINES)?|\.COM|\s+0\d)/i, "Delta Air Lines"],
+  [/\bAMERICAN\s+AIR(?:LINES)?/i, "American Airlines"],
+  [/\bSOUTHWEST(?:\s+AIR(?:LINES)?|\.COM)?/i, "Southwest Airlines"],
+  [/\bJETBLUE/i, "JetBlue"],
+  [/\bSPIRIT\s+AIR/i, "Spirit Airlines"],
+  [/\bFRONTIER\s+AIR/i, "Frontier Airlines"],
+  [/\bALASKA\s+AIR/i, "Alaska Airlines"],
   [/\bSTUBHUB\b/i, "StubHub"],
   [/BATHANDBODYWORKS|BATH\s*&?\s*BODY\s*WORKS/i, "Bath & Body Works"],
   [/BLUE\s*BOTTLE\s*COFFEE/i, "Blue Bottle Coffee"],
@@ -84,8 +93,9 @@ const KNOWN_CITIES =
   "CHICAGO|NEW\\s+YORK|LOS\\s+ANGELES|SAN\\s+FRANCISCO|SAN\\s+DIEGO|SAN\\s+JOSE|SEATTLE|BOSTON|AUSTIN|MIAMI|HOUSTON|DALLAS|DENVER|ATLANTA|PORTLAND|PHOENIX|PHILADELPHIA|WASHINGTON|NASHVILLE|BROOKLYN|MANHATTAN|QUEENS|BRONX|OAKLAND|LONG\\s+BEACH|SACRAMENTO|MINNEAPOLIS|DETROIT|CLEVELAND|PITTSBURGH|TAMPA|ORLANDO|RALEIGH|CHARLOTTE|MILWAUKEE|BALTIMORE|INDIANAPOLIS|COLUMBUS|KANSAS\\s+CITY|ST\\s+LOUIS|CINCINNATI|SALT\\s+LAKE\\s+CITY|LAS\\s+VEGAS|HONOLULU|ANCHORAGE|NEWARK|JERSEY\\s+CITY";
 
 // Processor/passthrough prefixes: the interesting merchant is after the prefix.
-const PASSTHROUGH_RE =
-  /^(?:PAYPAL\s*\*|SQ\s*\*\s*|TST\s*\*\s*|IC\s*\*\s*|HFD\s*\*\s*|SP\s*\*\s*|DLO\s*\*\s*|SMB\s*\*\s*|LNK\s*\*\s*|PMT\s*\*\s*|POS\s*\*\s*)(.+)$/i;
+// Matches PAYPAL* explicitly, plus any 2–5 letter processor tag followed by `*`
+// (TST*, SQ *, FSP*, HFD*, IC*, DLO*, SMB*, LNK*, PMT*, POS*, SP*, etc.).
+const PASSTHROUGH_RE = /^(?:PAYPAL\s*\*|[A-Z]{2,5}\s*\*)\s*(.+)$/i;
 
 // Common US state abbreviations used to identify "<...> CITY ST" suffixes.
 const STATE_ABBR =
@@ -145,6 +155,10 @@ export function normalizeMerchantHardcoded(description: string): string {
   // 4. Strip trailing noise
   // Phone numbers: "312-555-1234", "(312) 555-1234", "312.555.1234", "855 977 1676"
   d = d.replace(/\s+\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b.*$/, "");
+  // Long digit runs anywhere (6+ digits) — reservation/ref/order numbers
+  d = d.replace(/\b\d{6,}[\w-]*\b/g, "");
+  // URL-ish suffixes like "UNITED.COM", "AMAZON.COM WW"
+  d = d.replace(/\b[A-Z0-9-]+\.(?:COM|NET|ORG|IO|CO)\b.*$/i, "");
   // Inline ref numbers like "BP#12345678" or "BP*12345678"
   d = d.replace(/[#*]\d{4,}[\w-]*/g, "");
   // Hash-separated ref like "#15921" at end
