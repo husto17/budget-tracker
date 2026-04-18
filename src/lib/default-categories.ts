@@ -18,11 +18,11 @@ export const DEFAULT_CATEGORIES = [
   { name: "Gifts", color: "#A855F7", icon: "gift" },
   { name: "Family Support", color: "#14B8A6", icon: "heart-handshake" },
   { name: "Charity", color: "#84CC16", icon: "hand-heart" },
-  { name: "Income", color: "#059669", icon: "trending-up" },
+  { name: "Income", color: "#0F766E", icon: "trending-up" },
   { name: "Savings", color: "#06B6D4", icon: "piggy-bank" },
-  { name: "Taxes", color: "#475569", icon: "landmark" },
-  { name: "Transfers", color: "#6B7280", icon: "arrow-right-left" },
-  { name: "Fees & Interest", color: "#DC2626", icon: "percent" },
+  { name: "Taxes", color: "#334155", icon: "landmark" },
+  { name: "Transfers", color: "#64748B", icon: "arrow-right-left" },
+  { name: "Fees & Interest", color: "#B91C1C", icon: "percent" },
   { name: "Other", color: "#9CA3AF", icon: "circle" },
 ];
 
@@ -157,12 +157,27 @@ export async function ensureDefaultCategories(userId: string): Promise<void> {
 
   const existing = await prisma.category.findMany({
     where: { userId, name: { in: DEFAULT_CATEGORIES.map((c) => c.name) } },
-    select: { id: true, name: true },
+    select: { id: true, name: true, color: true, icon: true, isDefault: true },
   });
   const have = new Set(existing.map((c) => c.name));
   const missing = DEFAULT_CATEGORIES.filter((c) => !have.has(c.name));
 
-  let newCategories = existing;
+  // Sync colors + icons on isDefault categories so palette updates (e.g. fixing
+  // the Income/Health and Fees&Interest/Rent overlaps) reach existing users.
+  // We only touch isDefault:true rows to preserve any user-customised ones.
+  for (const cat of existing) {
+    if (!cat.isDefault) continue;
+    const target = DEFAULT_CATEGORIES.find((d) => d.name === cat.name);
+    if (!target) continue;
+    if (cat.color !== target.color || cat.icon !== target.icon) {
+      await prisma.category.update({
+        where: { id: cat.id },
+        data: { color: target.color, icon: target.icon },
+      });
+    }
+  }
+
+  let newCategories: Array<{ id: string; name: string }> = existing.map((c) => ({ id: c.id, name: c.name }));
   if (missing.length > 0) {
     // Sequential .create() avoids the "transactions not supported in HTTP mode"
     // error that Prisma's createMany triggers against the Neon HTTP adapter.
