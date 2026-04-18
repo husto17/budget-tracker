@@ -13,6 +13,7 @@ import Link from "next/link";
 import { fetchJson, FetchError, formatCurrency } from "@/lib/fetcher";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PALETTE as CAT_COLORS } from "@/lib/palette";
 
 interface InsightData {
   monthlyByCategory: Record<string, Record<string, number>>;
@@ -38,20 +39,6 @@ function formatMonth(key: string) {
   const [year, month] = key.split("-");
   return format(new Date(parseInt(year), parseInt(month) - 1, 1), "MMM yy");
 }
-
-// See dashboard/page.tsx CHART_COLORS — same perceptually-spaced palette.
-const CAT_COLORS = [
-  "#EF4444", // red
-  "#F97316", // orange
-  "#EAB308", // yellow
-  "#84CC16", // lime
-  "#10B981", // emerald
-  "#06B6D4", // cyan
-  "#3B82F6", // blue
-  "#8B5CF6", // violet
-  "#EC4899", // pink
-  "#64748B", // slate
-];
 
 export default function InsightsPage() {
   const [insights, setInsights] = useState<InsightData | null>(null);
@@ -330,25 +317,30 @@ export default function InsightsPage() {
             <p className="text-sm text-gray-400">No data this month</p>
           ) : (
             <div className="space-y-3">
-              {insights.topCategories.map(([cat, amount], i) => (
-                <Link
-                  key={cat}
-                  href={`/transactions?categoryName=${encodeURIComponent(cat)}`}
-                  className="flex items-center gap-3 hover:bg-gray-50 rounded-lg px-1 -mx-1 transition-colors"
-                >
-                  <span className="w-5 text-xs text-gray-400 font-medium text-right">{i + 1}</span>
-                  <div
-                    className="h-2 rounded-full flex-1 min-w-0"
-                    style={{
-                      backgroundColor: CAT_COLORS[i % CAT_COLORS.length],
-                      width: `${(amount / (insights.topCategories[0]?.[1] ?? 1)) * 100}%`,
-                      maxWidth: "100%",
-                    }}
-                  />
-                  <span className="text-sm font-medium w-28 text-right">{formatCurrency(amount)}</span>
-                  <span className="text-sm text-blue-600 hover:underline w-28 truncate">{cat}</span>
-                </Link>
-              ))}
+              {insights.topCategories.map(([cat, amount], i) => {
+                const maxAmount = insights.topCategories[0]?.[1] ?? 1;
+                const pct = maxAmount > 0 ? (amount / maxAmount) * 100 : 0;
+                return (
+                  <Link
+                    key={cat}
+                    href={`/transactions?categoryName=${encodeURIComponent(cat)}`}
+                    className="flex items-center gap-3 hover:bg-gray-50 rounded-lg px-1 -mx-1 transition-colors"
+                  >
+                    <span className="w-5 text-xs text-gray-400 font-medium text-right shrink-0">{i + 1}</span>
+                    <div className="flex-1 min-w-0 h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${pct}%`,
+                          backgroundColor: CAT_COLORS[i % CAT_COLORS.length],
+                        }}
+                      />
+                    </div>
+                    <span className="text-sm font-medium w-28 text-right shrink-0">{formatCurrency(amount)}</span>
+                    <span className="text-sm text-blue-600 hover:underline w-28 truncate shrink-0">{cat}</span>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </CardContent>

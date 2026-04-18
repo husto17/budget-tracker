@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/fetcher";
 import { CategoryIcon } from "@/components/ui/category-icon";
+import { PALETTE as CHART_COLORS } from "@/lib/palette";
 
 interface InsightData {
   monthlyTotals: Record<string, number>;
@@ -60,22 +61,6 @@ function formatMonth(key: string) {
   const [year, month] = key.split("-");
   return format(new Date(parseInt(year), parseInt(month) - 1, 1), "MMM yy");
 }
-
-// Perceptually-spaced palette — every adjacent pair sits >=35° apart on the
-// hue wheel so no two colors look alike. Avoids the green/emerald/teal trio
-// that used to get assigned to neighbouring categories.
-const CHART_COLORS = [
-  "#EF4444", // red
-  "#F97316", // orange
-  "#EAB308", // yellow
-  "#84CC16", // lime
-  "#10B981", // emerald
-  "#06B6D4", // cyan
-  "#3B82F6", // blue
-  "#8B5CF6", // violet
-  "#EC4899", // pink
-  "#64748B", // slate
-];
 
 type ViewFilter = "all" | "mine" | "partner" | "joint";
 
