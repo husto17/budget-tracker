@@ -81,12 +81,9 @@ export async function POST() {
     }
   }
 
-  if (updates.length > 0) {
-    await prisma.$transaction(
-      updates.map((u) =>
-        prisma.transaction.update({ where: { id: u.id }, data: u.data }),
-      ),
-    );
+  // Sequential so we don't hit the Neon HTTP "transactions not supported" error.
+  for (const u of updates) {
+    await prisma.transaction.update({ where: { id: u.id }, data: u.data });
   }
 
   return NextResponse.json({

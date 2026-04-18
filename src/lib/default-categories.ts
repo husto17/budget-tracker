@@ -102,18 +102,17 @@ export async function ensureDefaultCategories(userId: string): Promise<void> {
       select: { id: true },
     });
     if (toCat) {
-      // Target already exists — move transactions/rules then drop the old row
-      await prisma.$transaction([
-        prisma.transaction.updateMany({
-          where: { categoryId: fromCat.id },
-          data: { categoryId: toCat.id },
-        }),
-        prisma.categoryRule.updateMany({
-          where: { categoryId: fromCat.id },
-          data: { categoryId: toCat.id },
-        }),
-        prisma.category.delete({ where: { id: fromCat.id } }),
-      ]);
+      // Target already exists — move transactions/rules then drop the old row.
+      // Sequential because the Neon HTTP adapter doesn't support interactive txns.
+      await prisma.transaction.updateMany({
+        where: { categoryId: fromCat.id },
+        data: { categoryId: toCat.id },
+      });
+      await prisma.categoryRule.updateMany({
+        where: { categoryId: fromCat.id },
+        data: { categoryId: toCat.id },
+      });
+      await prisma.category.delete({ where: { id: fromCat.id } });
     } else {
       await prisma.category.update({
         where: { id: fromCat.id },
@@ -131,9 +130,13 @@ export async function ensureDefaultCategories(userId: string): Promise<void> {
 
   let newCategories = existing;
   if (missing.length > 0) {
-    await prisma.category.createMany({
-      data: missing.map((c) => ({ ...c, userId, isDefault: true })),
-    });
+    // Sequential .create() avoids the "transactions not supported in HTTP mode"
+    // error that Prisma's createMany triggers against the Neon HTTP adapter.
+    for (const c of missing) {
+      await prisma.category.create({
+        data: { ...c, userId, isDefault: true },
+      });
+    }
     newCategories = await prisma.category.findMany({
       where: { userId, name: { in: DEFAULT_CATEGORIES.map((c) => c.name) } },
       select: { id: true, name: true },
@@ -163,7 +166,7 @@ export async function ensureDefaultCategories(userId: string): Promise<void> {
       }
     }
   }
-  if (ruleRows.length > 0) {
-    await prisma.categoryRule.createMany({ data: ruleRows });
+  for (const r of ruleRows) {
+    await prisma.categoryRule.create({ data: r });
   }
 }

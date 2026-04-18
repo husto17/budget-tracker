@@ -83,8 +83,8 @@ export async function PATCH(request: Request) {
         if (!r) toCreate.push({ userId: session.user.id, categoryId, pattern: m });
         else if (r.categoryId !== categoryId) toMove.push(r.id);
       }
-      if (toCreate.length > 0) {
-        await prisma.categoryRule.createMany({ data: toCreate });
+      for (const r of toCreate) {
+        await prisma.categoryRule.create({ data: r });
       }
       if (toMove.length > 0) {
         await prisma.categoryRule.updateMany({
