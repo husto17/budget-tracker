@@ -150,6 +150,9 @@ function TransactionsContent() {
   // Delete confirm
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
+  // Reprocess merchant names
+  const [reprocessing, setReprocessing] = useState(false);
+
   const LIMIT = 50;
 
   const fetchTransactions = useCallback(async () => {
@@ -527,16 +530,41 @@ function TransactionsContent() {
 
   const totalPages = Math.ceil(total / LIMIT);
 
+  async function reprocessNames() {
+    setReprocessing(true);
+    try {
+      const data = await fetchJson<{ updated: number; total: number }>(
+        "/api/transactions/reprocess",
+        { method: "POST" },
+      );
+      toast.success(
+        data.updated > 0
+          ? `Cleaned ${data.updated} merchant name${data.updated !== 1 ? "s" : ""}`
+          : "All merchant names already clean",
+      );
+      if (data.updated > 0) fetchTransactions();
+    } catch (e) {
+      toast.error(e instanceof FetchError ? e.message : "Failed to refresh names");
+    } finally {
+      setReprocessing(false);
+    }
+  }
+
   return (
     <div className="space-y-6 pb-24">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
           <p className="text-sm text-gray-500 mt-1">{total.toLocaleString()} total</p>
         </div>
-        <Button onClick={() => setShowAddDialog(true)} size="sm">
-          <Plus className="w-4 h-4 mr-2" /> Add Manual
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={reprocessNames} disabled={reprocessing}>
+            {reprocessing ? "Cleaning..." : "Clean merchant names"}
+          </Button>
+          <Button onClick={() => setShowAddDialog(true)} size="sm">
+            <Plus className="w-4 h-4 mr-2" /> Add Manual
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -1277,7 +1305,7 @@ function TransactionsContent() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Amount (£)</Label>
+                <Label>Amount ($)</Label>
                 <Input
                   type="number"
                   step="0.01"

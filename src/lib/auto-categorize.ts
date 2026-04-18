@@ -31,77 +31,144 @@ export async function autoCategorize(
   return null;
 }
 
+// ── Canonical well-known merchants ─────────────────────────────────────────
+// Check before stripping so we match the full raw string.
+const CANONICALS: Array<[RegExp, string]> = [
+  [/NETFLIX/i, "Netflix"],
+  [/SPOTIFY/i, "Spotify"],
+  [/APPLE\.COM[/ ]?BILL/i, "Apple"],
+  [/AMAZON\s*PRIME/i, "Amazon Prime"],
+  [/\bAMAZON\b/i, "Amazon"],
+  [/GOOGLE\s*\*/i, "Google"],
+  [/\bHULU\b/i, "Hulu"],
+  [/DISNEY\+|DISNEYPLUS/i, "Disney+"],
+  [/YOUTUBE\s*PREMIUM/i, "YouTube Premium"],
+  [/\bYOUTUBE\b/i, "YouTube"],
+  [/\bOPENAI\b/i, "OpenAI"],
+  [/\bPERPLEXITY\b/i, "Perplexity"],
+  [/\bGYMPASS\b/i, "Gympass"],
+  [/T-MOBILE|TMOBILE/i, "T-Mobile"],
+  [/\bUBER\s*EATS\b/i, "Uber Eats"],
+  [/\bUBER\b/i, "Uber"],
+  [/\bLYFT\b/i, "Lyft"],
+  [/\bDOORDASH\b/i, "DoorDash"],
+  [/\bGRUBHUB\b/i, "Grubhub"],
+  [/\bSTARBUCKS\b/i, "Starbucks"],
+  [/\bCHIPOTLE\b/i, "Chipotle"],
+  [/WHOLE\s*FOODS/i, "Whole Foods"],
+  [/TRADER\s*JOE/i, "Trader Joe's"],
+  [/\bWALMART\b/i, "Walmart"],
+  [/\bTARGET\b/i, "Target"],
+  [/\bCOSTCO\b/i, "Costco"],
+  [/\bCVS\b/i, "CVS"],
+  [/\bWALGREENS\b/i, "Walgreens"],
+  [/\bZELLE\b/i, "Zelle"],
+  [/\bVENMO\b/i, "Venmo"],
+  [/\bCASH\s*APP\b/i, "Cash App"],
+  [/\bUSPS\b/i, "USPS"],
+  [/\bUPS\b/i, "UPS"],
+  [/\bFEDEX\b/i, "FedEx"],
+  [/\bSTUBHUB\b/i, "StubHub"],
+  [/BATHANDBODYWORKS|BATH\s*&?\s*BODY\s*WORKS/i, "Bath & Body Works"],
+  [/BLUE\s*BOTTLE\s*COFFEE/i, "Blue Bottle Coffee"],
+  [/MUSIC\s*BOX\s*THEATRE/i, "Music Box Theatre"],
+  [/PARCEL\s*PENDING/i, "Parcel Pending"],
+  [/\bAESOP\b/i, "Aesop"],
+  [/\bINSTACART\b/i, "Instacart"],
+  [/LASERAWAY/i, "LaserAway"],
+];
+
+// Common US city names for trailing-city stripping. Uppercase-canonical.
+const KNOWN_CITIES =
+  "CHICAGO|NEW\\s+YORK|LOS\\s+ANGELES|SAN\\s+FRANCISCO|SAN\\s+DIEGO|SAN\\s+JOSE|SEATTLE|BOSTON|AUSTIN|MIAMI|HOUSTON|DALLAS|DENVER|ATLANTA|PORTLAND|PHOENIX|PHILADELPHIA|WASHINGTON|NASHVILLE|BROOKLYN|MANHATTAN|QUEENS|BRONX|OAKLAND|LONG\\s+BEACH|SACRAMENTO|MINNEAPOLIS|DETROIT|CLEVELAND|PITTSBURGH|TAMPA|ORLANDO|RALEIGH|CHARLOTTE|MILWAUKEE|BALTIMORE|INDIANAPOLIS|COLUMBUS|KANSAS\\s+CITY|ST\\s+LOUIS|CINCINNATI|SALT\\s+LAKE\\s+CITY|LAS\\s+VEGAS|HONOLULU|ANCHORAGE|NEWARK|JERSEY\\s+CITY";
+
+// Processor/passthrough prefixes: the interesting merchant is after the prefix.
+const PASSTHROUGH_RE =
+  /^(?:PAYPAL\s*\*|SQ\s*\*\s*|TST\s*\*\s*|IC\s*\*\s*|HFD\s*\*\s*|SP\s*\*\s*|DLO\s*\*\s*|SMB\s*\*\s*|LNK\s*\*\s*|PMT\s*\*\s*|POS\s*\*\s*)(.+)$/i;
+
+// Common US state abbreviations used to identify "<...> CITY ST" suffixes.
+const STATE_ABBR =
+  "AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC";
+
+function titleCaseIfAllCaps(s: string): string {
+  // If the string is all uppercase (plus digits/punct), title-case it.
+  if (/[A-Z]/.test(s) && !/[a-z]/.test(s)) {
+    return s
+      .toLowerCase()
+      .replace(/\b([a-z])/g, (_, c: string) => c.toUpperCase())
+      // Preserve well-known acronyms
+      .replace(/\bUsps\b/g, "USPS")
+      .replace(/\bUps\b/g, "UPS")
+      .replace(/\bCvs\b/g, "CVS")
+      .replace(/\bAtm\b/g, "ATM");
+  }
+  return s;
+}
+
 /**
  * Normalize a merchant name from a raw bank description.
- * Strips common prefixes (VISA, MASTERCARD, SQ *, etc.) and trailing noise.
- * Also maps well-known subscription services to canonical names.
  *
- * This is the pure sync version — no DB access.
- * Call normalizeMerchant() (async) in route handlers to also apply learned aliases.
+ * Pipeline:
+ *  1. Canonical brand match on the raw string (handles "PAYPAL *STARBUCKS" → "Starbucks").
+ *  2. Strip processor passthrough prefix (PAYPAL *, TST*, SQ *, HFD*, etc.) and recheck canonicals.
+ *  3. Strip card-network / bank-channel prefixes.
+ *  4. Strip trailing phone numbers, reference IDs, city + state suffix, store numbers.
+ *  5. Title-case the result if it came back all-uppercase.
+ *
+ * Pure sync — no DB access. Call normalizeMerchant() (async) to also apply learned aliases.
  */
 export function normalizeMerchantHardcoded(description: string): string {
-  let d = description.trim();
+  const original = description.trim();
+  if (!original) return original;
 
-  // ── Canonical mappings ──────────────────────────────────────────────────────
-  // Check before stripping so we match the full raw string.
-  if (/NETFLIX/i.test(d)) return "Netflix";
-  if (/SPOTIFY/i.test(d)) return "Spotify";
-  if (/APPLE\.COM[/ ]BILL|APPLE\.COM BILL/i.test(d)) return "Apple";
-  if (/AMAZON\s*PRIME/i.test(d)) return "Amazon Prime";
-  if (/\bAMAZON\b/i.test(d)) return "Amazon";
-  if (/GOOGLE\s*\*/i.test(d)) return "Google";
-  if (/\bHULU\b/i.test(d)) return "Hulu";
-  if (/DISNEY\+|DISNEYPLUS/i.test(d)) return "Disney+";
-  if (/YOUTUBE\s*PREMIUM/i.test(d)) return "YouTube Premium";
-  if (/\bYOUTUBE\b/i.test(d)) return "YouTube";
-  if (/\bOPENAI\b/i.test(d)) return "OpenAI";
-  if (/\bPERPLEXITY\b/i.test(d)) return "Perplexity";
-  if (/\bGYMPASS\b/i.test(d)) return "Gympass";
-  if (/T-MOBILE|TMOBILE/i.test(d)) return "T-Mobile";
-  if (/\bUBER\s*EATS\b/i.test(d)) return "Uber Eats";
-  if (/\bUBER\b/i.test(d)) return "Uber";
-  if (/\bLYFT\b/i.test(d)) return "Lyft";
-  if (/\bDOORDASH\b/i.test(d)) return "DoorDash";
-  if (/\bGRUBHUB\b/i.test(d)) return "Grubhub";
-  if (/\bSTARBUCKS\b/i.test(d)) return "Starbucks";
-  if (/\bCHIPOTLE\b/i.test(d)) return "Chipotle";
-  if (/WHOLE\s*FOODS/i.test(d)) return "Whole Foods";
-  if (/TRADER\s*JOE/i.test(d)) return "Trader Joe's";
-  if (/\bWALMART\b/i.test(d)) return "Walmart";
-  if (/\bTARGET\b/i.test(d)) return "Target";
-  if (/\bCOSTCO\b/i.test(d)) return "Costco";
-  if (/\bCVS\b/i.test(d)) return "CVS";
-  if (/\bWALGREENS\b/i.test(d)) return "Walgreens";
-  if (/\bZELLE\b/i.test(d)) return "Zelle";
-  if (/\bVENMO\b/i.test(d)) return "Venmo";
-  if (/\bCASH\s*APP\b/i.test(d)) return "Cash App";
-  if (/PAYPAL\s*\*(.+)/i.test(d)) {
-    // "PAYPAL *ETSYSELLER" → extract the passthrough merchant
-    const inner = d.match(/PAYPAL\s*\*(.+)/i)?.[1]?.trim();
-    if (inner && inner.length >= 3) return inner;
-    return "PayPal";
+  // 1. Canonical brand match on the raw string
+  for (const [re, name] of CANONICALS) {
+    if (re.test(original)) return name;
   }
 
-  // ── Strip noisy prefixes ─────────────────────────────────────────────────────
-  // Point-of-sale / payment processor prefixes
-  d = d.replace(/^(SQ \*|TST\*|SP \*?|IC\* |DLO\*|SMB\*|LNK\*|PMT\*)/i, "");
-  // Card network / bank channel prefixes
-  d = d.replace(/^(VISA\s*(PURCH|DEBIT)?|MASTERCARD|AMEX|DEBIT CARD PURCHASE|DEBIT PURCHASE)\s*/i, "");
-  // ACH / bank transfer noise
-  d = d.replace(/^(TSF |DDA |ACH |POS |TFL |CID\*|WWW\.|CHECKCARD\s*|PURCHASE\s*)/i, "");
-  // "BP#12345678" → "BP" — strip inline ref numbers attached with # or *
-  d = d.replace(/[#*]\d{4,}/g, "");
-  // Strip city/state suffix: "STARBUCKS 12345 NEW YORK NY" → "STARBUCKS 12345"
-  d = d.replace(/\s+[A-Z]{2}\s*$/, "");
-  // Strip trailing store numbers, ref numbers, long digit strings
-  d = d.replace(/\s+\d{5,}$/, "");
-  d = d.replace(/\s+(REF|TXN|ID|CONF|NO|AUTH)[:\s#]*[\w-]+$/i, "");
+  let d = original;
+
+  // 2. Passthrough prefix — extract inner merchant, recheck canonicals
+  const pass = d.match(PASSTHROUGH_RE);
+  if (pass) {
+    d = pass[1].trim();
+    for (const [re, name] of CANONICALS) {
+      if (re.test(d)) return name;
+    }
+  }
+
+  // 3. Card-network / bank-channel / ACH prefixes
+  d = d.replace(/^(VISA\s*(PURCH|DEBIT)?|MASTERCARD|AMEX|DEBIT\s*CARD\s*PURCHASE|DEBIT\s*PURCHASE)\s*/i, "");
+  d = d.replace(/^(TSF\s|DDA\s|ACH\s|POS\s|TFL\s|CID\*|WWW\.|CHECKCARD\s*|PURCHASE\s*)/i, "");
+
+  // 4. Strip trailing noise
+  // Phone numbers: "312-555-1234", "(312) 555-1234", "312.555.1234", "855 977 1676"
+  d = d.replace(/\s+\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b.*$/, "");
+  // Inline ref numbers like "BP#12345678" or "BP*12345678"
+  d = d.replace(/[#*]\d{4,}[\w-]*/g, "");
+  // Hash-separated ref like "#15921" at end
   d = d.replace(/\s+#[\w-]+$/, "");
+  // Explicit ref keywords
+  d = d.replace(/\s+(REF|TXN|ID|CONF|NO|AUTH)[:\s#]*[\w-]+$/i, "");
+
+  // Known ALLCAPS city + state — "CHICAGO IL", "NEW YORK NY"
+  d = d.replace(new RegExp(`\\s+(?:${KNOWN_CITIES})\\s+(?:${STATE_ABBR})\\s*$`, "i"), "");
+  // TitleCase city (1–2 words) + state — "Chicago IL", "San Francisco CA"
+  d = d.replace(new RegExp(`\\s+[A-Z][a-z]+(?:\\s+[A-Z][a-z]+)?\\s+(?:${STATE_ABBR})\\s*$`), "");
+  // Bare state — covers cases where the city got glued to a preceding word ("HALLCHICAGO IL")
+  d = d.replace(new RegExp(`\\s+(?:${STATE_ABBR})\\s*$`), "");
+  // Known city at end (possibly glued to preceding word) — "HALLCHICAGO" → "HALL"
+  d = d.replace(new RegExp(`(?:${KNOWN_CITIES})\\s*$`, "i"), "");
+  // Trailing long digit runs (store/ref numbers)
+  d = d.replace(/\s+\d{5,}$/, "");
 
   // Collapse whitespace
   d = d.trim().replace(/\s+/g, " ");
 
-  return d.length > 0 ? d : description;
+  // 5. Title-case if all uppercase
+  d = titleCaseIfAllCaps(d);
+
+  return d.length > 0 ? d : original;
 }
 
 /**

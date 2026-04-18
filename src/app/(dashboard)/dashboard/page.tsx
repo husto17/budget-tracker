@@ -13,6 +13,7 @@ import { TrendingUp, TrendingDown, AlertTriangle, Repeat, ArrowRightLeft, BarCha
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatCurrency } from "@/lib/fetcher";
 
 interface InsightData {
   monthlyTotals: Record<string, number>;
@@ -39,10 +40,6 @@ interface Account {
   isJoint: boolean;
   owner: "me" | "partner";
   computedBalance: number;
-}
-
-function formatCurrency(n: number) {
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
 }
 
 function formatMonth(key: string) {
@@ -359,7 +356,7 @@ export default function DashboardPage() {
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={monthlySpendingData}>
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
                   <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} />
                   <Bar dataKey="total" fill="#3B82F6" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -412,7 +409,7 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={incomeSpendingData}>
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} />
                 <Legend />
                 <Line type="monotone" dataKey="income" stroke="#22C55E" strokeWidth={2} dot={false} name="Income" />

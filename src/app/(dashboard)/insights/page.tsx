@@ -180,7 +180,7 @@ export default function InsightsPage() {
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={stackedData}>
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} />
                 <Legend />
                 {catList.map((cat, i) => (
@@ -204,7 +204,7 @@ export default function InsightsPage() {
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={incomeData}>
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} />
                 <Legend />
                 <Line type="monotone" dataKey="income" stroke="#22C55E" strokeWidth={2} dot name="Income" />

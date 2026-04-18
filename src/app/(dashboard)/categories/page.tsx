@@ -404,7 +404,7 @@ export default function CategoriesPage() {
             <div className="space-y-2">
               <Label>Monthly Budget <span className="text-gray-400">(optional)</span></Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">£</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
                 <Input
                   value={form.monthlyBudget}
                   onChange={(e) => setForm((f) => ({ ...f, monthlyBudget: e.target.value }))}
