@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/fetcher";
 import { CategoryIcon } from "@/components/ui/category-icon";
+import { MerchantLogo } from "@/components/ui/merchant-logo";
 import { PALETTE as CHART_COLORS } from "@/lib/palette";
 
 interface InsightData {
@@ -36,6 +37,14 @@ interface InsightData {
   pendingCount: number;
   pendingTotal: number;
   dailySpending: Array<{ date: string; amount: number }>;
+  subscriptions: Array<{
+    merchant: string;
+    amount: number;
+    categoryId: string | null;
+    categoryName: string | null;
+    lastDate: string;
+    monthlyCount: number;
+  }>;
   topMerchants: Array<{ merchant: string; amount: number; count: number; categoryName: string | null; categoryColor: string | null }>;
   recent: Array<{
     id: string;
@@ -240,6 +249,22 @@ export default function DashboardPage() {
   const momUp = momDelta > 0;
   const recurringMonthly = insights.recurring.reduce((s, r) => s + r.amount, 0);
 
+  // Upcoming bills — projected next charge for each detected subscription.
+  // Uses 30-day cadence from the last-seen date; filter to next 21 days.
+  const nowMs = Date.now();
+  const DAY = 86400000;
+  const upcomingBills = (insights.subscriptions ?? [])
+    .map((s) => {
+      const last = new Date(s.lastDate).getTime();
+      if (isNaN(last)) return null;
+      const next = last + 30 * DAY;
+      const days = Math.round((next - nowMs) / DAY);
+      return { ...s, nextDate: next, daysUntil: days };
+    })
+    .filter((b): b is NonNullable<typeof b> => !!b && b.daysUntil >= -2 && b.daysUntil <= 21)
+    .sort((a, b) => a.daysUntil - b.daysUntil)
+    .slice(0, 5);
+
   // This month's category totals for the stacked strip
   const thisMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
   const thisMonthByCategory = insights.monthlyByCategory[thisMonthKey] ?? {};
@@ -431,6 +456,49 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Upcoming bills — next 21 days */}
+      {upcomingBills.length > 0 && (
+        <Card className="border-0 ring-1 ring-gray-200/80">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Repeat className="w-4 h-4" /> Upcoming bills
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="divide-y divide-gray-50">
+              {upcomingBills.map((b) => {
+                const due =
+                  b.daysUntil < 0
+                    ? `Due ${Math.abs(b.daysUntil)}d ago`
+                    : b.daysUntil === 0
+                    ? "Due today"
+                    : b.daysUntil === 1
+                    ? "Due tomorrow"
+                    : `Due in ${b.daysUntil}d`;
+                const urgent = b.daysUntil <= 2;
+                return (
+                  <Link
+                    key={b.merchant}
+                    href={`/transactions?search=${encodeURIComponent(b.merchant)}`}
+                    className="flex items-center gap-3 py-2.5 hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"
+                  >
+                    <MerchantLogo merchant={b.merchant} fallbackColor={null} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{b.merchant}</p>
+                      <p className={`text-xs ${urgent ? "text-amber-600 font-medium" : "text-gray-400"}`}>
+                        {due} · {format(new Date(b.nextDate), "d MMM")}
+                        {b.categoryName && <span className="text-gray-400"> · {b.categoryName}</span>}
+                      </p>
+                    </div>
+                    <span className="text-sm font-semibold shrink-0">{formatCurrency(b.amount)}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Household breakdown */}
       {Object.keys(insights.spendingByMember).length > 0 && (
         <div>
@@ -617,20 +685,20 @@ export default function DashboardPage() {
               <div className="divide-y divide-gray-50">
                 {insights.recent.map((tx) => (
                   <div key={tx.id} className="flex items-center gap-3 py-2.5">
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                      style={{ backgroundColor: tx.category?.color ? `${tx.category.color}1a` : "#f3f4f6" }}
-                    >
-                      {tx.category ? (
-                        <CategoryIcon icon={tx.category.icon} color={tx.category.color} size="sm" />
-                      ) : (
-                        <Store className="w-3.5 h-3.5 text-gray-400" />
-                      )}
-                    </div>
+                    <MerchantLogo merchant={tx.description} fallbackColor={tx.category?.color} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{tx.description}</p>
-                      <p className="text-xs text-gray-400">
-                        {format(parseISO(tx.date), "d MMM")} · {tx.accountName}
+                      <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                        {tx.category && (
+                          <span className="inline-flex items-center gap-1">
+                            <CategoryIcon icon={tx.category.icon} color={tx.category.color} size="sm" />
+                            {tx.category.name}
+                          </span>
+                        )}
+                        {tx.category && <span className="text-gray-300">·</span>}
+                        <span>{format(parseISO(tx.date), "d MMM")}</span>
+                        <span className="text-gray-300">·</span>
+                        <span className="truncate">{tx.accountName}</span>
                       </p>
                     </div>
                     <span className={`text-sm font-semibold shrink-0 ${tx.isCredit ? "text-emerald-600" : "text-gray-900"}`}>
@@ -665,7 +733,7 @@ export default function DashboardPage() {
                     >
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-4 text-xs text-gray-400 font-medium text-right shrink-0">{i + 1}</span>
+                          <MerchantLogo merchant={m.merchant} fallbackColor={m.categoryColor} size="sm" />
                           <span className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600">
                             {m.merchant}
                           </span>
@@ -677,7 +745,7 @@ export default function DashboardPage() {
                         </div>
                         <span className="text-sm font-semibold shrink-0">{formatCurrency(m.amount)}</span>
                       </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden ml-6">
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden ml-10">
                         <div
                           className="h-full rounded-full transition-all"
                           style={{
