@@ -65,9 +65,9 @@ export const DEFAULT_RULES: Record<string, string[]> = {
     "BEST BUY", "ETSY",
   ],
   Clothing: [
-    "NORDSTROM", "MACY", "GAP ", "OLD NAVY", "BANANA REPUBLIC",
-    "LULULEMON", "ZARA", "UNIQLO", "H&M", "NIKE", "ADIDAS",
-    "ABERCROMBIE", "J.CREW", "MADEWELL",
+    "LULULEMON", "VUORI", "ALO YOGA", "NIKE", "ADIDAS", "PATAGONIA",
+    "ARC'TERYX", "RAG & BONE", "THEORY", "EVERLANE", "APC", "ACNE",
+    "COS ", "UNIQLO", "ZARA", "NORDSTROM", "SSENSE", "MR PORTER",
   ],
   "Personal Care": [
     "SEPHORA", "ULTA", "AESOP", "LUSH", "GLOSSIER", "BARBER",
