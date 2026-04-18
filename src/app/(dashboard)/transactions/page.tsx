@@ -41,6 +41,7 @@ import { CategoryIcon } from "@/components/ui/category-icon";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson, FetchError, formatCurrency } from "@/lib/fetcher";
+import { TransactionDrawer } from "./transaction-drawer";
 
 interface Category {
   id: string;
@@ -152,6 +153,9 @@ function TransactionsContent() {
 
   // Reprocess merchant names
   const [reprocessing, setReprocessing] = useState(false);
+
+  // Detail drawer
+  const [drawerTx, setDrawerTx] = useState<Transaction | null>(null);
 
   // Whether category edits teach a per-merchant rule. Flip OFF to mark a batch
   // of edits as one-off (gifts, splurges, travel oddities).
@@ -887,9 +891,12 @@ function TransactionsContent() {
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                      <button
+                        onClick={() => setDrawerTx(tx)}
+                        className="text-sm font-medium text-gray-900 truncate text-left hover:text-blue-600 transition-colors"
+                      >
                         {tx.merchant ?? tx.description}
-                      </p>
+                      </button>
                       <span
                         className={`text-sm font-medium shrink-0 ${
                           tx.isCredit ? "text-green-600" : "text-gray-900"
@@ -1088,9 +1095,12 @@ function TransactionsContent() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2 flex-wrap">
                           <div>
-                            <p className="text-sm font-medium text-gray-900 truncate max-w-[200px]">
+                            <button
+                              onClick={() => setDrawerTx(tx)}
+                              className="text-sm font-medium text-gray-900 truncate max-w-[200px] text-left hover:text-blue-600 transition-colors"
+                            >
                               {tx.merchant ?? tx.description}
-                            </p>
+                            </button>
                             {tx.merchant && tx.merchant !== tx.description && (
                               <p className="text-xs text-gray-400 truncate max-w-[200px]">
                                 {tx.description}
@@ -1792,6 +1802,17 @@ function TransactionsContent() {
         confirmLabel="Delete"
         destructive
         onConfirm={handleDelete}
+      />
+
+      <TransactionDrawer
+        tx={drawerTx}
+        onClose={() => setDrawerTx(null)}
+        categories={categories}
+        onChanged={fetchTransactions}
+        onSplit={(t) => { setDrawerTx(null); openSplitDialog(t); }}
+        onLinkTransfer={(t) => { setDrawerTx(null); openLinkTransferDialog(t); }}
+        onUnlinkTransfer={(txId) => { setDrawerTx(null); handleUnlinkTransfer(txId); }}
+        onDelete={(txId) => { setDrawerTx(null); setDeleteTargetId(txId); }}
       />
     </div>
   );

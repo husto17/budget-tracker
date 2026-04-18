@@ -249,6 +249,22 @@ export default function DashboardPage() {
   const momUp = momDelta > 0;
   const recurringMonthly = insights.recurring.reduce((s, r) => s + r.amount, 0);
 
+  // Cash-flow forecast — linear projection of this month's spend using the
+  // average daily pace so far. Compared to last month as the budget baseline.
+  const today = new Date();
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const dayOfMonth = today.getDate();
+  const projectedMonthTotal =
+    dayOfMonth > 0
+      ? (insights.thisMonthTotal / dayOfMonth) * daysInMonth
+      : insights.thisMonthTotal;
+  const forecastDelta = projectedMonthTotal - insights.previousMonthSpending;
+  const forecastPct =
+    insights.previousMonthSpending > 0
+      ? (forecastDelta / insights.previousMonthSpending) * 100
+      : 0;
+  const daysLeft = daysInMonth - dayOfMonth;
+
   // Upcoming bills — projected next charge for each detected subscription.
   // Uses 30-day cadence from the last-seen date; filter to next 21 days.
   const nowMs = Date.now();
@@ -348,6 +364,32 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Forecast strip — extrapolates spend to end-of-month */}
+      {insights.thisMonthTotal > 0 && dayOfMonth < daysInMonth && (
+        <div className="bg-white ring-1 ring-gray-200/80 rounded-xl px-4 py-3 flex items-center gap-4 flex-wrap">
+          <div className="flex-1 min-w-[180px]">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Projected end of {thisMonth.split(" ")[0]}</p>
+            <p className="text-xl font-bold mt-0.5">{formatCurrency(projectedMonthTotal)}</p>
+          </div>
+          <div className="flex-1 min-w-[140px]">
+            <p className="text-xs text-gray-400">vs last month</p>
+            <p className={`text-sm font-semibold ${forecastDelta > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+              {forecastDelta > 0 ? "+" : "−"}{formatCurrency(Math.abs(forecastDelta))}
+              {insights.previousMonthSpending > 0 && (
+                <span className="text-gray-400 font-normal"> ({forecastPct > 0 ? "+" : ""}{forecastPct.toFixed(0)}%)</span>
+              )}
+            </p>
+          </div>
+          <div className="flex-1 min-w-[160px]">
+            <p className="text-xs text-gray-400">Pace</p>
+            <p className="text-sm text-gray-700">
+              {formatCurrency(insights.thisMonthTotal / dayOfMonth)}/day
+              <span className="text-gray-400"> · {daysLeft} day{daysLeft !== 1 ? "s" : ""} left</span>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Secondary stats */}
       <div className="grid grid-cols-3 gap-3 md:gap-4">
