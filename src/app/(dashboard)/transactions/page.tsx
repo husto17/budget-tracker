@@ -1288,9 +1288,9 @@ function TransactionsContent() {
         </div>
       )}
 
-      {/* Sticky bulk action bar */}
+      {/* Sticky bulk action bar — raised on mobile so it doesn't collide with the bottom tab bar */}
       {selected.size > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900 text-white px-4 py-3 flex flex-wrap items-center gap-3 shadow-2xl">
+        <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-50 bg-gray-900 text-white px-4 py-3 flex flex-wrap items-center gap-3 shadow-2xl">
           <span className="text-sm font-medium">
             {selected.size} transaction{selected.size !== 1 ? "s" : ""} selected
           </span>
