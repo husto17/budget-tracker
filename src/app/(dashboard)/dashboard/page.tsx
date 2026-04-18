@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/fetcher";
 import { CategoryIcon } from "@/components/ui/category-icon";
 import { MerchantLogo } from "@/components/ui/merchant-logo";
+import { MonthPicker } from "@/components/ui/month-picker";
 import { PALETTE as CHART_COLORS } from "@/lib/palette";
 
 interface InsightData {
@@ -73,12 +74,20 @@ function formatMonth(key: string) {
 
 type ViewFilter = "all" | "mine" | "partner" | "joint";
 
+function currentMonthKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [insights, setInsights] = useState<InsightData | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
+  const isCurrentMonth = selectedMonth === currentMonthKey();
+
   const [viewFilter, setViewFilterState] = useState<ViewFilter>(() => {
     if (typeof window === "undefined") return "all";
     try {
@@ -96,8 +105,12 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
+    setLoading(true);
+    const url = isCurrentMonth
+      ? "/api/insights"
+      : `/api/insights?month=${selectedMonth}`;
     Promise.all([
-      fetch("/api/insights").then((r) => {
+      fetch(url).then((r) => {
         if (!r.ok) throw new Error(`insights ${r.status}`);
         return r.json();
       }),
@@ -114,7 +127,7 @@ export default function DashboardPage() {
         setLoadError(e.message);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedMonth, isCurrentMonth]);
 
   if (loading) {
     return (
@@ -161,7 +174,9 @@ export default function DashboardPage() {
 
   if (!insights) return null;
 
-  const thisMonth = format(new Date(), "MMMM yyyy");
+  // Label for the currently-viewed month (respects the period selector).
+  const [selYear, selMonth] = selectedMonth.split("-").map(Number);
+  const thisMonth = format(new Date(selYear, selMonth - 1, 1), "MMMM yyyy");
 
   // Empty state: no accounts at all
   if (accounts.length === 0 && insights.thisMonthTotal === 0) {
@@ -238,7 +253,14 @@ export default function DashboardPage() {
   const monthlySpendingData = Object.entries(insights.monthlyTotals)
     .sort(([a], [b]) => a.localeCompare(b))
     .slice(-6)
-    .map(([month, total]) => ({ month: formatMonth(month), total }));
+    .map(([month, total]) => ({ month: formatMonth(month), total, key: month }));
+
+  function jumpToMonth(monthKey: string) {
+    const [y, m] = monthKey.split("-").map(Number);
+    const from = `${monthKey}-01`;
+    const to = new Date(y, m, 0).toISOString().slice(0, 10); // last day of month
+    router.push(`/transactions?from=${from}&to=${to}`);
+  }
 
   const pieData = insights.topCategories.slice(0, 6).map(([name, value]) => ({ name, value }));
   const pieTotal = pieData.reduce((s, d) => s + d.value, 0);
@@ -301,7 +323,17 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{thisMonth}</p>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <MonthPicker value={selectedMonth} onChange={setSelectedMonth} max={currentMonthKey()} />
+            {!isCurrentMonth && (
+              <button
+                onClick={() => setSelectedMonth(currentMonthKey())}
+                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                Jump to this month
+              </button>
+            )}
+          </div>
         </div>
         {hasPartner && (
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
@@ -365,8 +397,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Forecast strip — extrapolates spend to end-of-month */}
-      {insights.thisMonthTotal > 0 && dayOfMonth < daysInMonth && (
+      {/* Forecast strip — only meaningful when viewing the current in-progress month */}
+      {isCurrentMonth && insights.thisMonthTotal > 0 && dayOfMonth < daysInMonth && (
         <div className="bg-white dark:bg-gray-900 ring-1 ring-gray-200 dark:ring-gray-800/80 rounded-xl px-4 py-3 flex items-center gap-4 flex-wrap">
           <div className="flex-1 min-w-[180px]">
             <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Projected end of {thisMonth.split(" ")[0]}</p>
@@ -398,11 +430,13 @@ export default function DashboardPage() {
             <TrendingDown className="w-4 h-4 text-rose-600" />
           </div>
           <CardContent className="p-3 sm:pt-5 sm:pb-4 sm:px-6">
-            <p className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs font-medium uppercase tracking-wide">This Month</p>
+            <p className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs font-medium uppercase tracking-wide">
+              {isCurrentMonth ? "This Month" : format(new Date(selYear, selMonth - 1, 1), "MMM yyyy")}
+            </p>
             <p className="text-base sm:text-2xl font-bold mt-0.5 sm:mt-1 text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(insights.thisMonthTotal)}</p>
             {insights.previousMonthSpending > 0 && (
               <p className={`text-[10px] sm:text-xs mt-0.5 sm:mt-1 tabular-nums ${momUp ? "text-rose-600" : "text-emerald-600"}`}>
-                {momUp ? "↑" : "↓"} {formatCurrency(Math.abs(momDelta))} <span className="hidden sm:inline">vs last</span>
+                {momUp ? "↑" : "↓"} {formatCurrency(Math.abs(momDelta))} <span className="hidden sm:inline">vs prev</span>
               </p>
             )}
           </CardContent>
@@ -412,7 +446,9 @@ export default function DashboardPage() {
             <Receipt className="w-4 h-4 text-sky-600" />
           </div>
           <CardContent className="p-3 sm:pt-5 sm:pb-4 sm:px-6">
-            <p className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs font-medium uppercase tracking-wide">Last Month</p>
+            <p className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs font-medium uppercase tracking-wide">
+              {isCurrentMonth ? "Last Month" : format(new Date(selYear, selMonth - 2, 1), "MMM yyyy")}
+            </p>
             <p className="text-base sm:text-2xl font-bold mt-0.5 sm:mt-1 text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(insights.lastMonthTotal)}</p>
             <p className="hidden sm:block text-xs text-gray-400 dark:text-gray-500 mt-1">Final total</p>
           </CardContent>
@@ -868,11 +904,12 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Bar chart (retained for legacy view, cleaner look) */}
+      {/* Bar chart — click a bar to jump to that month's transactions */}
       {monthlySpendingData.length > 0 && (
         <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
           <CardHeader>
             <CardTitle className="text-base">Monthly Totals (6 months)</CardTitle>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Click a bar to view that month, or jump to Compare to put two months side by side.</p>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={180}>
@@ -880,7 +917,16 @@ export default function DashboardPage() {
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#9ca3af" />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} stroke="#9ca3af" />
                 <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} />
-                <Bar dataKey="total" fill="#6366F1" radius={[6, 6, 0, 0]} />
+                <Bar
+                  dataKey="total"
+                  fill="#6366F1"
+                  radius={[6, 6, 0, 0]}
+                  style={{ cursor: "pointer" }}
+                  onClick={(data) => {
+                    const key = (data as { key?: string }).key;
+                    if (key) jumpToMonth(key);
+                  }}
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

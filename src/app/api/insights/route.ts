@@ -11,8 +11,24 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const monthsBack = Math.min(Math.max(parseInt(searchParams.get("months") ?? "6") || 6, 1), 24);
 
+  // Optional ?month=YYYY-MM — rebase "this month / last month / upcoming bills /
+  // top merchants / dailySpending" semantics onto a specific historical month
+  // for the dashboard period selector and the /compare page.
+  const monthParam = searchParams.get("month");
+  const monthMatch = monthParam ? /^(\d{4})-(\d{2})$/.exec(monthParam) : null;
+  const anchorYear = monthMatch ? parseInt(monthMatch[1]) : null;
+  const anchorMonth = monthMatch ? parseInt(monthMatch[2]) - 1 : null;
+
   const userId = session.user.id;
-  const now = new Date();
+  const realNow = new Date();
+  // `now` acts as "this month" for the rest of the computation. When a specific
+  // month is requested we pin it to the last day of that month so all the
+  // month-derived keys still line up.
+  const now =
+    anchorYear !== null && anchorMonth !== null
+      ? new Date(anchorYear, anchorMonth + 1, 0, 23, 59, 59)
+      : realNow;
+  const isAnchored = now.getTime() !== realNow.getTime();
   const startDate = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1);
 
   // Get all household account IDs (own + partner's)
@@ -27,7 +43,7 @@ export async function GET(request: Request) {
     where: {
       accountId: { in: accountIds },
       isCredit: false,
-      date: { gte: startDate },
+      date: isAnchored ? { gte: startDate, lte: now } : { gte: startDate },
       transferPairId: null,
     },
     include: {
@@ -181,7 +197,7 @@ export async function GET(request: Request) {
     where: {
       accountId: { in: accountIds },
       isCredit: true,
-      date: { gte: startDate },
+      date: isAnchored ? { gte: startDate, lte: now } : { gte: startDate },
       transferPairId: null,
     },
     orderBy: { date: "asc" },
@@ -241,7 +257,7 @@ export async function GET(request: Request) {
         accountId: { in: myAccountIds },
         isCredit: false,
         transferPairId: null,
-        date: { gte: thisMonthStart },
+        date: isAnchored ? { gte: thisMonthStart, lte: now } : { gte: thisMonthStart },
       },
       select: { amount: true },
     });
@@ -250,7 +266,7 @@ export async function GET(request: Request) {
         accountId: { in: partnerAccountIds },
         isCredit: false,
         transferPairId: null,
-        date: { gte: thisMonthStart },
+        date: isAnchored ? { gte: thisMonthStart, lte: now } : { gte: thisMonthStart },
       },
       select: { amount: true },
     });

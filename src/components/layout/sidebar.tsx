@@ -20,6 +20,7 @@ import {
   Sun,
   Moon,
   HelpCircle,
+  ArrowLeftRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ const navGroups: Array<{
     items: [
       { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
       { href: "/insights", icon: TrendingUp, label: "Insights" },
+      { href: "/compare", icon: ArrowLeftRight, label: "Compare" },
     ],
   },
   {

@@ -26,6 +26,7 @@ import {
   Sparkles,
   Target,
   Keyboard,
+  ArrowLeftRight,
 } from "lucide-react";
 import { fetchJson } from "@/lib/fetcher";
 
@@ -149,6 +150,9 @@ export function CommandPalette() {
           <CommandItem value="insights" onSelect={() => go("/insights")}>
             <TrendingUp className="mr-2 h-4 w-4" /> Insights
             <CommandShortcut>g i</CommandShortcut>
+          </CommandItem>
+          <CommandItem value="compare months" onSelect={() => go("/compare")}>
+            <ArrowLeftRight className="mr-2 h-4 w-4" /> Compare months
           </CommandItem>
           <CommandItem value="settings" onSelect={() => go("/settings")}>
             <Settings className="mr-2 h-4 w-4" /> Settings
