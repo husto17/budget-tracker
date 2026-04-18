@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { HelpModal } from "./help-modal";
 
 const GO_MAP: Record<string, string> = {
   d: "/dashboard",
@@ -26,6 +27,7 @@ function isTypingTarget(el: EventTarget | null): boolean {
 
 export function KeyboardShortcuts() {
   const router = useRouter();
+  const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     let awaitingGo = false;
@@ -53,6 +55,13 @@ export function KeyboardShortcuts() {
         return;
       }
 
+      // ? opens the help modal (not preceded by g, which jumps to /ask)
+      if (e.key === "?") {
+        e.preventDefault();
+        setHelpOpen(true);
+        return;
+      }
+
       if (e.key === "/") {
         const search = document.querySelector<HTMLInputElement>(
           'input[placeholder*="Search" i]',
@@ -72,5 +81,5 @@ export function KeyboardShortcuts() {
     };
   }, [router]);
 
-  return null;
+  return <HelpModal open={helpOpen} onOpenChange={setHelpOpen} />;
 }

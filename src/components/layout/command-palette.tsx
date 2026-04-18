@@ -25,6 +25,7 @@ import {
   Search,
   Sparkles,
   Target,
+  Keyboard,
 } from "lucide-react";
 import { fetchJson } from "@/lib/fetcher";
 
@@ -166,6 +167,16 @@ export function CommandPalette() {
           </CommandItem>
           <CommandItem value="new category" onSelect={() => go("/categories")}>
             <Plus className="mr-2 h-4 w-4" /> New category…
+          </CommandItem>
+          <CommandItem
+            value="help shortcuts keyboard tips"
+            onSelect={() => {
+              setOpen(false);
+              window.dispatchEvent(new Event("help:open"));
+            }}
+          >
+            <Keyboard className="mr-2 h-4 w-4" /> Keyboard shortcuts &amp; tips
+            <CommandShortcut>?</CommandShortcut>
           </CommandItem>
         </CommandGroup>
 

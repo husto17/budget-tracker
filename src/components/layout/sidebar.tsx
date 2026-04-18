@@ -19,6 +19,7 @@ import {
   Target,
   Sun,
   Moon,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -168,6 +169,16 @@ export function Sidebar() {
             suppressHydrationWarning
           >
             {mounted ? (isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />) : <Moon className="w-4 h-4" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-gray-500 dark:text-gray-400"
+            onClick={() => window.dispatchEvent(new Event("help:open"))}
+            title="Shortcuts & tips (?)"
+            aria-label="Open help"
+          >
+            <HelpCircle className="w-4 h-4" />
           </Button>
         </div>
       </div>
