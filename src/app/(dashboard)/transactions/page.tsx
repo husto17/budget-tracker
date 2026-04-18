@@ -966,13 +966,17 @@ function TransactionsContent() {
                         </span>
                       )}
                       {tx.splits && tx.splits.length > 0 ? (
-                        <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                        <button
+                          onClick={() => setDrawerTx(tx)}
+                          className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-colors"
+                        >
                           <Scissors className="w-2.5 h-2.5" />
                           Split
-                        </span>
+                        </button>
                       ) : tx.category ? (
-                        <span
-                          className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full"
+                        <button
+                          onClick={() => setDrawerTx(tx)}
+                          className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full hover:ring-2 hover:ring-offset-0 transition-all"
                           style={{
                             backgroundColor: tx.category.color + "20",
                             color: tx.category.color,
@@ -980,8 +984,15 @@ function TransactionsContent() {
                         >
                           <CategoryIcon icon={tx.category.icon} color={tx.category.color} size="sm" />
                           {tx.category.name}
-                        </span>
-                      ) : null}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setDrawerTx(tx)}
+                          className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          + Category
+                        </button>
+                      )}
                       {tx.transferPairId ? (
                         <Badge
                           variant="outline"
