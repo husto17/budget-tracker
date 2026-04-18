@@ -175,7 +175,11 @@ function TransactionsContent() {
 
   const LIMIT = 50;
 
+  // Monotonically-increasing request ID. When filters change quickly two
+  // fetches can race; only the most recent one is allowed to commit results.
+  const fetchIdRef = useRef(0);
   const fetchTransactions = useCallback(async () => {
+    const myId = ++fetchIdRef.current;
     setLoading(true);
     const params = new URLSearchParams({
       page: String(page),
@@ -192,13 +196,15 @@ function TransactionsContent() {
       const data = await fetchJson<{ transactions: Transaction[]; total: number }>(
         `/api/transactions?${params}`,
       );
+      if (myId !== fetchIdRef.current) return; // superseded — drop
       setTransactions(data.transactions);
       setTotal(data.total);
       setLoadError(null);
     } catch (e) {
+      if (myId !== fetchIdRef.current) return;
       setLoadError(e instanceof FetchError ? e.message : "Couldn't load transactions");
     } finally {
-      setLoading(false);
+      if (myId === fetchIdRef.current) setLoading(false);
     }
   }, [page, filterAccount, filterCategory, filterUncategorized, search, from, to, statusFilter]);
 
@@ -880,7 +886,7 @@ function TransactionsContent() {
                     outgoing.account.type === "CREDIT_CARD" || incoming.account.type === "CREDIT_CARD";
                   const pairLabel = isCreditCardPayment ? "Credit card payment" : "Transfer";
                   pairCard = (
-                    <div key={`pair-${info.pairKey}`} className="px-4 py-3 flex items-center gap-3 bg-blue-50/40">
+                    <div key={`pair-${info.pairKey}`} className="px-4 py-3 flex items-center gap-3 bg-blue-50/40 dark:bg-indigo-950/20">
                       <input
                         type="checkbox"
                         checked={bothSelected}
@@ -919,14 +925,15 @@ function TransactionsContent() {
                 {pairCard}
                 <div
                   className={`px-4 py-3 flex items-center gap-3 ${
-                    selected.has(tx.id) ? "bg-blue-50" : ""
-                  } ${info ? "bg-blue-50/10 pl-8" : ""}`}
+                    selected.has(tx.id) ? "bg-blue-50 dark:bg-indigo-950/40" : ""
+                  } ${info ? "bg-blue-50/10 dark:bg-indigo-950/10 pl-8" : ""}`}
                 >
                   <input
                     type="checkbox"
                     checked={selected.has(tx.id)}
                     onChange={() => toggleSelect(tx.id)}
                     className="shrink-0"
+                    aria-label={`Select ${tx.merchant ?? tx.description}`}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
@@ -1027,6 +1034,7 @@ function TransactionsContent() {
                             setSelected(new Set(transactions.map((t) => t.id)));
                           else setSelected(new Set());
                         }}
+                        aria-label="Select all transactions on this page"
                       />
                     </th>
                     <th className="px-4 py-3 text-left">Date</th>
@@ -1056,7 +1064,7 @@ function TransactionsContent() {
                         outgoing.account.type === "CREDIT_CARD" || incoming.account.type === "CREDIT_CARD";
                       const pairLabel = isCreditCardPayment ? "Credit card payment" : "Transfer";
                       pairHeader = (
-                        <tr key={`pair-${info.pairKey}`} className="bg-blue-50/40 hover:bg-blue-50/60 transition-colors">
+                        <tr key={`pair-${info.pairKey}`} className="bg-blue-50/40 dark:bg-indigo-950/20 hover:bg-blue-50/60 dark:bg-indigo-950/30 transition-colors">
                           <td className="px-4 py-3">
                             <input
                               type="checkbox"
@@ -1118,14 +1126,15 @@ function TransactionsContent() {
                     {pairHeader}
                     <tr
                       className={`hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
-                        selected.has(tx.id) ? "bg-blue-50" : ""
-                      } ${tx.isPending ? "opacity-80" : ""} ${info ? "bg-blue-50/10" : ""}`}
+                        selected.has(tx.id) ? "bg-blue-50 dark:bg-indigo-950/40" : ""
+                      } ${tx.isPending ? "opacity-80" : ""} ${info ? "bg-blue-50/10 dark:bg-indigo-950/10" : ""}`}
                     >
                       <td className="px-4 py-3">
                         <input
                           type="checkbox"
                           checked={selected.has(tx.id)}
                           onChange={() => toggleSelect(tx.id)}
+                          aria-label={`Select ${tx.merchant ?? tx.description}`}
                         />
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
@@ -1159,7 +1168,7 @@ function TransactionsContent() {
                           {tx.transferPairId ? (
                             <Badge
                               variant="outline"
-                              className="text-xs text-blue-500 gap-1 shrink-0 cursor-pointer hover:bg-blue-50"
+                              className="text-xs text-blue-500 gap-1 shrink-0 cursor-pointer hover:bg-blue-50 dark:bg-indigo-950/40"
                               onClick={() => handleUnlinkTransfer(tx.id)}
                               title="Click to unlink transfer"
                             >
@@ -1533,16 +1542,16 @@ function TransactionsContent() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)} disabled={addingTx}>
               Cancel
             </Button>
             <Button
               onClick={handleAddTransaction}
               disabled={
-                !addForm.description || !addForm.amount || !addForm.accountId
+                addingTx || !addForm.description || !addForm.amount || !addForm.accountId
               }
             >
-              Add
+              {addingTx ? "Adding..." : "Add"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1791,7 +1800,7 @@ function TransactionsContent() {
                     <label
                       key={t.id}
                       className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition-colors ${
-                        selectedPair === t.id ? "bg-blue-50" : ""
+                        selectedPair === t.id ? "bg-blue-50 dark:bg-indigo-950/40" : ""
                       }`}
                     >
                       <input
