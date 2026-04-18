@@ -87,15 +87,30 @@ export async function PATCH(
   // keyed by merchant name — so next time we see the same merchant it auto-fills.
   // One rule per merchant: we move it to the new category rather than creating duplicates.
   // Wrapped in try/catch so a learning failure never blocks the user's category change.
+  // Category names that are inherently one-off / contextual — a single Gift
+  // purchase shouldn't turn every future purchase from that merchant into a gift.
+  // (Family Support is intentionally NOT here — it's often a recurring Zelle
+  // to a parent where learning the rule is useful.)
+  const NO_LEARN_CATEGORIES = new Set(["Gifts", "Other", "Transfers"]);
+
   const categoryId = typeof data.categoryId === "string" ? data.categoryId : null;
-  if (categoryId && updated.merchant && updated.merchant.trim().length >= 3) {
+  const shouldLearn = data.learn !== false; // default true unless client opts out
+  let learnedRuleId: string | null = null;
+
+  if (
+    shouldLearn &&
+    categoryId &&
+    updated.merchant &&
+    updated.merchant.trim().length >= 3 &&
+    !NO_LEARN_CATEGORIES.has(updated.category?.name ?? "")
+  ) {
     try {
       const pattern = updated.merchant.trim();
       const existing = await prisma.categoryRule.findFirst({
         where: { userId: session.user.id, pattern, isRegex: false },
       });
       if (!existing) {
-        await prisma.categoryRule.create({
+        const rule = await prisma.categoryRule.create({
           data: {
             userId: session.user.id,
             categoryId,
@@ -103,11 +118,13 @@ export async function PATCH(
             isRegex: false,
           },
         });
+        learnedRuleId = rule.id;
       } else if (existing.categoryId !== categoryId) {
         await prisma.categoryRule.update({
           where: { id: existing.id },
           data: { categoryId },
         });
+        learnedRuleId = existing.id;
       }
     } catch (err) {
       console.error("Failed to learn category rule", err);
@@ -127,7 +144,7 @@ export async function PATCH(
     }
   }
 
-  return NextResponse.json(updated);
+  return NextResponse.json({ ...updated, learnedRuleId });
 }
 
 export async function DELETE(

@@ -223,12 +223,37 @@ function TransactionsContent() {
 
   async function updateCategory(txId: string, categoryId: string | null) {
     try {
-      await fetchJson(`/api/transactions/${txId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ categoryId }),
-      });
+      const result = await fetchJson<{ learnedRuleId?: string | null; categoryId?: string | null }>(
+        `/api/transactions/${txId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ categoryId }),
+        },
+      );
       fetchTransactions();
+      // If a rule was learned from this click, let the user undo it with one tap.
+      if (result.learnedRuleId && result.categoryId) {
+        const ruleId = result.learnedRuleId;
+        const catId = result.categoryId;
+        toast.success("Category updated", {
+          action: {
+            label: "Don't remember",
+            onClick: async () => {
+              try {
+                await fetchJson(`/api/categories/${catId}/rules`, {
+                  method: "DELETE",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ ruleId }),
+                });
+                toast.success("Rule forgotten — future uploads won't auto-assign");
+              } catch {
+                toast.error("Couldn't forget the rule");
+              }
+            },
+          },
+        });
+      }
     } catch (e) {
       toast.error(e instanceof FetchError ? e.message : "Failed to update category", {
         action: { label: "Retry", onClick: () => updateCategory(txId, categoryId) },
