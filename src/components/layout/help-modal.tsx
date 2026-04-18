@@ -85,6 +85,10 @@ const SECTIONS: Section[] = [
         label: "Merchant rename also learns",
         desc: "Rename a merchant in the drawer (e.g. AMAZON RETA* B504 → Amazon Marketplace) and the MerchantAlias saves it. Future uploads auto-rename.",
       },
+      {
+        label: "Split-the-bill reimbursements",
+        desc: "Paid $200 for dinner and friends Venmo'd you back $160? Open the $200 tx → Link a reimbursement → pick the Venmo credits → your net cost shows as $40 everywhere. Works many-to-one (multiple friends → one dinner) and one-to-many (one lump-sum Venmo → multiple charges).",
+      },
     ],
   },
   {

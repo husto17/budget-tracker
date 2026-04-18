@@ -58,6 +58,20 @@ export async function GET(request: Request) {
           include: { category: true },
           orderBy: { createdAt: "asc" },
         },
+        reimbursementsReceived: {
+          include: {
+            reimbursementTx: {
+              select: { id: true, date: true, merchant: true, description: true, amount: true },
+            },
+          },
+        },
+        reimbursementsApplied: {
+          include: {
+            originalTx: {
+              select: { id: true, date: true, merchant: true, description: true, amount: true },
+            },
+          },
+        },
       },
       orderBy: { date: "desc" },
       skip: (page - 1) * limit,

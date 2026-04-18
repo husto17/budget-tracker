@@ -42,6 +42,7 @@ model User {
   uploads         Upload[]
   merchantAliases MerchantAlias[]
   goals           Goal[]
+  reimbursements  Reimbursement[]
 }
 
 model Goal {
@@ -141,6 +142,12 @@ model Transaction {
   source              String    @default("statement")
 
   splits              TransactionSplit[]
+
+  // Reimbursements — many-to-many via Reimbursement join model.
+  // Back-references allow computing net spending per tx.
+  reimbursementsReceived Reimbursement[] @relation("ReimbursementOriginal")
+  reimbursementsApplied  Reimbursement[] @relation("ReimbursementCredit")
+
   createdAt           DateTime  @default(now())
 
   @@unique([accountId, hash])
@@ -150,6 +157,31 @@ model Transaction {
   @@index([transferPairId])
   @@index([merchant])
   @@index([recurringGroupId])
+}
+
+// A user paid something that was partly someone else's — a friend Venmos them
+// back, a roommate covers utilities, etc. The link captures how much of the
+// inbound credit (reimbursementTx) offsets the original spend (originalTx).
+// Many-to-many: one original can be offset by multiple credits, and one credit
+// can offset multiple originals (e.g. a lump-sum Venmo for dinner + drinks).
+model Reimbursement {
+  id                String      @id @default(cuid())
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  originalTxId     String
+  originalTx       Transaction @relation("ReimbursementOriginal", fields: [originalTxId], references: [id], onDelete: Cascade)
+
+  reimbursementTxId String
+  reimbursementTx   Transaction @relation("ReimbursementCredit", fields: [reimbursementTxId], references: [id], onDelete: Cascade)
+
+  amount            Float       // portion of reimbursementTx that applies to originalTx
+  note              String?
+  createdAt         DateTime    @default(now())
+
+  @@index([userId])
+  @@index([originalTxId])
+  @@index([reimbursementTxId])
 }
 
 model TransactionSplit {

@@ -65,6 +65,14 @@ interface TransactionSplit {
   category: Category | null;
 }
 
+interface ReimbursementLink {
+  id: string;
+  amount: number;
+  note: string | null;
+  reimbursementTx?: { id: string; date: string | Date; merchant: string | null; description: string; amount: number };
+  originalTx?: { id: string; date: string | Date; merchant: string | null; description: string; amount: number };
+}
+
 interface Transaction {
   id: string;
   date: string;
@@ -81,6 +89,15 @@ interface Transaction {
   transferPairId: string | null;
   transferPair: { account: { id: string; name: string } } | null;
   splits: TransactionSplit[];
+  reimbursementsReceived?: ReimbursementLink[];
+  reimbursementsApplied?: ReimbursementLink[];
+}
+
+function netOfReimbursements(tx: Transaction): { net: number; offset: number } {
+  const offset = tx.isCredit
+    ? (tx.reimbursementsApplied ?? []).reduce((s, r) => s + r.amount, 0)
+    : (tx.reimbursementsReceived ?? []).reduce((s, r) => s + r.amount, 0);
+  return { net: Math.max(tx.amount - offset, 0), offset };
 }
 
 function TransactionsContent() {
@@ -942,14 +959,26 @@ function TransactionsContent() {
                       >
                         {tx.merchant ?? tx.description}
                       </button>
-                      <span
-                        className={`text-sm font-medium shrink-0 ${
-                          tx.isCredit ? "text-green-600" : "text-gray-900 dark:text-gray-100"
-                        }`}
-                      >
-                        {tx.isCredit ? "+" : "−"}
-                        {formatCurrency(tx.amount)}
-                      </span>
+                      {(() => {
+                        const { net, offset } = netOfReimbursements(tx);
+                        return (
+                          <div className="flex flex-col items-end shrink-0">
+                            <span
+                              className={`text-sm font-medium ${
+                                tx.isCredit ? "text-green-600" : "text-gray-900 dark:text-gray-100"
+                              }`}
+                            >
+                              {tx.isCredit ? "+" : "−"}
+                              {formatCurrency(net)}
+                            </span>
+                            {offset > 0.005 && (
+                              <span className="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums line-through">
+                                {formatCurrency(tx.amount)}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="text-xs text-gray-400 dark:text-gray-500">
@@ -1246,14 +1275,29 @@ function TransactionsContent() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
-                        <span
-                          className={`text-sm font-medium ${
-                            tx.isCredit ? "text-green-600" : "text-gray-900 dark:text-gray-100"
-                          }`}
-                        >
-                          {tx.isCredit ? "+" : "−"}
-                          {formatCurrency(tx.amount)}
-                        </span>
+                        {(() => {
+                          const { net, offset } = netOfReimbursements(tx);
+                          return (
+                            <div className="flex flex-col items-end">
+                              <span
+                                className={`text-sm font-medium ${
+                                  tx.isCredit ? "text-green-600" : "text-gray-900 dark:text-gray-100"
+                                }`}
+                              >
+                                {tx.isCredit ? "+" : "−"}
+                                {formatCurrency(net)}
+                              </span>
+                              {offset > 0.005 && (
+                                <span
+                                  className="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums line-through"
+                                  title={`Gross ${formatCurrency(tx.amount)}, ${tx.isCredit ? "applied" : "reimbursed"} ${formatCurrency(offset)}`}
+                                >
+                                  {formatCurrency(tx.amount)}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">

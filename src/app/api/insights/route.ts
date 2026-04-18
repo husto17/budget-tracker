@@ -39,7 +39,7 @@ export async function GET(request: Request) {
   // mid-month spending tracking works. Double-counting is prevented because
   // when a statement is uploaded, the pending record is UPDATED in-place to
   // become the statement transaction (never two records for the same expense).
-  const transactions = await prisma.transaction.findMany({
+  const transactionsRaw = await prisma.transaction.findMany({
     where: {
       accountId: { in: accountIds },
       isCredit: false,
@@ -49,9 +49,21 @@ export async function GET(request: Request) {
     include: {
       category: true,
       splits: { include: { category: true } },
+      reimbursementsReceived: { select: { amount: true } },
     },
     orderBy: { date: "asc" },
   });
+
+  // Apply reimbursements: debit.amount -= sum of linked reimbursements.
+  // A fully-reimbursed debit (amount === 0) drops out entirely so it doesn't
+  // pollute category totals or top-merchant rankings.
+  const transactions = transactionsRaw
+    .map((tx) => {
+      const offset = tx.reimbursementsReceived.reduce((s, r) => s + r.amount, 0);
+      const netAmount = Math.max(tx.amount - offset, 0);
+      return { ...tx, amount: netAmount, grossAmount: tx.amount };
+    })
+    .filter((tx) => tx.amount > 0.005);
 
   // Monthly spending by category.
   // If a tx has splits, credit each split to its own category (don't double-count
@@ -193,17 +205,25 @@ export async function GET(request: Request) {
   });
 
   // Income vs spending by month
-  const incomeTransactions = await prisma.transaction.findMany({
+  // Income = credits minus anything that's been tagged as reimbursement for
+  // a prior debit. A credit that's 100% reimbursement is 0 income.
+  const incomeRaw = await prisma.transaction.findMany({
     where: {
       accountId: { in: accountIds },
       isCredit: true,
       date: isAnchored ? { gte: startDate, lte: now } : { gte: startDate },
       transferPairId: null,
     },
+    include: { reimbursementsApplied: { select: { amount: true } } },
     orderBy: { date: "asc" },
   });
   const monthlyIncome: Record<string, number> = {};
+  const incomeTransactions = incomeRaw.map((tx) => {
+    const applied = tx.reimbursementsApplied.reduce((s, r) => s + r.amount, 0);
+    return { ...tx, amount: Math.max(tx.amount - applied, 0) };
+  });
   for (const tx of incomeTransactions) {
+    if (tx.amount <= 0.005) continue; // fully reimbursed — not real income
     const monthKey = `${tx.date.getFullYear()}-${String(tx.date.getMonth() + 1).padStart(2, "0")}`;
     monthlyIncome[monthKey] = (monthlyIncome[monthKey] ?? 0) + tx.amount;
   }
@@ -259,7 +279,7 @@ export async function GET(request: Request) {
         transferPairId: null,
         date: isAnchored ? { gte: thisMonthStart, lte: now } : { gte: thisMonthStart },
       },
-      select: { amount: true },
+      select: { amount: true, reimbursementsReceived: { select: { amount: true } } },
     });
     const partnerSpendingTxs = await prisma.transaction.findMany({
       where: {
@@ -268,16 +288,18 @@ export async function GET(request: Request) {
         transferPairId: null,
         date: isAnchored ? { gte: thisMonthStart, lte: now } : { gte: thisMonthStart },
       },
-      select: { amount: true },
+      select: { amount: true, reimbursementsReceived: { select: { amount: true } } },
     });
+    const netMember = (t: { amount: number; reimbursementsReceived: { amount: number }[] }) =>
+      Math.max(t.amount - t.reimbursementsReceived.reduce((s, r) => s + r.amount, 0), 0);
 
     spendingByMember[userId] = {
       name: currentUser?.name ?? "You",
-      amount: mySpendingTxs.reduce((s, t) => s + t.amount, 0),
+      amount: mySpendingTxs.reduce((s, t) => s + netMember(t), 0),
     };
     spendingByMember[partnerUserId] = {
       name: partnerUser?.name ?? "Partner",
-      amount: partnerSpendingTxs.reduce((s, t) => s + t.amount, 0),
+      amount: partnerSpendingTxs.reduce((s, t) => s + netMember(t), 0),
     };
   }
 
