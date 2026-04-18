@@ -17,6 +17,7 @@ import {
   Pencil,
   ChevronDown,
   ChevronRight,
+  Brain,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -650,6 +651,20 @@ function TransactionsContent() {
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{total.toLocaleString()} total</p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-gray-500 dark:text-gray-400"
+            onClick={toggleLearning}
+            title={
+              learning
+                ? "Learning ON — each category pick saves a merchant rule. Click to pause."
+                : "Learning PAUSED — category picks are one-off. Click to resume."
+            }
+            aria-label={learning ? "Pause rule learning" : "Resume rule learning"}
+          >
+            <Brain className={`w-4 h-4 ${learning ? "" : "opacity-40"}`} />
+          </Button>
           <Button variant="outline" size="sm" onClick={() => reprocessNames(false)} disabled={reprocessing}>
             {reprocessing ? "Cleaning..." : "Clean up + categorize"}
           </Button>
@@ -659,40 +674,24 @@ function TransactionsContent() {
         </div>
       </div>
 
-      {/* Learning banner — explicit so users can see + understand the setting */}
-      <div
-        className={`flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl border transition-colors ${
-          learning
-            ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200"
-            : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200"
-        }`}
-      >
-        <div className="flex items-start gap-2 min-w-0">
-          <span className="text-lg leading-none shrink-0 mt-0.5">{learning ? "🧠" : "⏸"}</span>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold">
-              {learning ? "Learning is ON" : "Learning is paused"}
-            </p>
-            <p className="text-xs opacity-80">
-              {learning
-                ? "Each category you pick creates or updates a rule so future uploads auto-categorise that merchant."
-                : "Category picks are applied to this transaction only — no rules are created or updated."}
-            </p>
+      {/* Learning-paused warning banner — only visible when paused so the default
+          state (learning on) isn't nagging the user. */}
+      {!learning && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl border bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200">
+          <div className="flex items-start gap-2 min-w-0">
+            <span className="text-lg leading-none shrink-0 mt-0.5">⏸</span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Learning is paused</p>
+              <p className="text-xs opacity-80">
+                Category picks apply to this transaction only — no rules will be created.
+              </p>
+            </div>
           </div>
+          <Button size="sm" variant="outline" onClick={toggleLearning} className="bg-white dark:bg-gray-900 hover:bg-amber-100 dark:hover:bg-amber-900/30">
+            Resume learning
+          </Button>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={toggleLearning}
-          className={
-            learning
-              ? "bg-white dark:bg-gray-900 hover:bg-emerald-100 dark:hover:bg-emerald-900/30"
-              : "bg-white dark:bg-gray-900 hover:bg-amber-100 dark:hover:bg-amber-900/30"
-          }
-        >
-          {learning ? "Pause learning" : "Resume learning"}
-        </Button>
-      </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 space-y-3">
