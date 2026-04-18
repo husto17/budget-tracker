@@ -70,7 +70,8 @@ export async function PATCH(
   // keyed by merchant name — so next time we see the same merchant it auto-fills.
   // One rule per merchant: we move it to the new category rather than creating duplicates.
   // Wrapped in try/catch so a learning failure never blocks the user's category change.
-  if (data.categoryId && updated.merchant && updated.merchant.trim().length >= 3) {
+  const categoryId = typeof data.categoryId === "string" ? data.categoryId : null;
+  if (categoryId && updated.merchant && updated.merchant.trim().length >= 3) {
     try {
       const pattern = updated.merchant.trim();
       const existing = await prisma.categoryRule.findFirst({
@@ -80,15 +81,15 @@ export async function PATCH(
         await prisma.categoryRule.create({
           data: {
             userId: session.user.id,
-            categoryId: data.categoryId,
+            categoryId,
             pattern,
             isRegex: false,
           },
         });
-      } else if (existing.categoryId !== data.categoryId) {
+      } else if (existing.categoryId !== categoryId) {
         await prisma.categoryRule.update({
           where: { id: existing.id },
-          data: { categoryId: data.categoryId },
+          data: { categoryId },
         });
       }
     } catch (err) {
@@ -99,10 +100,14 @@ export async function PATCH(
   // If amount was changed on a linked transfer, mirror the new amount to the
   // paired side so the two don't diverge.
   if (data.amount !== undefined && tx.transferPairId) {
-    await prisma.transaction.update({
-      where: { id: tx.transferPairId },
-      data: { amount: parseFloat(data.amount) },
-    });
+    try {
+      await prisma.transaction.update({
+        where: { id: tx.transferPairId },
+        data: { amount: parseFloat(String(data.amount)) },
+      });
+    } catch (err) {
+      console.error("Failed to mirror transfer amount", err);
+    }
   }
 
   return NextResponse.json(updated);
