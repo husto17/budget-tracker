@@ -42,6 +42,31 @@ export async function PATCH(
     include: { category: true, account: { select: { id: true, name: true, type: true } } },
   });
 
+  // If the user set (or changed) the category, remember that decision as a rule
+  // keyed by merchant name — so next time we see the same merchant it auto-fills.
+  // One rule per merchant: we move it to the new category rather than creating duplicates.
+  if (data.categoryId && updated.merchant && updated.merchant.trim().length >= 3) {
+    const pattern = updated.merchant.trim();
+    const existing = await prisma.categoryRule.findFirst({
+      where: { userId: session.user.id, pattern, isRegex: false },
+    });
+    if (!existing) {
+      await prisma.categoryRule.create({
+        data: {
+          userId: session.user.id,
+          categoryId: data.categoryId,
+          pattern,
+          isRegex: false,
+        },
+      });
+    } else if (existing.categoryId !== data.categoryId) {
+      await prisma.categoryRule.update({
+        where: { id: existing.id },
+        data: { categoryId: data.categoryId },
+      });
+    }
+  }
+
   // If amount was changed on a linked transfer, mirror the new amount to the
   // paired side so the two don't diverge.
   if (data.amount !== undefined && tx.transferPairId) {

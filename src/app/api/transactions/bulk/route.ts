@@ -40,6 +40,15 @@ export async function PATCH(request: Request) {
 
   const householdAccountIds = await getHouseholdAccountIds(session.user.id);
 
+  // Grab merchant names before we update so we can learn rules from this action.
+  const toUpdate = await prisma.transaction.findMany({
+    where: {
+      id: { in: transactionIds },
+      accountId: { in: householdAccountIds },
+    },
+    select: { merchant: true },
+  });
+
   const result = await prisma.transaction.updateMany({
     where: {
       id: { in: transactionIds },
@@ -47,6 +56,44 @@ export async function PATCH(request: Request) {
     },
     data: { categoryId: categoryId ?? null },
   });
+
+  // Learn a rule per unique merchant when assigning (not clearing) a category.
+  if (categoryId) {
+    const uniqueMerchants = Array.from(
+      new Set(
+        toUpdate
+          .map((t) => t.merchant?.trim())
+          .filter((m): m is string => !!m && m.length >= 3),
+      ),
+    );
+    if (uniqueMerchants.length > 0) {
+      const existing = await prisma.categoryRule.findMany({
+        where: {
+          userId: session.user.id,
+          isRegex: false,
+          pattern: { in: uniqueMerchants },
+        },
+        select: { id: true, pattern: true, categoryId: true },
+      });
+      const byPattern = new Map(existing.map((r) => [r.pattern, r]));
+      const toCreate: Array<{ userId: string; categoryId: string; pattern: string }> = [];
+      const toMove: string[] = [];
+      for (const m of uniqueMerchants) {
+        const r = byPattern.get(m);
+        if (!r) toCreate.push({ userId: session.user.id, categoryId, pattern: m });
+        else if (r.categoryId !== categoryId) toMove.push(r.id);
+      }
+      if (toCreate.length > 0) {
+        await prisma.categoryRule.createMany({ data: toCreate });
+      }
+      if (toMove.length > 0) {
+        await prisma.categoryRule.updateMany({
+          where: { id: { in: toMove } },
+          data: { categoryId },
+        });
+      }
+    }
+  }
 
   return NextResponse.json({ updated: result.count });
 }
