@@ -126,5 +126,8 @@
   }
   html {
     @apply font-sans;
+    /* Shrink everything a touch: Tailwind sizes are rem-relative, so lowering
+       the root font size scales text-xs through text-4xl proportionally. */
+    font-size: 93.75%;
   }
 }
