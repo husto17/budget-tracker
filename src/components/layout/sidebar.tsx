@@ -25,15 +25,19 @@ import { useEffect, useState } from "react";
 import { fetchJson } from "@/lib/fetcher";
 
 const navItems = [
+  // Overview
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/ask", icon: Sparkles, label: "Ask" },
-  { href: "/transactions", icon: ArrowUpDown, label: "Transactions" },
-  { href: "/quick-entry", icon: Camera, label: "Quick Entry" },
-  { href: "/upload", icon: Upload, label: "Upload Statement" },
-  { href: "/accounts", icon: Wallet, label: "Accounts" },
-  { href: "/categories", icon: Tags, label: "Categories" },
-  { href: "/goals", icon: Target, label: "Goals" },
   { href: "/insights", icon: TrendingUp, label: "Insights" },
+  // Money in / out
+  { href: "/transactions", icon: ArrowUpDown, label: "Transactions" },
+  { href: "/upload", icon: Upload, label: "Upload Statement" },
+  { href: "/quick-entry", icon: Camera, label: "Quick Entry" },
+  // Planning / setup
+  { href: "/goals", icon: Target, label: "Goals" },
+  { href: "/categories", icon: Tags, label: "Categories" },
+  { href: "/accounts", icon: Wallet, label: "Accounts" },
+  // Tools + system
+  { href: "/ask", icon: Sparkles, label: "Ask" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ];
 
