@@ -561,11 +561,14 @@ function TransactionsContent() {
   );
 
   // Auto-run reprocess once per session so newly-shipped rules / normalizer
-  // changes reach existing data without the user having to click.
+  // changes reach existing data without the user having to click. The version
+  // bumps whenever the normalizer/rules ship meaningful changes — old sessions
+  // then re-fire on next visit.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (sessionStorage.getItem("transactionsReprocessed") === "1") return;
-    sessionStorage.setItem("transactionsReprocessed", "1");
+    const REPROCESS_VERSION = "2026-04-18-v3";
+    if (sessionStorage.getItem("transactionsReprocessedVersion") === REPROCESS_VERSION) return;
+    sessionStorage.setItem("transactionsReprocessedVersion", REPROCESS_VERSION);
     reprocessNames(true);
   }, [reprocessNames]);
 
