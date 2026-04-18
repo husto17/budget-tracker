@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { fetchJson, FetchError, formatCurrency } from "@/lib/fetcher";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const ACCOUNT_TYPES = [
   { value: "CHECKING", label: "Current / Checking", icon: Landmark },
@@ -37,10 +40,6 @@ function AccountIcon({ type }: { type: string }) {
   const found = ACCOUNT_TYPES.find((t) => t.value === type);
   const Icon = found?.icon ?? Wallet;
   return <Icon className="w-5 h-5" />;
-}
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(amount);
 }
 
 interface Account {
@@ -58,9 +57,11 @@ interface Account {
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -71,10 +72,15 @@ export default function AccountsPage() {
   });
 
   async function fetchAccounts() {
-    const res = await fetch("/api/accounts");
-    const data = await res.json();
-    setAccounts(data);
-    setLoading(false);
+    try {
+      const data = await fetchJson<Account[]>("/api/accounts");
+      setAccounts(data);
+      setLoadError(null);
+    } catch (e) {
+      setLoadError(e instanceof FetchError ? e.message : "Couldn't load accounts");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { fetchAccounts(); }, []);
@@ -113,20 +119,23 @@ export default function AccountsPage() {
       setShowDialog(false);
       fetchAccounts();
     } else {
-      const data = await res.json();
-      toast.error(data.error ?? "Something went wrong");
+      const data = await res.json().catch(() => ({}));
+      toast.error(data.error ?? "Something went wrong", {
+        action: { label: "Retry", onClick: handleSave },
+      });
     }
     setSaving(false);
   }
 
-  async function handleDelete(account: Account) {
-    if (!confirm(`Delete "${account.name}"? This will also delete all associated transactions.`)) return;
-    const res = await fetch(`/api/accounts/${account.id}`, { method: "DELETE" });
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    const res = await fetch(`/api/accounts/${deleteTarget.id}`, { method: "DELETE" });
     if (res.ok) {
       toast.success("Account deleted");
       fetchAccounts();
     } else {
       toast.error("Failed to delete account");
+      throw new Error("delete failed");
     }
   }
 
@@ -158,7 +167,31 @@ export default function AccountsPage() {
       </Card>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Loading accounts...</div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="w-10 h-10 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-3 w-32" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-7 w-28" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : loadError ? (
+        <div className="text-center py-12">
+          <p className="text-sm text-red-600 font-medium">{loadError}</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => { setLoading(true); fetchAccounts(); }}>
+            Try again
+          </Button>
+        </div>
       ) : accounts.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <Landmark className="w-12 h-12 mx-auto mb-3 opacity-30" />
@@ -200,7 +233,7 @@ export default function AccountsPage() {
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(account)}>
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600" onClick={() => handleDelete(account)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600" onClick={() => setDeleteTarget(account)}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
@@ -296,6 +329,24 @@ export default function AccountsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete account?"
+        description={
+          deleteTarget ? (
+            <>
+              Delete <strong>&ldquo;{deleteTarget.name}&rdquo;</strong>? This will also delete all{" "}
+              {deleteTarget._count.transactions} associated transaction
+              {deleteTarget._count.transactions !== 1 ? "s" : ""}. This cannot be undone.
+            </>
+          ) : null
+        }
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

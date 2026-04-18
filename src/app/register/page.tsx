@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
+import { fetchJson, FetchError } from "@/lib/fetcher";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -28,23 +29,20 @@ export default function RegisterPage() {
       return;
     }
 
-    const res = await fetch("/api/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: formData.get("name"),
-        email: formData.get("email"),
-        password,
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      setError(data.error || "Something went wrong");
-      setLoading(false);
-    } else {
+    try {
+      await fetchJson("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.get("name"),
+          email: formData.get("email"),
+          password,
+        }),
+      });
       router.push("/login");
+    } catch (e) {
+      setError(e instanceof FetchError ? e.message : "Something went wrong");
+      setLoading(false);
     }
   }
 

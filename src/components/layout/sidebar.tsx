@@ -19,7 +19,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { fetchJson } from "@/lib/fetcher";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -36,6 +37,15 @@ export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [open, setOpen] = useState(false);
+  const [uncategorized, setUncategorized] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchJson<{ uncategorized: number; pending: number }>("/api/stats")
+      .then((d) => { if (!cancelled) setUncategorized(d.uncategorized); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [pathname]);
 
   const initials = session?.user?.name
     ?.split(" ")
@@ -62,6 +72,7 @@ export function Sidebar() {
       <nav className="flex-1 space-y-1">
         {navItems.map(({ href, icon: Icon, label }) => {
           const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+          const showBadge = href === "/transactions" && uncategorized && uncategorized > 0;
           return (
             <Link key={href} href={href} onClick={() => setOpen(false)}>
               <span
@@ -73,7 +84,12 @@ export function Sidebar() {
                 )}
               >
                 <Icon className="w-4 h-4 shrink-0" />
-                {label}
+                <span className="flex-1">{label}</span>
+                {showBadge && (
+                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                    {uncategorized}
+                  </span>
+                )}
               </span>
             </Link>
           );

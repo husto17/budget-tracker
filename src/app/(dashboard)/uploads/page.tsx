@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Upload, Trash2, FileText, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { fetchJson, FetchError } from "@/lib/fetcher";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface UploadRecord {
   id: string;
@@ -31,19 +34,24 @@ interface UploadRecord {
 }
 
 export default function UploadsPage() {
+  const router = useRouter();
   const [uploads, setUploads] = useState<UploadRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UploadRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   async function fetchUploads() {
     setLoading(true);
-    const res = await fetch("/api/uploads");
-    if (res.ok) {
-      const data = await res.json();
+    try {
+      const data = await fetchJson<UploadRecord[]>("/api/uploads");
       setUploads(data);
+      setLoadError(null);
+    } catch (e) {
+      setLoadError(e instanceof FetchError ? e.message : "Couldn't load uploads");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -72,7 +80,25 @@ export default function UploadsPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Loading...</div>
+        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-50">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="px-4 py-3 flex items-center gap-3">
+              <Skeleton className="w-8 h-8 rounded" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-60" />
+                <Skeleton className="h-3 w-40" />
+              </div>
+              <Skeleton className="h-5 w-16" />
+            </div>
+          ))}
+        </div>
+      ) : loadError ? (
+        <div className="text-center py-12">
+          <p className="text-sm text-red-600 font-medium">{loadError}</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={fetchUploads}>
+            Try again
+          </Button>
+        </div>
       ) : uploads.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-xl text-center py-16">
           <Upload className="w-12 h-12 mx-auto mb-4 text-gray-200" />
@@ -82,7 +108,7 @@ export default function UploadsPage() {
             variant="outline"
             size="sm"
             className="mt-4"
-            onClick={() => (window.location.href = "/upload")}
+            onClick={() => router.push("/upload")}
           >
             Go to Upload
           </Button>

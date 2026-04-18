@@ -38,6 +38,9 @@ import {
 } from "@/components/ui/dialog";
 import { format, addDays, subDays } from "date-fns";
 import { CategoryIcon } from "@/components/ui/category-icon";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { fetchJson, FetchError, formatCurrency } from "@/lib/fetcher";
 
 interface Category {
   id: string;
@@ -78,16 +81,13 @@ interface Transaction {
   splits: TransactionSplit[];
 }
 
-function formatCurrency(n: number) {
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
-}
-
 function TransactionsContent() {
   const searchParams = useSearchParams();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
 
@@ -147,6 +147,9 @@ function TransactionsContent() {
   >([]);
   const [savingSplit, setSavingSplit] = useState(false);
 
+  // Delete confirm
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+
   const LIMIT = 50;
 
   const fetchTransactions = useCallback(async () => {
@@ -162,11 +165,18 @@ function TransactionsContent() {
       ...(to ? { to } : {}),
       ...(statusFilter !== "all" ? { status: statusFilter } : {}),
     });
-    const res = await fetch(`/api/transactions?${params}`);
-    const data = await res.json();
-    setTransactions(data.transactions);
-    setTotal(data.total);
-    setLoading(false);
+    try {
+      const data = await fetchJson<{ transactions: Transaction[]; total: number }>(
+        `/api/transactions?${params}`,
+      );
+      setTransactions(data.transactions);
+      setTotal(data.total);
+      setLoadError(null);
+    } catch (e) {
+      setLoadError(e instanceof FetchError ? e.message : "Couldn't load transactions");
+    } finally {
+      setLoading(false);
+    }
   }, [page, filterAccount, filterCategory, filterUncategorized, search, from, to, statusFilter]);
 
   useEffect(() => {
@@ -177,25 +187,25 @@ function TransactionsContent() {
     const catName = searchParams.get("categoryName");
     const catId = searchParams.get("categoryId");
     const accId = searchParams.get("accountId");
-    fetch("/api/categories")
-      .then((r) => r.json())
+    fetchJson<Category[]>("/api/categories")
       .then((data) => {
         setCategories(data);
         // Pre-filter when navigated from dashboard/accounts/categories pages
         if (catId) {
           setFilterCategory(catId);
         } else if (catName) {
-          const match = data.find((c: Category) => c.name.toLowerCase() === catName.toLowerCase());
+          const match = data.find((c) => c.name.toLowerCase() === catName.toLowerCase());
           if (match) setFilterCategory(match.id);
         }
-      });
-    fetch("/api/accounts")
-      .then((r) => r.json())
+      })
+      .catch(() => toast.error("Couldn't load categories"));
+    fetchJson<Account[]>("/api/accounts")
       .then((data) => {
         setAccounts(data);
         if (data.length > 0) setAddForm((f) => ({ ...f, accountId: data[0].id }));
         if (accId) setFilterAccount(accId);
-      });
+      })
+      .catch(() => toast.error("Couldn't load accounts"));
   }, [searchParams]);
 
   // Debounce search input
@@ -205,24 +215,33 @@ function TransactionsContent() {
     debounceRef.current = setTimeout(() => {
       setSearch(value);
       setPage(1);
-    }, 400);
+    }, 250);
   }
 
   async function updateCategory(txId: string, categoryId: string | null) {
-    await fetch(`/api/transactions/${txId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ categoryId }),
-    });
-    fetchTransactions();
+    try {
+      await fetchJson(`/api/transactions/${txId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categoryId }),
+      });
+      fetchTransactions();
+    } catch (e) {
+      toast.error(e instanceof FetchError ? e.message : "Failed to update category", {
+        action: { label: "Retry", onClick: () => updateCategory(txId, categoryId) },
+      });
+    }
   }
 
-  async function handleDelete(txId: string) {
-    if (!confirm("Delete this transaction?")) return;
-    const res = await fetch(`/api/transactions/${txId}`, { method: "DELETE" });
+  async function handleDelete() {
+    if (!deleteTargetId) return;
+    const res = await fetch(`/api/transactions/${deleteTargetId}`, { method: "DELETE" });
     if (res.ok) {
       toast.success("Deleted");
       fetchTransactions();
+    } else {
+      toast.error("Failed to delete");
+      throw new Error("delete failed");
     }
   }
 
@@ -261,7 +280,9 @@ function TransactionsContent() {
         },
       });
     } else {
-      toast.error("Failed to apply categories");
+      toast.error("Failed to apply categories", {
+        action: { label: "Retry", onClick: handleBulkCategorize },
+      });
     }
     setApplyingBulk(false);
   }
@@ -665,7 +686,25 @@ function TransactionsContent() {
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         {loading ? (
-          <div className="text-center py-12 text-gray-400">Loading...</div>
+          <div className="divide-y divide-gray-50">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="px-4 py-4 flex items-center gap-3">
+                <Skeleton className="w-8 h-8 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-3 w-32" />
+                </div>
+                <Skeleton className="h-5 w-20" />
+              </div>
+            ))}
+          </div>
+        ) : loadError ? (
+          <div className="text-center py-12">
+            <p className="text-sm text-red-600 font-medium">{loadError}</p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={fetchTransactions}>
+              Try again
+            </Button>
+          </div>
         ) : transactions.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             <ArrowUpDown className="w-10 h-10 mx-auto mb-3 opacity-30" />
@@ -809,7 +848,7 @@ function TransactionsContent() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-gray-300 hover:text-red-500 shrink-0"
-                    onClick={() => handleDelete(tx.id)}
+                    onClick={() => setDeleteTargetId(tx.id)}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
@@ -1088,7 +1127,7 @@ function TransactionsContent() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-gray-300 hover:text-red-500"
-                            onClick={() => handleDelete(tx.id)}
+                            onClick={() => setDeleteTargetId(tx.id)}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -1638,6 +1677,16 @@ function TransactionsContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteTargetId}
+        onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}
+        title="Delete transaction?"
+        description="This transaction will be permanently removed. This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

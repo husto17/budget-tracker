@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -10,6 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Repeat, TrendingUp, CreditCard, ExternalLink } from "lucide-react";
 import Link from "next/link";
+import { fetchJson, FetchError, formatCurrency } from "@/lib/fetcher";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface InsightData {
   monthlyByCategory: Record<string, Record<string, number>>;
@@ -31,10 +34,6 @@ interface InsightData {
   }>;
 }
 
-function formatCurrency(n: number) {
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
-}
-
 function formatMonth(key: string) {
   const [year, month] = key.split("-");
   return format(new Date(parseInt(year), parseInt(month) - 1, 1), "MMM yy");
@@ -48,15 +47,62 @@ const CAT_COLORS = [
 export default function InsightsPage() {
   const [insights, setInsights] = useState<InsightData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    fetch("/api/insights?months=6").then((r) => r.json()).then((data) => {
-      setInsights(data);
-      setLoading(false);
-    });
-  }, []);
+    let cancelled = false;
+    fetchJson<InsightData>("/api/insights?months=6")
+      .then((data) => {
+        if (cancelled) return;
+        setInsights(data);
+        setLoadError(null);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setLoadError(e instanceof FetchError ? e.message : "Couldn't load insights");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
-  if (loading) return <div className="text-center py-12 text-gray-400">Crunching numbers...</div>;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-28" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        <Card><CardContent className="p-6"><Skeleton className="h-64 w-full" /></CardContent></Card>
+        <Card><CardContent className="p-6"><Skeleton className="h-52 w-full" /></CardContent></Card>
+        <Card><CardContent className="p-6"><Skeleton className="h-40 w-full" /></CardContent></Card>
+      </div>
+    );
+  }
+  if (loadError) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-sm text-red-600 font-medium">{loadError}</p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-3"
+          onClick={() => {
+            setLoading(true);
+            setLoadError(null);
+            setReloadKey((k) => k + 1);
+          }}
+        >
+          Try again
+        </Button>
+      </div>
+    );
+  }
   if (!insights) return null;
 
   // Build stacked bar data for spending by category by month

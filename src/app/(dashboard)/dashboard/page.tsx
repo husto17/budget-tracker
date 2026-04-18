@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, AlertTriangle, Repeat, ArrowRightLeft, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface InsightData {
   monthlyTotals: Record<string, number>;
@@ -62,7 +63,21 @@ export default function DashboardPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [viewFilter, setViewFilter] = useState<ViewFilter>("all");
+  const [viewFilter, setViewFilterState] = useState<ViewFilter>(() => {
+    if (typeof window === "undefined") return "all";
+    try {
+      const saved = localStorage.getItem("dashboard:viewFilter");
+      if (saved === "all" || saved === "mine" || saved === "partner" || saved === "joint") {
+        return saved;
+      }
+    } catch {}
+    return "all";
+  });
+
+  function setViewFilter(next: ViewFilter) {
+    setViewFilterState(next);
+    try { localStorage.setItem("dashboard:viewFilter", next); } catch {}
+  }
 
   useEffect(() => {
     Promise.all([
@@ -87,8 +102,25 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-400">
-        Loading dashboard...
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-40" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="pt-5 pb-4 space-y-2">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-7 w-28" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid md:grid-cols-2 gap-6">
+          <Card><CardContent className="p-6"><Skeleton className="h-52 w-full" /></CardContent></Card>
+          <Card><CardContent className="p-6"><Skeleton className="h-52 w-full" /></CardContent></Card>
+        </div>
       </div>
     );
   }

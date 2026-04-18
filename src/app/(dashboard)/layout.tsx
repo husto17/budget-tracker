@@ -1,12 +1,20 @@
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
+import { authOptions } from "@/lib/auth";
 import { Sidebar } from "@/components/layout/sidebar";
+import { KeyboardShortcuts } from "@/components/layout/keyboard-shortcuts";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await getServerSession(authOptions);
+  if (!session) redirect("/login");
+
   return (
     <div className="flex h-screen overflow-hidden">
+      <KeyboardShortcuts />
       <Sidebar />
       <main className="flex-1 overflow-y-auto bg-gray-50">
         {/* Mobile header spacer so content isn't under the hamburger button */}

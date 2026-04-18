@@ -15,6 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Link from "next/link";
+import { toast } from "sonner";
+import { fetchJson, FetchError, formatCurrency } from "@/lib/fetcher";
 
 interface Account {
   id: string;
@@ -31,10 +33,6 @@ interface ExtractedTransaction {
   selected: boolean;
 }
 
-function formatCurrency(n: number) {
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
-}
-
 export default function QuickEntryPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState("");
@@ -49,12 +47,12 @@ export default function QuickEntryPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetch("/api/accounts")
-      .then((r) => r.json())
-      .then((data: Account[]) => {
+    fetchJson<Account[]>("/api/accounts")
+      .then((data) => {
         setAccounts(data);
         if (data.length > 0) setAccountId(data[0].id);
-      });
+      })
+      .catch(() => toast.error("Couldn't load accounts"));
   }, []);
 
   const handleFileDrop = useCallback((f: File) => {
@@ -62,9 +60,13 @@ export default function QuickEntryPage() {
     setSaveResult(null);
     setTransactions([]);
     setExtractError(null);
-    const url = URL.createObjectURL(f);
-    setPreview(url);
+    setPreview(URL.createObjectURL(f));
   }, []);
+
+  useEffect(() => {
+    if (!preview) return;
+    return () => URL.revokeObjectURL(preview);
+  }, [preview]);
 
   function handleDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
@@ -88,38 +90,35 @@ export default function QuickEntryPage() {
     formData.append("file", file);
     formData.append("accountId", accountId);
 
-    const res = await fetch("/api/upload/screenshot", {
-      method: "POST",
-      body: formData,
-    });
-    const data = await res.json();
+    try {
+      const data = await fetchJson<{
+        transactions: Array<{
+          date: string | null;
+          description: string;
+          amount: number;
+          isCredit: boolean;
+          isPending: boolean;
+        }>;
+      }>("/api/upload/screenshot", { method: "POST", body: formData });
 
-    if (!res.ok || data.error) {
-      setExtractError(data.error ?? "Failed to extract transactions");
+      const today = format(new Date(), "yyyy-MM-dd");
+      const extracted: ExtractedTransaction[] = data.transactions.map((tx) => ({
+        date: tx.date ?? today,
+        description: tx.description,
+        amount: tx.amount,
+        isCredit: tx.isCredit,
+        isPending: tx.isPending,
+        selected: true,
+      }));
+
+      setTransactions(extracted);
+    } catch (e) {
+      const msg = e instanceof FetchError ? e.message : "Failed to extract transactions";
+      setExtractError(msg);
+      toast.error(msg);
+    } finally {
       setExtracting(false);
-      return;
     }
-
-    const today = format(new Date(), "yyyy-MM-dd");
-    const extracted: ExtractedTransaction[] = (
-      data.transactions as Array<{
-        date: string | null;
-        description: string;
-        amount: number;
-        isCredit: boolean;
-        isPending: boolean;
-      }>
-    ).map((tx) => ({
-      date: tx.date ?? today,
-      description: tx.description,
-      amount: tx.amount,
-      isCredit: tx.isCredit,
-      isPending: tx.isPending,
-      selected: true,
-    }));
-
-    setTransactions(extracted);
-    setExtracting(false);
   }
 
   async function handleSave() {
@@ -136,25 +135,27 @@ export default function QuickEntryPage() {
         isPending,
       }));
 
-    const res = await fetch("/api/upload/screenshot/confirm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accountId, transactions: toSave }),
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      setExtractError(data.error ?? "Failed to save transactions");
+    try {
+      const data = await fetchJson<{ saved: number; skipped: number }>(
+        "/api/upload/screenshot/confirm",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accountId, transactions: toSave }),
+        },
+      );
+      setSaveResult({ saved: data.saved, skipped: data.skipped });
+      setTransactions([]);
+      setFile(null);
+      setPreview(null);
+      setExtractError(null);
+    } catch (e) {
+      const msg = e instanceof FetchError ? e.message : "Failed to save transactions";
+      setExtractError(msg);
+      toast.error(msg);
+    } finally {
       setSaving(false);
-      return;
     }
-
-    setSaveResult({ saved: data.saved, skipped: data.skipped });
-    setTransactions([]);
-    setFile(null);
-    setPreview(null);
-    setExtractError(null);
-    setSaving(false);
   }
 
   function updateTx(

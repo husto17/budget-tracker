@@ -16,6 +16,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { fetchJson, FetchError, formatCurrency } from "@/lib/fetcher";
 
 const PRESET_COLORS = [
   "#EF4444", "#F97316", "#F59E0B", "#22C55E", "#10B981",
@@ -39,18 +42,16 @@ interface Category {
   _count: { transactions: number };
 }
 
-function formatCurrency(n: number) {
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
-}
-
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [newRule, setNewRule] = useState<{ [catId: string]: string }>({});
+  const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -59,10 +60,15 @@ export default function CategoriesPage() {
   });
 
   async function fetchCategories() {
-    const res = await fetch("/api/categories");
-    const data = await res.json();
-    setCategories(data);
-    setLoading(false);
+    try {
+      const data = await fetchJson<Category[]>("/api/categories");
+      setCategories(data);
+      setLoadError(null);
+    } catch (e) {
+      setLoadError(e instanceof FetchError ? e.message : "Couldn't load categories");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { fetchCategories(); }, []);
@@ -102,21 +108,23 @@ export default function CategoriesPage() {
       setShowDialog(false);
       fetchCategories();
     } else {
-      const data = await res.json();
-      toast.error(data.error ?? "Something went wrong");
+      const data = await res.json().catch(() => ({}));
+      toast.error(data.error ?? "Something went wrong", {
+        action: { label: "Retry", onClick: handleSave },
+      });
     }
     setSaving(false);
   }
 
-  async function handleDelete(cat: Category) {
-    if (cat.isDefault) return toast.error("Cannot delete a default category");
-    if (!confirm(`Delete "${cat.name}"? Transactions will become uncategorized.`)) return;
-    const res = await fetch(`/api/categories/${cat.id}`, { method: "DELETE" });
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    const res = await fetch(`/api/categories/${deleteTarget.id}`, { method: "DELETE" });
     if (res.ok) {
       toast.success("Category deleted");
       fetchCategories();
     } else {
       toast.error("Failed to delete");
+      throw new Error("delete failed");
     }
   }
 
@@ -196,7 +204,28 @@ export default function CategoriesPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Loading...</div>
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="py-4">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="w-4 h-4 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-40" />
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+          ))}
+        </div>
+      ) : loadError ? (
+        <div className="text-center py-12">
+          <p className="text-sm text-red-600 font-medium">{loadError}</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => { setLoading(true); fetchCategories(); }}>
+            Try again
+          </Button>
+        </div>
       ) : (
         <div className="space-y-3">
           {categories.map((cat) => (
@@ -258,7 +287,7 @@ export default function CategoriesPage() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-red-400 hover:text-red-600"
-                        onClick={(e) => { e.stopPropagation(); handleDelete(cat); }}
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(cat); }}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
@@ -396,6 +425,29 @@ export default function CategoriesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete category?"
+        description={
+          deleteTarget ? (
+            <>
+              Delete <strong>&ldquo;{deleteTarget.name}&rdquo;</strong>?
+              {deleteTarget._count.transactions > 0 && (
+                <>
+                  {" "}
+                  {deleteTarget._count.transactions} transaction
+                  {deleteTarget._count.transactions !== 1 ? "s" : ""} will become uncategorized.
+                </>
+              )}
+            </>
+          ) : null
+        }
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

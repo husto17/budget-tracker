@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Upload, FileText, FileSpreadsheet, CheckCircle, AlertCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { fetchJson } from "@/lib/fetcher";
 
 interface Account {
   id: string;
@@ -24,6 +26,7 @@ interface UploadResult {
 }
 
 export default function UploadPage() {
+  const router = useRouter();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState("");
   const [dragOver, setDragOver] = useState(false);
@@ -33,10 +36,12 @@ export default function UploadPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetch("/api/accounts").then((r) => r.json()).then((data) => {
-      setAccounts(data);
-      if (data.length > 0) setAccountId(data[0].id);
-    });
+    fetchJson<Account[]>("/api/accounts")
+      .then((data) => {
+        setAccounts(data);
+        if (data.length > 0) setAccountId(data[0].id);
+      })
+      .catch(() => toast.error("Couldn't load accounts"));
   }, []);
 
   function handleDrop(e: React.DragEvent) {
@@ -71,17 +76,14 @@ export default function UploadPage() {
       formData.append("file", file);
       formData.append("accountId", accountId);
 
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const data = await res.json();
-
-      if (res.ok) {
-        setResult(data);
-        toast.success(`Imported ${data.imported} transactions`);
-      } else {
-        toast.error(data.error ?? "Upload failed");
-      }
-    } catch {
-      toast.error("Upload failed — please try again");
+      const data = await fetchJson<UploadResult>("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      setResult(data);
+      toast.success(`Imported ${data.imported} transactions`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed — please try again");
     } finally {
       setUploading(false);
     }
@@ -257,7 +259,7 @@ export default function UploadPage() {
               <Button variant="outline" size="sm" className="flex-1" onClick={() => { setFile(null); setResult(null); }}>
                 Upload another
               </Button>
-              <Button size="sm" className="flex-1" onClick={() => window.location.href = "/transactions"}>
+              <Button size="sm" className="flex-1" onClick={() => router.push("/transactions")}>
                 View transactions
               </Button>
             </div>
