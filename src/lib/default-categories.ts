@@ -5,7 +5,7 @@ export const DEFAULT_CATEGORIES = [
   { name: "Dining Out", color: "#F97316", icon: "utensils" },
   { name: "Transport", color: "#3B82F6", icon: "car" },
   { name: "Utilities", color: "#8B5CF6", icon: "zap" },
-  { name: "Rent / Mortgage", color: "#EF4444", icon: "home" },
+  { name: "Rent", color: "#EF4444", icon: "home" },
   { name: "Entertainment", color: "#EC4899", icon: "tv" },
   { name: "Shopping", color: "#F59E0B", icon: "shopping-bag" },
   { name: "Health", color: "#10B981", icon: "heart" },
@@ -43,7 +43,7 @@ export const DEFAULT_RULES: Record<string, string[]> = {
     "XFINITY", "COMCAST", "VERIZON", "AT&T", "T-MOBILE", "TMOBILE",
     "SPECTRUM", "INTERNET", "ELECTRIC", "WATER BILL",
   ],
-  "Rent / Mortgage": ["RENT", "MORTGAGE", "HOA", "LANDLORD"],
+  Rent: ["RENT PAYMENT", "LANDLORD", "HOA"],
   Entertainment: [
     "NETFLIX", "HULU", "DISNEY+", "DISNEYPLUS", "HBO", "MAX ",
     "YOUTUBE", "PARAMOUNT", "PEACOCK", "APPLE TV", "STUBHUB",
@@ -78,11 +78,50 @@ export const DEFAULT_RULES: Record<string, string[]> = {
   ],
 };
 
+// Renames of default categories over time — older installs get migrated
+// transparently on the next GET /api/categories.
+const CATEGORY_RENAMES: Array<{ from: string; to: string }> = [
+  { from: "Rent / Mortgage", to: "Rent" },
+];
+
 // Creates any default categories the user is missing, and seeds starter rules
 // for newly-created categories. Safe to call repeatedly — e.g. on every
 // GET /api/categories — so existing users pick up newly-added defaults without
 // a migration.
 export async function ensureDefaultCategories(userId: string): Promise<void> {
+  // Apply any pending renames first so we don't end up with duplicates when
+  // the new name tries to get inserted below.
+  for (const r of CATEGORY_RENAMES) {
+    const fromCat = await prisma.category.findFirst({
+      where: { userId, name: r.from, isDefault: true },
+      select: { id: true },
+    });
+    if (!fromCat) continue;
+    const toCat = await prisma.category.findFirst({
+      where: { userId, name: r.to },
+      select: { id: true },
+    });
+    if (toCat) {
+      // Target already exists — move transactions/rules then drop the old row
+      await prisma.$transaction([
+        prisma.transaction.updateMany({
+          where: { categoryId: fromCat.id },
+          data: { categoryId: toCat.id },
+        }),
+        prisma.categoryRule.updateMany({
+          where: { categoryId: fromCat.id },
+          data: { categoryId: toCat.id },
+        }),
+        prisma.category.delete({ where: { id: fromCat.id } }),
+      ]);
+    } else {
+      await prisma.category.update({
+        where: { id: fromCat.id },
+        data: { name: r.to },
+      });
+    }
+  }
+
   const existing = await prisma.category.findMany({
     where: { userId, name: { in: DEFAULT_CATEGORIES.map((c) => c.name) } },
     select: { id: true, name: true },

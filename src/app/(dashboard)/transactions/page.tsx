@@ -530,30 +530,44 @@ function TransactionsContent() {
 
   const totalPages = Math.ceil(total / LIMIT);
 
-  async function reprocessNames() {
-    setReprocessing(true);
-    try {
-      const data = await fetchJson<{
-        updated: number;
-        renamed: number;
-        categorized: number;
-        total: number;
-      }>("/api/transactions/reprocess", { method: "POST" });
-      if (data.updated === 0) {
-        toast.success("Everything already up to date");
-      } else {
-        const parts: string[] = [];
-        if (data.renamed > 0) parts.push(`renamed ${data.renamed}`);
-        if (data.categorized > 0) parts.push(`categorized ${data.categorized}`);
-        toast.success(`Cleaned up ${data.updated} transaction${data.updated !== 1 ? "s" : ""} (${parts.join(", ")})`);
-        fetchTransactions();
+  const reprocessNames = useCallback(
+    async (silent = false) => {
+      setReprocessing(true);
+      try {
+        const data = await fetchJson<{
+          updated: number;
+          renamed: number;
+          categorized: number;
+          total: number;
+        }>("/api/transactions/reprocess", { method: "POST" });
+        if (data.updated === 0) {
+          if (!silent) toast.success("Everything already up to date");
+        } else {
+          const parts: string[] = [];
+          if (data.renamed > 0) parts.push(`renamed ${data.renamed}`);
+          if (data.categorized > 0) parts.push(`categorized ${data.categorized}`);
+          toast.success(
+            `Cleaned up ${data.updated} transaction${data.updated !== 1 ? "s" : ""} (${parts.join(", ")})`,
+          );
+          fetchTransactions();
+        }
+      } catch (e) {
+        if (!silent) toast.error(e instanceof FetchError ? e.message : "Failed to refresh");
+      } finally {
+        setReprocessing(false);
       }
-    } catch (e) {
-      toast.error(e instanceof FetchError ? e.message : "Failed to refresh");
-    } finally {
-      setReprocessing(false);
-    }
-  }
+    },
+    [fetchTransactions],
+  );
+
+  // Auto-run reprocess once per session so newly-shipped rules / normalizer
+  // changes reach existing data without the user having to click.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (sessionStorage.getItem("transactionsReprocessed") === "1") return;
+    sessionStorage.setItem("transactionsReprocessed", "1");
+    reprocessNames(true);
+  }, [reprocessNames]);
 
   return (
     <div className="space-y-6 pb-24">
@@ -563,7 +577,7 @@ function TransactionsContent() {
           <p className="text-sm text-gray-500 mt-1">{total.toLocaleString()} total</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={reprocessNames} disabled={reprocessing}>
+          <Button variant="outline" size="sm" onClick={() => reprocessNames(false)} disabled={reprocessing}>
             {reprocessing ? "Cleaning..." : "Clean up + categorize"}
           </Button>
           <Button onClick={() => setShowAddDialog(true)} size="sm">
