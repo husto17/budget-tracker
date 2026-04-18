@@ -153,6 +153,7 @@ export default function QuickEntryPage() {
     setTransactions([]);
     setFile(null);
     setPreview(null);
+    setExtractError(null);
     setSaving(false);
   }
 

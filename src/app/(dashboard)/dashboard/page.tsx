@@ -61,23 +61,51 @@ export default function DashboardPage() {
   const [insights, setInsights] = useState<InsightData | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [viewFilter, setViewFilter] = useState<ViewFilter>("all");
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/insights").then((r) => r.json()),
-      fetch("/api/accounts").then((r) => r.json()),
-    ]).then(([ins, accs]) => {
-      setInsights(ins);
-      setAccounts(accs);
-      setLoading(false);
-    });
+      fetch("/api/insights").then((r) => {
+        if (!r.ok) throw new Error(`insights ${r.status}`);
+        return r.json();
+      }),
+      fetch("/api/accounts").then((r) => {
+        if (!r.ok) throw new Error(`accounts ${r.status}`);
+        return r.json();
+      }),
+    ])
+      .then(([ins, accs]) => {
+        setInsights(ins);
+        setAccounts(accs);
+      })
+      .catch((e: Error) => {
+        setLoadError(e.message);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-400">
         Loading dashboard...
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-sm text-red-600 font-medium">Couldn&apos;t load dashboard</p>
+          <p className="text-xs text-gray-400 mt-1">{loadError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-3 text-sm text-blue-600 hover:underline"
+          >
+            Try again
+          </button>
+        </div>
       </div>
     );
   }
@@ -199,7 +227,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Top stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white border-0">
           <CardContent className="pt-5 pb-4">
             <p className="text-blue-100 text-xs font-medium">Net Balance</p>

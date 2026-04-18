@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ function getInitials(name: string) {
 }
 
 export function HouseholdSettings({ currentUserId, household, pendingInvite }: Props) {
+  const router = useRouter();
   const [partnerEmail, setPartnerEmail] = useState("");
   const [inviting, setInviting] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -61,8 +63,7 @@ export function HouseholdSettings({ currentUserId, household, pendingInvite }: P
       if (res.ok) {
         toast.success(`Invite sent to ${partnerEmail}`);
         setPartnerEmail("");
-        // Reload to refresh state
-        window.location.reload();
+        router.refresh();
       } else {
         toast.error(data.error ?? "Failed to send invite");
       }
@@ -78,7 +79,7 @@ export function HouseholdSettings({ currentUserId, household, pendingInvite }: P
       const res = await fetch("/api/household", { method: "DELETE" });
       if (res.ok) {
         toast.success("Left household");
-        window.location.reload();
+        router.refresh();
       } else {
         toast.error("Failed to leave household");
       }
@@ -99,7 +100,7 @@ export function HouseholdSettings({ currentUserId, household, pendingInvite }: P
       const data = await res.json();
       if (res.ok) {
         toast.success("Joined household!");
-        window.location.reload();
+        router.refresh();
       } else {
         toast.error(data.error ?? "Failed to accept invite");
       }

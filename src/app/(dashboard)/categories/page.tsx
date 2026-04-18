@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Tag, ChevronDown, ChevronUp, Zap } from "lucide-react";
+import { Plus, Pencil, Trash2, Tag, ChevronDown, ChevronUp, Zap, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -213,9 +214,20 @@ export default function CategoriesPage() {
                     <div>
                       <CardTitle className="text-base">{cat.name}</CardTitle>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-gray-400">
-                          {cat._count.transactions} transactions
-                        </span>
+                        {cat._count.transactions > 0 ? (
+                          <Link
+                            href={`/transactions?categoryId=${cat.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1"
+                          >
+                            {cat._count.transactions} transactions
+                            <ArrowRight className="w-3 h-3" />
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-gray-400">
+                            0 transactions
+                          </span>
+                        )}
                         {cat.monthlyBudget && (
                           <Badge variant="outline" className="text-xs">
                             Budget: {formatCurrency(cat.monthlyBudget)}/mo

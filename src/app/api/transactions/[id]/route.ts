@@ -42,6 +42,15 @@ export async function PATCH(
     include: { category: true, account: { select: { id: true, name: true, type: true } } },
   });
 
+  // If amount was changed on a linked transfer, mirror the new amount to the
+  // paired side so the two don't diverge.
+  if (data.amount !== undefined && tx.transferPairId) {
+    await prisma.transaction.update({
+      where: { id: tx.transferPairId },
+      data: { amount: parseFloat(data.amount) },
+    });
+  }
+
   return NextResponse.json(updated);
 }
 
@@ -54,12 +63,19 @@ export async function DELETE(
 
   const { id } = await params;
 
-  const tx = await prisma.transaction.findUnique({
-    where: { id },
-    include: { account: true },
-  });
-  if (!tx || tx.account.userId !== session.user.id) {
+  const householdAccountIds = await getHouseholdAccountIds(session.user.id);
+  const tx = await prisma.transaction.findUnique({ where: { id } });
+  if (!tx || !householdAccountIds.includes(tx.accountId)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // If this tx is part of a transfer pair, clear the pair's pointer first
+  // so we don't leave a dangling reference.
+  if (tx.transferPairId) {
+    await prisma.transaction.update({
+      where: { id: tx.transferPairId },
+      data: { transferPairId: null },
+    });
   }
 
   await prisma.transaction.delete({ where: { id } });

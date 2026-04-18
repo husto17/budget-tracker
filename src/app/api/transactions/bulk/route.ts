@@ -15,23 +15,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "ids array required" }, { status: 400 });
   }
 
-  // Verify all transactions belong to this user
-  const txns = await prisma.transaction.findMany({
-    where: { id: { in: ids } },
-    include: { account: { select: { userId: true } } },
-  });
-
-  const unauthorized = txns.some((t: { account: { userId: string } }) => t.account.userId !== session.user.id);
-  if (unauthorized) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-  }
-
-  await prisma.transaction.updateMany({
-    where: { id: { in: ids } },
+  const householdAccountIds = await getHouseholdAccountIds(session.user.id);
+  const result = await prisma.transaction.updateMany({
+    where: {
+      id: { in: ids },
+      accountId: { in: householdAccountIds },
+    },
     data: { categoryId: categoryId || null },
   });
 
-  return NextResponse.json({ updated: ids.length });
+  return NextResponse.json({ updated: result.count });
 }
 
 // Bulk re-categorize via PATCH

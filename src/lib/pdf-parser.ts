@@ -40,11 +40,15 @@ function inferStatementYear(text: string): number {
 }
 
 // Given a statement closing month and a transaction month, resolve the year.
-// Handles December→January rollovers.
+// Handles year-boundary rollovers in both directions.
 function resolveYear(baseYear: number, closingMonth: number, txMonth: number): number {
-  // If transaction month is significantly later than closing month, it's the previous year
-  // e.g., closing in January (1), transaction in December (12) → previous year
+  // Closing in Jan–Mar with a tx in Oct–Dec → tx is the previous year
+  // (e.g. Jan 2026 statement with a Dec 2025 transaction)
   if (closingMonth <= 3 && txMonth >= 10) return baseYear - 1;
+  // Inferred year predates the statement period: closing in Oct–Dec with a
+  // tx in Jan–Mar → tx is the following year. Rare, but guards against
+  // inferStatementYear picking up an older year from the header.
+  if (closingMonth >= 10 && txMonth <= 3) return baseYear + 1;
   return baseYear;
 }
 

@@ -30,17 +30,29 @@ export async function GET(request: Request) {
       date: { gte: startDate },
       transferPairId: null,
     },
-    include: { category: true },
+    include: {
+      category: true,
+      splits: { include: { category: true } },
+    },
     orderBy: { date: "asc" },
   });
 
-  // Monthly spending by category
+  // Monthly spending by category.
+  // If a tx has splits, credit each split to its own category (don't double-count
+  // the parent). If no splits, credit the whole amount to the tx's category.
   const monthlyByCategory: Record<string, Record<string, number>> = {};
   for (const tx of transactions) {
     const monthKey = `${tx.date.getFullYear()}-${String(tx.date.getMonth() + 1).padStart(2, "0")}`;
-    const catName = tx.category?.name ?? "Uncategorized";
     if (!monthlyByCategory[monthKey]) monthlyByCategory[monthKey] = {};
-    monthlyByCategory[monthKey][catName] = (monthlyByCategory[monthKey][catName] ?? 0) + tx.amount;
+    if (tx.splits.length > 0) {
+      for (const s of tx.splits) {
+        const catName = s.category?.name ?? "Uncategorized";
+        monthlyByCategory[monthKey][catName] = (monthlyByCategory[monthKey][catName] ?? 0) + s.amount;
+      }
+    } else {
+      const catName = tx.category?.name ?? "Uncategorized";
+      monthlyByCategory[monthKey][catName] = (monthlyByCategory[monthKey][catName] ?? 0) + tx.amount;
+    }
   }
 
   // Month-over-month total spending

@@ -175,12 +175,16 @@ function TransactionsContent() {
 
   useEffect(() => {
     const catName = searchParams.get("categoryName");
+    const catId = searchParams.get("categoryId");
+    const accId = searchParams.get("accountId");
     fetch("/api/categories")
       .then((r) => r.json())
       .then((data) => {
         setCategories(data);
-        // Pre-filter by category name if navigated from dashboard/insights
-        if (catName) {
+        // Pre-filter when navigated from dashboard/accounts/categories pages
+        if (catId) {
+          setFilterCategory(catId);
+        } else if (catName) {
           const match = data.find((c: Category) => c.name.toLowerCase() === catName.toLowerCase());
           if (match) setFilterCategory(match.id);
         }
@@ -190,6 +194,7 @@ function TransactionsContent() {
       .then((data) => {
         setAccounts(data);
         if (data.length > 0) setAddForm((f) => ({ ...f, accountId: data[0].id }));
+        if (accId) setFilterAccount(accId);
       });
   }, [searchParams]);
 
@@ -684,7 +689,7 @@ function TransactionsContent() {
                   const incoming = tx.isCredit ? tx : other;
                   const bothSelected = selected.has(tx.id) && selected.has(other.id);
                   const isCreditCardPayment =
-                    outgoing.account.type === "credit" || incoming.account.type === "credit";
+                    outgoing.account.type === "CREDIT_CARD" || incoming.account.type === "CREDIT_CARD";
                   const pairLabel = isCreditCardPayment ? "Credit card payment" : "Transfer";
                   pairCard = (
                     <div key={`pair-${info.pairKey}`} className="px-4 py-3 flex items-center gap-3 bg-blue-50/40">
@@ -857,7 +862,7 @@ function TransactionsContent() {
                       const incoming = tx.isCredit ? tx : other;
                       const bothSelected = selected.has(tx.id) && selected.has(other.id);
                       const isCreditCardPayment =
-                        outgoing.account.type === "credit" || incoming.account.type === "credit";
+                        outgoing.account.type === "CREDIT_CARD" || incoming.account.type === "CREDIT_CARD";
                       const pairLabel = isCreditCardPayment ? "Credit card payment" : "Transfer";
                       pairHeader = (
                         <tr key={`pair-${info.pairKey}`} className="bg-blue-50/40 hover:bg-blue-50/60 transition-colors">

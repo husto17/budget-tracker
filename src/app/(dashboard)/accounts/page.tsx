@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, CreditCard, Landmark, Wallet, PiggyBank, DollarSign } from "lucide-react";
+import { Plus, Pencil, Trash2, CreditCard, Landmark, Wallet, PiggyBank, DollarSign, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -215,9 +216,13 @@ export default function AccountsPage() {
                         <p className="text-xs text-red-500 mt-0.5">Outstanding balance</p>
                       )}
                     </div>
-                    <Badge variant="secondary" className="text-xs">
+                    <Link
+                      href={`/transactions?accountId=${account.id}`}
+                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                    >
                       {account._count.transactions} transactions
-                    </Badge>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
                   </div>
                 </CardContent>
               </Card>

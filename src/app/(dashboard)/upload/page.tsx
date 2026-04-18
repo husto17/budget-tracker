@@ -88,7 +88,6 @@ export default function UploadPage() {
   }
 
   const isCSV = file?.name.endsWith(".csv");
-  const isPDF = file?.name.endsWith(".pdf");
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -142,6 +141,11 @@ export default function UploadPage() {
           <CardTitle className="text-base">2. Upload file</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-3 p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800">
+            <strong>Tip:</strong> CSV exports parse most reliably. PDF works for
+            text-based statements, but if results are incomplete, try downloading
+            a CSV from your bank&apos;s online portal instead.
+          </div>
           <div
             className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${
               dragOver
@@ -195,12 +199,6 @@ export default function UploadPage() {
             )}
           </div>
 
-          {isPDF && (
-            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
-              <strong>PDF note:</strong> PDF parsing works best with text-based (not scanned) bank statements.
-              If results are incomplete, try exporting as CSV from your bank&apos;s online portal instead.
-            </div>
-          )}
         </CardContent>
       </Card>
 

@@ -20,18 +20,29 @@ export async function GET() {
     orderBy: { createdAt: "asc" },
   });
 
-  // Compute balance from transactions for each account
-  const accountsWithBalance = await Promise.all(
-    accounts.map(async (account: typeof accounts[0]) => {
-      const agg = await prisma.transaction.aggregate({
-        where: { accountId: account.id },
-        _sum: { amount: true },
-      });
-      const balance = agg._sum.amount ?? 0;
-      const owner: "me" | "partner" = account.userId === userId ? "me" : "partner";
-      return { ...account, computedBalance: balance, owner };
-    })
-  );
+  // Compute balance as credits − debits in a single groupBy call so we respect
+  // direction. Previously we summed amount regardless of isCredit, which made
+  // purchases and deposits cancel out on every account.
+  //
+  // Convention:
+  //   - Checking/savings: positive balance = money you have
+  //   - Credit cards: negative balance = money you owe (dashboard inverts for display)
+  const grouped = await prisma.transaction.groupBy({
+    by: ["accountId", "isCredit"],
+    where: { accountId: { in: accounts.map((a) => a.id) } },
+    _sum: { amount: true },
+  });
+  const balanceByAccount = new Map<string, number>();
+  for (const row of grouped) {
+    const prev = balanceByAccount.get(row.accountId) ?? 0;
+    const delta = row.isCredit ? (row._sum.amount ?? 0) : -(row._sum.amount ?? 0);
+    balanceByAccount.set(row.accountId, prev + delta);
+  }
+  const accountsWithBalance = accounts.map((account: typeof accounts[0]) => {
+    const balance = balanceByAccount.get(account.id) ?? 0;
+    const owner: "me" | "partner" = account.userId === userId ? "me" : "partner";
+    return { ...account, computedBalance: balance, owner };
+  });
 
   return NextResponse.json(accountsWithBalance);
 }
