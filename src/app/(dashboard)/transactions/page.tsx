@@ -369,23 +369,42 @@ function TransactionsContent() {
     setSavingEdit(false);
   }
 
+  const [addingTx, setAddingTx] = useState(false);
+  function resetAddForm() {
+    setAddForm((f) => ({
+      accountId: f.accountId, // keep the account so user doesn't re-pick every time
+      date: format(new Date(), "yyyy-MM-dd"),
+      description: "",
+      amount: "",
+      isCredit: false,
+      categoryId: "",
+      notes: "",
+    }));
+  }
   async function handleAddTransaction() {
-    const res = await fetch("/api/transactions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...addForm,
-        amount: parseFloat(addForm.amount),
-        categoryId: addForm.categoryId || null,
-      }),
-    });
-    if (res.ok) {
-      toast.success("Transaction added");
-      setShowAddDialog(false);
-      fetchTransactions();
-    } else {
-      const d = await res.json();
-      toast.error(d.error ?? "Failed to add");
+    if (addingTx) return;
+    setAddingTx(true);
+    try {
+      const res = await fetch("/api/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...addForm,
+          amount: parseFloat(addForm.amount),
+          categoryId: addForm.categoryId || null,
+        }),
+      });
+      if (res.ok) {
+        toast.success("Transaction added");
+        setShowAddDialog(false);
+        resetAddForm();
+        fetchTransactions();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error ?? "Failed to add");
+      }
+    } finally {
+      setAddingTx(false);
     }
   }
 
@@ -1373,7 +1392,13 @@ function TransactionsContent() {
       )}
 
       {/* Add manual transaction dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      <Dialog
+        open={showAddDialog}
+        onOpenChange={(open) => {
+          setShowAddDialog(open);
+          if (!open) resetAddForm();
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Transaction</DialogTitle>

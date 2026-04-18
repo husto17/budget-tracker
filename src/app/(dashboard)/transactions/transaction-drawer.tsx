@@ -234,32 +234,42 @@ export function TransactionDrawer({
                 </SelectContent>
               </Select>
 
-              {form.categoryId !== "none" && form.categoryId !== (tx.category?.id ?? "") && (
-                <label
-                  className={`flex items-start gap-2 mt-2 text-xs cursor-pointer ${
-                    autoSkipped ? "opacity-60" : ""
+              {/* Remember toggle — always visible when a category is picked so the
+                  user sees explicitly whether save will create a rule. */}
+              {form.categoryId !== "none" && form.categoryId && (
+                <div
+                  className={`flex items-start gap-2 mt-2 p-2 rounded-lg border text-xs ${
+                    autoSkipped
+                      ? "bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700"
+                      : learn
+                      ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/60"
+                      : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/60"
                   }`}
                 >
                   <input
                     type="checkbox"
-                    className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 dark:border-gray-700 accent-indigo-600"
+                    id={`remember-${tx.id}`}
+                    className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 dark:border-gray-700 accent-indigo-600 shrink-0"
                     checked={learn && !autoSkipped}
                     disabled={autoSkipped}
                     onChange={(e) => setLearn(e.target.checked)}
                   />
-                  <span className="text-gray-600 dark:text-gray-300">
+                  <label htmlFor={`remember-${tx.id}`} className="text-gray-700 dark:text-gray-200 cursor-pointer flex-1">
                     {autoSkipped ? (
                       <>
-                        <strong>One-off only</strong> — {chosenCategoryName} is always a one-off (no rule created).
+                        <strong>One-off only</strong> — {chosenCategoryName} is always a one-off, no rule will be created.
+                      </>
+                    ) : learn ? (
+                      <>
+                        Will remember <strong>{form.merchant || tx.description}</strong> → <strong>{chosenCategoryName}</strong> for future uploads. <span className="text-gray-500 dark:text-gray-400">Uncheck for a one-off.</span>
                       </>
                     ) : (
                       <>
-                        Remember <strong>{form.merchant || tx.description}</strong> → {chosenCategoryName} for future uploads.{" "}
-                        <span className="text-gray-400 dark:text-gray-500">Uncheck for a one-off.</span>
+                        <strong>One-off only</strong> — no rule will be created for this merchant.
                       </>
                     )}
-                  </span>
-                </label>
+                  </label>
+                </div>
               )}
             </div>
 
