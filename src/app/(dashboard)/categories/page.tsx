@@ -20,22 +20,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson, FetchError, formatCurrency } from "@/lib/fetcher";
 
-// Matches CHART_COLORS on /dashboard and /insights — perceptually-spaced
-// hues so any two picks look visibly different.
-const PRESET_COLORS = [
-  "#EF4444", // red
-  "#F97316", // orange
-  "#EAB308", // yellow
-  "#84CC16", // lime
-  "#10B981", // emerald
-  "#06B6D4", // cyan
-  "#3B82F6", // blue
-  "#8B5CF6", // violet
-  "#EC4899", // pink
-  "#64748B", // slate
-  "#A855F7", // purple
-  "#1F2937", // near-black
-];
 
 interface CategoryRule {
   id: string;
@@ -66,7 +50,6 @@ export default function CategoriesPage() {
 
   const [form, setForm] = useState({
     name: "",
-    color: "#3B82F6",
     monthlyBudget: "",
   });
 
@@ -86,7 +69,7 @@ export default function CategoriesPage() {
 
   function openAdd() {
     setEditingCat(null);
-    setForm({ name: "", color: "#3B82F6", monthlyBudget: "" });
+    setForm({ name: "", monthlyBudget: "" });
     setShowDialog(true);
   }
 
@@ -94,7 +77,6 @@ export default function CategoriesPage() {
     setEditingCat(cat);
     setForm({
       name: cat.name,
-      color: cat.color,
       monthlyBudget: cat.monthlyBudget?.toString() ?? "",
     });
     setShowDialog(true);
@@ -389,28 +371,6 @@ export default function CategoriesPage() {
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="e.g. Groceries"
               />
-            </div>
-            <div className="space-y-2">
-              <Label>Colour</Label>
-              <div className="flex flex-wrap gap-2">
-                {PRESET_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${
-                      form.color === c ? "border-gray-800 scale-110" : "border-transparent"
-                    }`}
-                    style={{ backgroundColor: c }}
-                    onClick={() => setForm((f) => ({ ...f, color: c }))}
-                  />
-                ))}
-                <input
-                  type="color"
-                  value={form.color}
-                  onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
-                  className="w-7 h-7 rounded-full cursor-pointer border-2 border-gray-200"
-                  title="Custom colour"
-                />
-              </div>
             </div>
             <div className="space-y-2">
               <Label>Monthly Budget <span className="text-gray-400">(optional)</span></Label>
