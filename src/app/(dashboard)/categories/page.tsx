@@ -47,6 +47,20 @@ export default function CategoriesPage() {
   const [saving, setSaving] = useState(false);
   const [newRule, setNewRule] = useState<{ [catId: string]: string }>({});
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
+  const [hideUnusedDefaults, setHideUnusedDefaults] = useState(false);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("categories:hideUnusedDefaults");
+      if (saved === "true") setHideUnusedDefaults(true);
+    } catch {}
+  }, []);
+  function toggleHideUnused() {
+    setHideUnusedDefaults((prev) => {
+      const next = !prev;
+      try { localStorage.setItem("categories:hideUnusedDefaults", String(next)); } catch {}
+      return next;
+    });
+  }
 
   const [form, setForm] = useState({
     name: "",
@@ -174,17 +188,42 @@ export default function CategoriesPage() {
   }
 
   const totalBudget = categories.reduce((sum, c) => sum + (c.monthlyBudget ?? 0), 0);
+  const unusedDefaultCount = categories.filter(
+    (c) => c.isDefault && c._count.transactions === 0 && c.rules.length === 0 && !c.monthlyBudget,
+  ).length;
+  const visibleCategories = hideUnusedDefaults
+    ? categories.filter(
+        (c) =>
+          !(c.isDefault && c._count.transactions === 0 && c.rules.length === 0 && !c.monthlyBudget),
+      )
+    : categories;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Categories</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Budget buckets • Monthly budget: {formatCurrency(totalBudget)}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap items-center">
+          {unusedDefaultCount > 0 && (
+            <button
+              type="button"
+              onClick={toggleHideUnused}
+              className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 flex items-center gap-1.5"
+              title="Hide default categories with zero transactions and no rules"
+            >
+              <input
+                type="checkbox"
+                checked={hideUnusedDefaults}
+                readOnly
+                className="h-3.5 w-3.5 rounded border-gray-300 cursor-pointer"
+              />
+              Hide {unusedDefaultCount} unused default{unusedDefaultCount !== 1 ? "s" : ""}
+            </button>
+          )}
           <Button variant="outline" onClick={applyAllRules}>
             <Zap className="w-4 h-4 mr-2" />
             Apply all rules
@@ -221,7 +260,7 @@ export default function CategoriesPage() {
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden">
-          {categories.map((cat) => (
+          {visibleCategories.map((cat) => (
             <div key={cat.id}>
               <div className="px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                 <div className="flex items-center justify-between gap-3">

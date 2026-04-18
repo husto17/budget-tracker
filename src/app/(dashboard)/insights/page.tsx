@@ -40,16 +40,32 @@ function formatMonth(key: string) {
   return format(new Date(parseInt(year), parseInt(month) - 1, 1), "MMM yy");
 }
 
+type RangeMonths = 3 | 6 | 12;
+
 export default function InsightsPage() {
   const [insights, setInsights] = useState<InsightData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [range, setRange] = useState<RangeMonths>(() => {
+    if (typeof window === "undefined") return 6;
+    try {
+      const saved = parseInt(localStorage.getItem("insights:range") ?? "", 10);
+      if (saved === 3 || saved === 6 || saved === 12) return saved;
+    } catch {}
+    return 6;
+  });
 
   const [reloadKey, setReloadKey] = useState(0);
 
+  function setRangePersisted(next: RangeMonths) {
+    setRange(next);
+    try { localStorage.setItem("insights:range", String(next)); } catch {}
+  }
+
   useEffect(() => {
     let cancelled = false;
-    fetchJson<InsightData>("/api/insights?months=6")
+    setLoading(true);
+    fetchJson<InsightData>(`/api/insights?months=${range}`)
       .then((data) => {
         if (cancelled) return;
         setInsights(data);
@@ -65,7 +81,7 @@ export default function InsightsPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, range]);
 
   if (loading) {
     return (
@@ -110,22 +126,40 @@ export default function InsightsPage() {
 
   const stackedData = Object.entries(insights.monthlyByCategory)
     .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-6)
+    .slice(-range)
     .map(([month, cats]) => ({
       month: formatMonth(month),
       ...Object.fromEntries(catList.map((c) => [c, cats[c] ?? 0])),
     }));
 
-  const incomeData = insights.incomeVsSpending.slice(-6).map((d) => ({
+  const incomeData = insights.incomeVsSpending.slice(-range).map((d) => ({
     ...d,
     month: formatMonth(d.month),
   }));
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Insights</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Patterns, anomalies, and trends in your spending</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Insights</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Patterns, anomalies, and trends in your spending</p>
+        </div>
+        <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+          {([3, 6, 12] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRangePersisted(r)}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                range === r
+                  ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm"
+                  : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+              }`}
+            >
+              {r}m
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Anomalies */}
@@ -166,7 +200,7 @@ export default function InsightsPage() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <TrendingUp className="w-4 h-4" />
-            Spending by Category (6 months)
+            Spending by Category ({range} months)
           </CardTitle>
         </CardHeader>
         <CardContent>

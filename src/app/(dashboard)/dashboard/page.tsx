@@ -931,6 +931,38 @@ export default function DashboardPage() {
               </p>
             ) : (
               <div className="space-y-2.5">
+                {(() => {
+                  const assets = filteredAccounts
+                    .filter((a) => a.type !== "CREDIT_CARD")
+                    .reduce((s, a) => s + a.computedBalance, 0);
+                  const liabilities = filteredAccounts
+                    .filter((a) => a.type === "CREDIT_CARD")
+                    .reduce((s, a) => s + Math.max(-a.computedBalance, 0), 0);
+                  const net = assets - liabilities;
+                  if (assets === 0 && liabilities === 0) return null;
+                  return (
+                    <div className="grid grid-cols-3 gap-2 pb-3 mb-1 border-b border-gray-100 dark:border-gray-800">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">Assets</p>
+                        <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                          {formatCurrency(assets)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">Debt</p>
+                        <p className={`text-sm font-semibold tabular-nums ${liabilities > 0 ? "text-rose-600" : "text-gray-400 dark:text-gray-500"}`}>
+                          {liabilities > 0 ? `-${formatCurrency(liabilities)}` : formatCurrency(0)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">Net worth</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
+                          {formatCurrency(net)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {filteredAccounts.map((acc) => {
                   const isCredit = acc.type === "CREDIT_CARD";
                   const balance = isCredit ? -acc.computedBalance : acc.computedBalance;

@@ -3,6 +3,8 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { HouseholdSettings } from "./HouseholdSettings";
+import { Profile } from "./Profile";
+import { DataExport } from "./DataExport";
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions);
@@ -52,13 +54,15 @@ export default async function SettingsPage() {
     <div className="max-w-xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your household and preferences</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Profile, household, and your data</p>
       </div>
+      <Profile />
       <HouseholdSettings
         currentUserId={userId}
         household={household}
         pendingInvite={pendingInvite}
       />
+      <DataExport />
     </div>
   );
 }
