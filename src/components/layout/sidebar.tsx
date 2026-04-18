@@ -15,6 +15,8 @@ import {
   Menu,
   X,
   Camera,
+  Sparkles,
+  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,11 +26,13 @@ import { fetchJson } from "@/lib/fetcher";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/ask", icon: Sparkles, label: "Ask" },
   { href: "/transactions", icon: ArrowUpDown, label: "Transactions" },
   { href: "/quick-entry", icon: Camera, label: "Quick Entry" },
   { href: "/upload", icon: Upload, label: "Upload Statement" },
   { href: "/accounts", icon: Wallet, label: "Accounts" },
   { href: "/categories", icon: Tags, label: "Categories" },
+  { href: "/goals", icon: Target, label: "Goals" },
   { href: "/insights", icon: TrendingUp, label: "Insights" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ];

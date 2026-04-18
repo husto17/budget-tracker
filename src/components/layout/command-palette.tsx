@@ -24,6 +24,7 @@ import {
   Plus,
   Search,
   Sparkles,
+  Target,
 } from "lucide-react";
 import { fetchJson } from "@/lib/fetcher";
 
@@ -117,6 +118,9 @@ export function CommandPalette() {
             <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
             <CommandShortcut>g d</CommandShortcut>
           </CommandItem>
+          <CommandItem value="ask" onSelect={() => go("/ask")}>
+            <Sparkles className="mr-2 h-4 w-4" /> Ask (AI)
+          </CommandItem>
           <CommandItem value="transactions" onSelect={() => go("/transactions")}>
             <ArrowUpDown className="mr-2 h-4 w-4" /> Transactions
             <CommandShortcut>g t</CommandShortcut>
@@ -136,6 +140,10 @@ export function CommandPalette() {
           <CommandItem value="categories" onSelect={() => go("/categories")}>
             <Tags className="mr-2 h-4 w-4" /> Categories
             <CommandShortcut>g c</CommandShortcut>
+          </CommandItem>
+          <CommandItem value="goals" onSelect={() => go("/goals")}>
+            <Target className="mr-2 h-4 w-4" /> Goals
+            <CommandShortcut>g g</CommandShortcut>
           </CommandItem>
           <CommandItem value="insights" onSelect={() => go("/insights")}>
             <TrendingUp className="mr-2 h-4 w-4" /> Insights

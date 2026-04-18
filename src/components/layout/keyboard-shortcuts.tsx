@@ -8,10 +8,12 @@ const GO_MAP: Record<string, string> = {
   t: "/transactions",
   a: "/accounts",
   c: "/categories",
+  g: "/goals",
   i: "/insights",
   u: "/upload",
   q: "/quick-entry",
   s: "/settings",
+  "?": "/ask",
 };
 
 function isTypingTarget(el: EventTarget | null): boolean {
