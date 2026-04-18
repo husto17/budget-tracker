@@ -24,21 +24,35 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useEffect, useState } from "react";
 import { fetchJson } from "@/lib/fetcher";
 
-const navItems = [
-  // Overview
-  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/insights", icon: TrendingUp, label: "Insights" },
-  // Money in / out
-  { href: "/transactions", icon: ArrowUpDown, label: "Transactions" },
-  { href: "/upload", icon: Upload, label: "Upload Statement" },
-  { href: "/quick-entry", icon: Camera, label: "Quick Entry" },
-  // Planning / setup
-  { href: "/goals", icon: Target, label: "Goals" },
-  { href: "/categories", icon: Tags, label: "Categories" },
-  { href: "/accounts", icon: Wallet, label: "Accounts" },
-  // Tools + system
-  { href: "/ask", icon: Sparkles, label: "Ask" },
-  { href: "/settings", icon: Settings, label: "Settings" },
+const navGroups: Array<{
+  items: Array<{ href: string; icon: typeof LayoutDashboard; label: string }>;
+}> = [
+  {
+    items: [
+      { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+      { href: "/insights", icon: TrendingUp, label: "Insights" },
+    ],
+  },
+  {
+    items: [
+      { href: "/transactions", icon: ArrowUpDown, label: "Transactions" },
+      { href: "/upload", icon: Upload, label: "Upload Statement" },
+      { href: "/quick-entry", icon: Camera, label: "Quick Entry" },
+    ],
+  },
+  {
+    items: [
+      { href: "/goals", icon: Target, label: "Goals" },
+      { href: "/categories", icon: Tags, label: "Categories" },
+      { href: "/accounts", icon: Wallet, label: "Accounts" },
+    ],
+  },
+  {
+    items: [
+      { href: "/ask", icon: Sparkles, label: "Ask" },
+      { href: "/settings", icon: Settings, label: "Settings" },
+    ],
+  },
 ];
 
 export function Sidebar() {
@@ -78,30 +92,34 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1">
-        {navItems.map(({ href, icon: Icon, label }) => {
-          const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
-          const showBadge = href === "/transactions" && uncategorized && uncategorized > 0;
-          return (
-            <Link key={href} href={href} onClick={() => setOpen(false)}>
-              <span
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                  active
-                    ? "bg-gray-100 text-gray-900"
-                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
-                )}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="flex-1">{label}</span>
-                {showBadge && (
-                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                    {uncategorized}
+        {navGroups.map((group, gi) => (
+          <div key={gi} className={cn(gi > 0 && "pt-2 mt-2 border-t border-gray-100")}>
+            {group.items.map(({ href, icon: Icon, label }) => {
+              const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+              const showBadge = href === "/transactions" && uncategorized && uncategorized > 0;
+              return (
+                <Link key={href} href={href} onClick={() => setOpen(false)}>
+                  <span
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                      active
+                        ? "bg-gray-100 text-gray-900"
+                        : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                    )}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span className="flex-1">{label}</span>
+                    {showBadge && (
+                      <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                        {uncategorized}
+                      </span>
+                    )}
                   </span>
-                )}
-              </span>
-            </Link>
-          );
-        })}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       <div className="mt-auto pt-4 border-t border-gray-100">

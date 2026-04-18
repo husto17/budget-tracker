@@ -44,10 +44,18 @@ export function MerchantLogo({ merchant, fallbackColor, size = "sm", className }
     );
   }
 
+  // Prefer Logo.dev when a publishable token is configured — it returns
+  // 128px PNGs with transparent backgrounds. Falls back to Google's favicon
+  // resolver (128px too, but scaled from lower-res source).
+  const logoDevToken = process.env.NEXT_PUBLIC_LOGO_DEV_TOKEN;
+  const src = logoDevToken
+    ? `https://img.logo.dev/${domain}?token=${logoDevToken}&size=128&format=png&retina=true`
+    : `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
+      src={src}
       alt=""
       className={cn(dim, "rounded-full object-cover bg-white shrink-0", className)}
       onError={() => setFailed(true)}
