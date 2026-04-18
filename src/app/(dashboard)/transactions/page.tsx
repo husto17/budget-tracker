@@ -533,18 +533,23 @@ function TransactionsContent() {
   async function reprocessNames() {
     setReprocessing(true);
     try {
-      const data = await fetchJson<{ updated: number; total: number }>(
-        "/api/transactions/reprocess",
-        { method: "POST" },
-      );
-      toast.success(
-        data.updated > 0
-          ? `Cleaned ${data.updated} merchant name${data.updated !== 1 ? "s" : ""}`
-          : "All merchant names already clean",
-      );
-      if (data.updated > 0) fetchTransactions();
+      const data = await fetchJson<{
+        updated: number;
+        renamed: number;
+        categorized: number;
+        total: number;
+      }>("/api/transactions/reprocess", { method: "POST" });
+      if (data.updated === 0) {
+        toast.success("Everything already up to date");
+      } else {
+        const parts: string[] = [];
+        if (data.renamed > 0) parts.push(`renamed ${data.renamed}`);
+        if (data.categorized > 0) parts.push(`categorized ${data.categorized}`);
+        toast.success(`Cleaned up ${data.updated} transaction${data.updated !== 1 ? "s" : ""} (${parts.join(", ")})`);
+        fetchTransactions();
+      }
     } catch (e) {
-      toast.error(e instanceof FetchError ? e.message : "Failed to refresh names");
+      toast.error(e instanceof FetchError ? e.message : "Failed to refresh");
     } finally {
       setReprocessing(false);
     }
@@ -559,7 +564,7 @@ function TransactionsContent() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={reprocessNames} disabled={reprocessing}>
-            {reprocessing ? "Cleaning..." : "Clean merchant names"}
+            {reprocessing ? "Cleaning..." : "Clean up + categorize"}
           </Button>
           <Button onClick={() => setShowAddDialog(true)} size="sm">
             <Plus className="w-4 h-4 mr-2" /> Add Manual

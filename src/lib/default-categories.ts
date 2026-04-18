@@ -16,18 +16,115 @@ export const DEFAULT_CATEGORIES = [
   { name: "Other", color: "#9CA3AF", icon: "circle" },
 ];
 
-// Creates any default categories the user is missing. Safe to call repeatedly —
-// e.g. on every GET /api/categories — so existing users pick up newly-added
-// defaults without a migration.
+// Starter auto-categorize rules seeded alongside the default categories.
+// These match against the raw transaction description (case-insensitive substring).
+// Keep patterns conservative — they should hit obvious merchants only; users
+// can always add/remove their own.
+export const DEFAULT_RULES: Record<string, string[]> = {
+  Groceries: [
+    "TRADER JOE", "WHOLE FOODS", "ALDI", "KROGER", "SAFEWAY", "PUBLIX",
+    "H MART", "HMART", "JEWEL OSCO", "JEWEL-OSCO", "MARIANO", "WEGMANS",
+    "SPROUTS", "COSTCO WHSE", "INSTACART",
+  ],
+  "Dining Out": [
+    "STARBUCKS", "CHIPOTLE", "DOORDASH", "GRUBHUB", "UBER EATS", "UBEREATS",
+    "PIZZERIA", "PIZZA", "CAFE", "COFFEE", "RESTAURANT", "BAR ", "GRILL",
+    "TAQUERIA", "SUSHI", "RAMEN", "BISTRO", "CANTINA", "BBQ",
+    "MCDONALD", "CHICK-FIL-A", "CHICKFIL", "PANERA", "SHAKE SHACK",
+    "SWEETGREEN", "DUNKIN", "TST*", "SQ *",
+  ],
+  Transport: [
+    "UBER", "LYFT", "METRA", "CTA", "AMTRAK", "DELTA AIR", "AMERICAN AIR",
+    "UNITED AIR", "SOUTHWEST", "SPIRIT AIR", "JETBLUE", "SHELL", "EXXON",
+    "CHEVRON", "BP ", "MOBIL", "SUNOCO", "PARKING", "TOLL",
+  ],
+  Utilities: [
+    "COMED", "PEOPLES GAS", "PEOPLESGAS", "NICOR", "CONED", "PG&E",
+    "XFINITY", "COMCAST", "VERIZON", "AT&T", "T-MOBILE", "TMOBILE",
+    "SPECTRUM", "INTERNET", "ELECTRIC", "WATER BILL",
+  ],
+  "Rent / Mortgage": ["RENT", "MORTGAGE", "HOA", "LANDLORD"],
+  Entertainment: [
+    "NETFLIX", "HULU", "DISNEY+", "DISNEYPLUS", "HBO", "MAX ",
+    "YOUTUBE", "PARAMOUNT", "PEACOCK", "APPLE TV", "STUBHUB",
+    "TICKETMASTER", "LIVE NATION", "AMC THEATRES", "MUSIC BOX",
+    "CINEMA", "THEATRE",
+  ],
+  Shopping: [
+    "AMAZON", "TARGET", "WALMART", "COSTCO", "BEST BUY", "HOME DEPOT",
+    "LOWES", "IKEA", "MACY", "NORDSTROM", "GAP ", "OLD NAVY",
+    "BATH & BODY", "BATHANDBODY", "SEPHORA", "ULTA", "ETSY",
+  ],
+  Health: [
+    "CVS", "WALGREENS", "RITE AID", "PHARMACY", "HOSPITAL", "CLINIC",
+    "DOCTOR", "DENTAL", "DENTIST", "ONE MEDICAL", "ZOCDOC",
+    "PELOTON", "CLASSPASS", "EQUINOX", "LIFE TIME", "LIFETIME",
+  ],
+  Subscriptions: [
+    "SPOTIFY", "APPLE.COM/BILL", "APPLE.COM BILL", "OPENAI", "PERPLEXITY",
+    "GYMPASS", "GOOGLE *", "NYTIMES", "NEW YORK TIMES", "WASHINGTONPOST",
+    "SUBSTACK", "MEDIUM", "DROPBOX", "LINKEDIN PREMIUM",
+  ],
+  Income: [
+    "DIRECT DEPOSIT", "PAYROLL", "ACH CREDIT", "SALARY",
+  ],
+  Transfers: [
+    "ZELLE", "VENMO", "CASH APP", "TRANSFER TO", "TRANSFER FROM",
+    "PAYMENT FROM CHK", "PAYMENT TO CHK", "ONLINE TRANSFER",
+  ],
+  "Fees & Interest": [
+    "INTEREST CHARGE", "FOREIGN TRANSACTION", "LATE FEE", "OVERDRAFT",
+    "ATM FEE", "SERVICE CHARGE", "MONTHLY FEE", "ANNUAL FEE",
+  ],
+};
+
+// Creates any default categories the user is missing, and seeds starter rules
+// for newly-created categories. Safe to call repeatedly — e.g. on every
+// GET /api/categories — so existing users pick up newly-added defaults without
+// a migration.
 export async function ensureDefaultCategories(userId: string): Promise<void> {
   const existing = await prisma.category.findMany({
     where: { userId, name: { in: DEFAULT_CATEGORIES.map((c) => c.name) } },
-    select: { name: true },
+    select: { id: true, name: true },
   });
   const have = new Set(existing.map((c) => c.name));
   const missing = DEFAULT_CATEGORIES.filter((c) => !have.has(c.name));
-  if (missing.length === 0) return;
-  await prisma.category.createMany({
-    data: missing.map((c) => ({ ...c, userId, isDefault: true })),
+
+  let newCategories = existing;
+  if (missing.length > 0) {
+    await prisma.category.createMany({
+      data: missing.map((c) => ({ ...c, userId, isDefault: true })),
+    });
+    newCategories = await prisma.category.findMany({
+      where: { userId, name: { in: DEFAULT_CATEGORIES.map((c) => c.name) } },
+      select: { id: true, name: true },
+    });
+  }
+
+  // Seed starter rules for any default category that has no rules yet.
+  // Users who already have custom rules aren't touched; missing rules get added.
+  const existingRules = await prisma.categoryRule.findMany({
+    where: { userId, categoryId: { in: newCategories.map((c) => c.id) } },
+    select: { categoryId: true, pattern: true },
   });
+  const rulesByCategory = new Map<string, Set<string>>();
+  for (const r of existingRules) {
+    if (!rulesByCategory.has(r.categoryId)) rulesByCategory.set(r.categoryId, new Set());
+    rulesByCategory.get(r.categoryId)!.add(r.pattern.toUpperCase());
+  }
+
+  const ruleRows: Array<{ userId: string; categoryId: string; pattern: string }> = [];
+  for (const cat of newCategories) {
+    const patterns = DEFAULT_RULES[cat.name];
+    if (!patterns) continue;
+    const already = rulesByCategory.get(cat.id) ?? new Set();
+    for (const p of patterns) {
+      if (!already.has(p.toUpperCase())) {
+        ruleRows.push({ userId, categoryId: cat.id, pattern: p });
+      }
+    }
+  }
+  if (ruleRows.length > 0) {
+    await prisma.categoryRule.createMany({ data: ruleRows });
+  }
 }
