@@ -683,6 +683,9 @@ function TransactionsContent() {
                   const outgoing = tx.isCredit ? other : tx;
                   const incoming = tx.isCredit ? tx : other;
                   const bothSelected = selected.has(tx.id) && selected.has(other.id);
+                  const isCreditCardPayment =
+                    outgoing.account.type === "credit" || incoming.account.type === "credit";
+                  const pairLabel = isCreditCardPayment ? "Credit card payment" : "Transfer";
                   pairCard = (
                     <div key={`pair-${info.pairKey}`} className="px-4 py-3 flex items-center gap-3 bg-blue-50/40">
                       <input
@@ -699,7 +702,7 @@ function TransactionsContent() {
                       </button>
                       <ArrowRightLeft className="w-4 h-4 text-blue-500 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">Transfer</p>
+                        <p className="text-sm font-medium text-gray-900">{pairLabel}</p>
                         <p className="text-xs text-gray-500 truncate">
                           {outgoing.account.name} → {incoming.account.name}
                         </p>
@@ -853,6 +856,9 @@ function TransactionsContent() {
                       const outgoing = tx.isCredit ? other : tx;
                       const incoming = tx.isCredit ? tx : other;
                       const bothSelected = selected.has(tx.id) && selected.has(other.id);
+                      const isCreditCardPayment =
+                        outgoing.account.type === "credit" || incoming.account.type === "credit";
+                      const pairLabel = isCreditCardPayment ? "Credit card payment" : "Transfer";
                       pairHeader = (
                         <tr key={`pair-${info.pairKey}`} className="bg-blue-50/40 hover:bg-blue-50/60 transition-colors">
                           <td className="px-4 py-3">
@@ -876,7 +882,7 @@ function TransactionsContent() {
                               </button>
                               <ArrowRightLeft className="w-4 h-4 text-blue-500 shrink-0" />
                               <div className="min-w-0">
-                                <p className="text-sm font-medium text-gray-900">Transfer</p>
+                                <p className="text-sm font-medium text-gray-900">{pairLabel}</p>
                                 <p className="text-xs text-gray-500 truncate max-w-[240px]">
                                   {outgoing.account.name} → {incoming.account.name}
                                 </p>

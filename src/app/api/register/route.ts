@@ -14,6 +14,7 @@ const DEFAULT_CATEGORIES = [
   { name: "Subscriptions", color: "#6366F1", icon: "repeat" },
   { name: "Income", color: "#14B8A6", icon: "trending-up" },
   { name: "Transfers", color: "#6B7280", icon: "arrow-right-left" },
+  { name: "Fees & Interest", color: "#DC2626", icon: "percent" },
   { name: "Other", color: "#9CA3AF", icon: "circle" },
 ];
 
