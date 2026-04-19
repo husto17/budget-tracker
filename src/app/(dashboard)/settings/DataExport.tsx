@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Download, FileJson, FileSpreadsheet } from "lucide-react";
+import { Download, FileJson, FileSpreadsheet, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
@@ -56,6 +56,25 @@ function csvEscape(v: unknown): string {
 export function DataExport() {
   const [exportingCsv, setExportingCsv] = useState(false);
   const [exportingJson, setExportingJson] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  async function resetAllData() {
+    const confirmed = window.confirm(
+      "This will permanently delete ALL transactions, categories, rules, and aliases for your household. This cannot be undone. Continue?"
+    );
+    if (!confirmed) return;
+    setResetting(true);
+    try {
+      const res = await fetch("/api/admin/reset-data", { method: "POST" });
+      if (!res.ok) throw new Error("Reset failed");
+      toast.success("All data wiped. Reload to start fresh.");
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Reset failed");
+    } finally {
+      setResetting(false);
+    }
+  }
 
   async function exportCsv() {
     setExportingCsv(true);
@@ -140,6 +159,13 @@ export function DataExport() {
           <Button variant="outline" size="sm" onClick={exportJson} disabled={exportingJson}>
             <FileJson className="w-3.5 h-3.5 mr-1.5" />
             {exportingJson ? "Preparing..." : "Full backup (JSON)"}
+          </Button>
+        </div>
+        <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Danger zone</p>
+          <Button variant="destructive" size="sm" onClick={resetAllData} disabled={resetting}>
+            <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+            {resetting ? "Wiping..." : "Reset all data"}
           </Button>
         </div>
       </CardContent>
