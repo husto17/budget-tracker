@@ -194,9 +194,11 @@ export async function GET(request: Request) {
   }
 
   // Payday detection: large credits on consistent day-of-month
+  // Exclude credit card accounts — credits there are repayments, not income.
   const incomeTx = await prisma.transaction.findMany({
     where: {
       accountId: { in: accountIds },
+      account: { type: { not: "CREDIT_CARD" } },
       isCredit: true,
       deletedAt: null,
       transferPairId: null,

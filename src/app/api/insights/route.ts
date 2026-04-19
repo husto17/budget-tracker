@@ -324,9 +324,11 @@ export async function GET(request: Request) {
   // Income vs spending by month
   // Income = credits minus anything that's been tagged as reimbursement for
   // a prior debit. A credit that's 100% reimbursement is 0 income.
+  // Exclude credit card accounts — credits there are repayments, not income.
   const incomeRaw = await prisma.transaction.findMany({
     where: {
       accountId: { in: effectiveAccountIds },
+      account: { type: { not: "CREDIT_CARD" } },
       isCredit: true,
       deletedAt: null,
       date: effectiveEnd ? { gte: effectiveStart, lte: effectiveEnd } : { gte: effectiveStart },
