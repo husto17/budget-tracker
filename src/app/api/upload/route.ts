@@ -51,7 +51,10 @@ export async function POST(request: Request) {
     }, { status: 422 });
   }
 
-  // Create upload record
+  // Create upload record. PDF parses may include statement-level context
+  // (opening/closing balance + period dates); CSV parses never do — both fields
+  // remain null there.
+  const hasPdfMeta = fileType === "pdf" && "openingBalance" in parseResult;
   const upload = await prisma.upload.create({
     data: {
       userId: session.user.id,
@@ -59,6 +62,10 @@ export async function POST(request: Request) {
       fileName,
       fileType,
       rowCount: parseResult.transactions.length,
+      openingBalance: hasPdfMeta ? (parseResult as { openingBalance?: number }).openingBalance ?? null : null,
+      closingBalance: hasPdfMeta ? (parseResult as { closingBalance?: number }).closingBalance ?? null : null,
+      statementStart: hasPdfMeta ? (parseResult as { statementStart?: Date }).statementStart ?? null : null,
+      statementEnd: hasPdfMeta ? (parseResult as { statementEnd?: Date }).statementEnd ?? null : null,
     },
   });
 

@@ -70,8 +70,14 @@ model Account {
   institution  String?
   lastFour     String?
   isJoint      Boolean       @default(false)
+  // Optional opening-balance anchor. If the user started importing statements
+  // mid-life (e.g. only the last 6 months), they can set an anchor so the
+  // computed balance starts from this value instead of $0 at the first import.
+  openingBalance     Float?
+  openingBalanceDate DateTime?
   createdAt    DateTime      @default(now())
   transactions Transaction[]
+  uploads      Upload[]
 
   @@index([userId])
 }
@@ -214,11 +220,21 @@ model Upload {
   userId       String
   user         User          @relation(fields: [userId], references: [id])
   accountId    String
+  account      Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
   fileName     String
   fileType     String
   rowCount     Int
+  // Statement-level context captured during parse (when available).
+  // Used to show reconciliation warnings: if the latest statement's
+  // closingBalance + tx since statementEnd doesn't match the computed
+  // balance, the Account card flags a divergence.
+  openingBalance Float?
+  closingBalance Float?
+  statementStart DateTime?
+  statementEnd   DateTime?
   createdAt    DateTime      @default(now())
   transactions Transaction[]
 
   @@index([userId])
+  @@index([accountId])
 }

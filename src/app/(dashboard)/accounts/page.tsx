@@ -49,7 +49,15 @@ interface Account {
   institution: string | null;
   lastFour: string | null;
   isJoint: boolean;
+  openingBalance: number | null;
+  openingBalanceDate: string | null;
   computedBalance: number;
+  reconciledBalance: number | null;
+  latestStatement: {
+    fileName: string;
+    closingBalance: number;
+    statementEnd: string;
+  } | null;
   owner: "me" | "partner";
   _count: { transactions: number };
 }
@@ -69,6 +77,8 @@ export default function AccountsPage() {
     institution: "",
     lastFour: "",
     isJoint: false,
+    openingBalance: "",
+    openingBalanceDate: "",
   });
 
   async function fetchAccounts() {
@@ -87,7 +97,15 @@ export default function AccountsPage() {
 
   function openAdd() {
     setEditingAccount(null);
-    setForm({ name: "", type: "CHECKING", institution: "", lastFour: "", isJoint: false });
+    setForm({
+      name: "",
+      type: "CHECKING",
+      institution: "",
+      lastFour: "",
+      isJoint: false,
+      openingBalance: "",
+      openingBalanceDate: "",
+    });
     setShowDialog(true);
   }
 
@@ -99,6 +117,8 @@ export default function AccountsPage() {
       institution: account.institution ?? "",
       lastFour: account.lastFour ?? "",
       isJoint: account.isJoint,
+      openingBalance: account.openingBalance != null ? String(account.openingBalance) : "",
+      openingBalanceDate: account.openingBalanceDate ? account.openingBalanceDate.slice(0, 10) : "",
     });
     setShowDialog(true);
   }
@@ -262,6 +282,35 @@ export default function AccountsPage() {
                       <ArrowRight className="w-3 h-3" />
                     </Link>
                   </div>
+                  {/* Reconciliation chip — only visible when we have a statement reference */}
+                  {account.reconciledBalance !== null && account.latestStatement && (() => {
+                    const diff = account.computedBalance - account.reconciledBalance;
+                    const aligned = Math.abs(diff) <= 0.01;
+                    return (
+                      <div
+                        className={`mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between gap-2 text-xs ${
+                          aligned ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                        }`}
+                        title={`Statement "${account.latestStatement.fileName}" closed at ${formatCurrency(
+                          account.latestStatement.closingBalance,
+                        )} on ${new Date(account.latestStatement.statementEnd).toLocaleDateString()}`}
+                      >
+                        <span className="font-medium">
+                          {aligned ? "✓ Matches statement" : `⚠ Off by ${formatCurrency(Math.abs(diff))}`}
+                        </span>
+                        <span className="text-gray-400 dark:text-gray-500 tabular-nums">
+                          Statement: {formatCurrency(account.latestStatement.closingBalance)}
+                        </span>
+                      </div>
+                    );
+                  })()}
+                  {/* Manual anchor indicator — dim hint when user has set an opening balance */}
+                  {account.reconciledBalance === null && account.openingBalance != null && account.openingBalanceDate && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-400 dark:text-gray-500">
+                      Anchor: {formatCurrency(account.openingBalance)} on{" "}
+                      {new Date(account.openingBalanceDate).toLocaleDateString()}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
@@ -324,6 +373,33 @@ export default function AccountsPage() {
                 className="h-4 w-4 rounded border-gray-300"
               />
               <Label htmlFor="isJoint" className="cursor-pointer">Joint account (shared with partner)</Label>
+            </div>
+            <div className="pt-3 border-t border-gray-100 dark:border-gray-800 space-y-3">
+              <div>
+                <Label>Opening balance <span className="text-gray-400 dark:text-gray-500">(optional)</span></Label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 mb-2">
+                  Set this if your imported statements don&apos;t go back to the account&apos;s opening — the balance shown will include this anchor.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm">$</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={form.openingBalance}
+                      onChange={(e) => setForm((f) => ({ ...f, openingBalance: e.target.value }))}
+                      placeholder="0.00"
+                      className="pl-7"
+                    />
+                  </div>
+                  <Input
+                    type="date"
+                    value={form.openingBalanceDate}
+                    onChange={(e) => setForm((f) => ({ ...f, openingBalanceDate: e.target.value }))}
+                    placeholder="As of date"
+                  />
+                </div>
+              </div>
             </div>
           </div>
           <DialogFooter>

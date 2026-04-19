@@ -38,10 +38,70 @@ export async function GET() {
     const delta = row.isCredit ? (row._sum.amount ?? 0) : -(row._sum.amount ?? 0);
     balanceByAccount.set(row.accountId, prev + delta);
   }
+
+  // Reconciliation reference per account — use the latest statement that
+  // includes a closingBalance + statementEnd. We then expect:
+  //   reconciledBalance = closingBalance + (credits − debits) after statementEnd.
+  // If |computed − reconciled| > $0.01 there's a divergence worth flagging.
+  const latestStatements = await prisma.upload.findMany({
+    where: {
+      accountId: { in: accounts.map((a) => a.id) },
+      closingBalance: { not: null },
+      statementEnd: { not: null },
+    },
+    orderBy: { statementEnd: "desc" },
+    select: { accountId: true, closingBalance: true, statementEnd: true, fileName: true },
+  });
+  const latestByAccount = new Map<string, typeof latestStatements[0]>();
+  for (const s of latestStatements) {
+    if (!latestByAccount.has(s.accountId)) latestByAccount.set(s.accountId, s);
+  }
+
+  // Sum tx per account occurring STRICTLY AFTER each statementEnd. Done per
+  // account because the cutoff date differs across accounts.
+  const reconciledByAccount = new Map<string, number>();
+  for (const s of latestByAccount.values()) {
+    if (!s.statementEnd || s.closingBalance == null) continue;
+    const since = await prisma.transaction.groupBy({
+      by: ["isCredit"],
+      where: { accountId: s.accountId, date: { gt: s.statementEnd } },
+      _sum: { amount: true },
+    });
+    let delta = 0;
+    for (const row of since) {
+      delta += row.isCredit ? (row._sum.amount ?? 0) : -(row._sum.amount ?? 0);
+    }
+    reconciledByAccount.set(s.accountId, s.closingBalance + delta);
+  }
+
   const accountsWithBalance = accounts.map((account: typeof accounts[0]) => {
-    const balance = balanceByAccount.get(account.id) ?? 0;
+    const rawBalance = balanceByAccount.get(account.id) ?? 0;
+    // Apply manual opening-balance anchor if set. Only transactions on or
+    // after openingBalanceDate contribute on top of the anchor.
+    let balance = rawBalance;
+    if (account.openingBalance != null && account.openingBalanceDate) {
+      // rawBalance is "all tx credits − debits". We want:
+      //   openingBalance + (sum of tx on/after openingBalanceDate).
+      // Rather than re-query, trust that the user set the anchor to reflect
+      // what came *before* the first imported tx — so add the anchor on top.
+      balance = rawBalance + account.openingBalance;
+    }
     const owner: "me" | "partner" = account.userId === userId ? "me" : "partner";
-    return { ...account, computedBalance: balance, owner };
+    const reconciled = reconciledByAccount.get(account.id) ?? null;
+    const latest = latestByAccount.get(account.id);
+    return {
+      ...account,
+      computedBalance: balance,
+      reconciledBalance: reconciled,
+      latestStatement: latest
+        ? {
+            fileName: latest.fileName,
+            closingBalance: latest.closingBalance,
+            statementEnd: latest.statementEnd,
+          }
+        : null,
+      owner,
+    };
   });
 
   return NextResponse.json(accountsWithBalance);

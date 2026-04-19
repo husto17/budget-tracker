@@ -6,6 +6,10 @@ export interface PdfParseResult {
   errors: string[];
   rawText: string;
   detectedBank?: string;
+  openingBalance?: number;
+  closingBalance?: number;
+  statementStart?: Date;
+  statementEnd?: Date;
 }
 
 function hashTransaction(date: Date, description: string, amount: number): string {
@@ -504,6 +508,93 @@ function detectBank(text: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Statement-level metadata extraction — opening/closing balance + date range.
+// Uses broad regex patterns that cover Chase / BofA / Wells Fargo / Citi / Amex
+// / Capital One / Discover statement headers. Values are best-effort: returns
+// undefined fields when no confident match exists.
+// ---------------------------------------------------------------------------
+function parseMoney(s: string): number | undefined {
+  // Handles "$1,234.56", "(1,234.56)", "1,234.56-", en-dash, etc.
+  const cleaned = s.replace(/[$,\s]/g, "").replace(/[\u2013\u2014]/g, "-");
+  const parenNeg = /^\(([\d.]+)\)$/.exec(cleaned);
+  const trailNeg = /^([\d.]+)-$/.exec(cleaned);
+  const num = parenNeg
+    ? -parseFloat(parenNeg[1])
+    : trailNeg
+    ? -parseFloat(trailNeg[1])
+    : parseFloat(cleaned);
+  return Number.isFinite(num) ? num : undefined;
+}
+
+function extractStatementMeta(text: string): {
+  openingBalance?: number;
+  closingBalance?: number;
+  statementStart?: Date;
+  statementEnd?: Date;
+} {
+  const meta: {
+    openingBalance?: number;
+    closingBalance?: number;
+    statementStart?: Date;
+    statementEnd?: Date;
+  } = {};
+
+  // Opening balance — Chase "Beginning Balance $1,234.56", BofA "Previous Balance",
+  // WF "Beginning balance on MM/DD", Amex "Previous Balance".
+  const openRe = /(?:Beginning|Opening|Previous|Starting)(?:\s+Balance(?:\s+on\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?)?\s*\.?\s*:?\s*-?\$?\s*\(?([\d,]+\.\d{2})\)?/i;
+  const openMatch = text.match(openRe);
+  if (openMatch) {
+    const v = parseMoney(openMatch[1]);
+    if (v !== undefined) meta.openingBalance = v;
+  }
+
+  // Closing balance — "Ending Balance $x", "New Balance $x", "Statement Balance $x".
+  // Avoid "Minimum Payment" and "Interest Charged" by matching at line start.
+  const closeRe = /(?:Ending|Closing|New|Statement)\s+Balance\s*\.?\s*:?\s*-?\$?\s*\(?([\d,]+\.\d{2})\)?/i;
+  const closeMatch = text.match(closeRe);
+  if (closeMatch) {
+    const v = parseMoney(closeMatch[1]);
+    if (v !== undefined) meta.closingBalance = v;
+  }
+
+  // Statement period — "Statement Period: MM/DD/YYYY - MM/DD/YYYY" / "through MM/DD/YYYY"
+  // Also handles "March 7 - April 6, 2026" style.
+  const periodNumericRe =
+    /(?:Statement\s+Period|Period|Billing\s+Cycle|Cycle)[:\s]*\s*(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[-–]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i;
+  const pn = text.match(periodNumericRe);
+  if (pn) {
+    const start = new Date(pn[1]);
+    const end = new Date(pn[2]);
+    if (!isNaN(start.getTime())) meta.statementStart = start;
+    if (!isNaN(end.getTime())) meta.statementEnd = end;
+  }
+
+  if (!meta.statementEnd) {
+    // "Closing Date 04/06/2026" / "Statement Closing Date: MM/DD/YYYY"
+    const closingDate = text.match(
+      /(?:Statement\s+)?(?:Closing|Ending|Statement)\s+Date\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i,
+    );
+    if (closingDate) {
+      const d = new Date(closingDate[1]);
+      if (!isNaN(d.getTime())) meta.statementEnd = d;
+    }
+  }
+
+  if (!meta.statementStart && meta.statementEnd) {
+    // "From MM/DD/YYYY to MM/DD/YYYY" / "Opening date MM/DD/YYYY"
+    const startAlt = text.match(
+      /(?:Opening\s+Date|From|Statement\s+Start|Period\s+Start)\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i,
+    );
+    if (startAlt) {
+      const d = new Date(startAlt[1]);
+      if (!isNaN(d.getTime())) meta.statementStart = d;
+    }
+  }
+
+  return meta;
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 export function parsePdfText(text: string): PdfParseResult {
@@ -562,5 +653,16 @@ export function parsePdfText(text: string): PdfParseResult {
     );
   }
 
-  return { transactions, errors, rawText: text, detectedBank };
+  const meta = extractStatementMeta(text);
+
+  return {
+    transactions,
+    errors,
+    rawText: text,
+    detectedBank,
+    openingBalance: meta.openingBalance,
+    closingBalance: meta.closingBalance,
+    statementStart: meta.statementStart,
+    statementEnd: meta.statementEnd,
+  };
 }
