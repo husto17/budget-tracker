@@ -40,6 +40,7 @@ const navGroups: Array<{
       { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
       { href: "/insights", icon: TrendingUp, label: "Insights" },
       { href: "/compare", icon: ArrowLeftRight, label: "Compare" },
+      { href: "/cashflow", icon: CalendarDays, label: "Cash Flow" },
     ],
   },
   {
@@ -52,10 +53,9 @@ const navGroups: Array<{
   },
   {
     items: [
-      { href: "/cashflow", icon: CalendarDays, label: "Cash Flow" },
+      { href: "/accounts", icon: Wallet, label: "Accounts" },
       { href: "/goals", icon: Target, label: "Goals" },
       { href: "/categories", icon: Tags, label: "Rules" },
-      { href: "/accounts", icon: Wallet, label: "Accounts" },
     ],
   },
   {

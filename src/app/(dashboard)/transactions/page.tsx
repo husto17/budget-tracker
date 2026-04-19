@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment, Suspense } from "react";
+import { format } from "date-fns";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowUpDown, Plus, Brain } from "lucide-react";
@@ -43,6 +44,9 @@ function TransactionsContent() {
   const initialSearch = searchParams.get("search") ?? "";
   const initialFrom = searchParams.get("from") ?? "";
   const initialTo = searchParams.get("to") ?? "";
+  // Default to current month when no date range is specified via URL.
+  const defaultFrom = initialFrom || format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), "yyyy-MM-dd");
+  const defaultTo = initialTo || format(new Date(), "yyyy-MM-dd");
   const [filters, setFilters] = useState<FilterState>({
     searchInput: initialSearch,
     search: initialSearch,
@@ -51,8 +55,8 @@ function TransactionsContent() {
     filterUncategorized: false,
     statusFilter:
       initialStatus === "pending" ? "pending" : initialStatus === "posted" ? "posted" : "all",
-    from: initialFrom,
-    to: initialTo,
+    from: defaultFrom,
+    to: defaultTo,
     sort: "desc",
   });
 

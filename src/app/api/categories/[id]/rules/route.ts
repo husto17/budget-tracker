@@ -29,13 +29,14 @@ export async function POST(
     }
   }
 
+  const trimmed = pattern.trim();
+  const existing = await prisma.categoryRule.findFirst({
+    where: { userId: session.user.id, categoryId: id, pattern: { equals: trimmed, mode: "insensitive" }, isRegex: isRegex ?? false },
+  });
+  if (existing) return NextResponse.json(existing);
+
   const rule = await prisma.categoryRule.create({
-    data: {
-      userId: session.user.id,
-      categoryId: id,
-      pattern: pattern.trim(),
-      isRegex: isRegex ?? false,
-    },
+    data: { userId: session.user.id, categoryId: id, pattern: trimmed, isRegex: isRegex ?? false },
   });
 
   return NextResponse.json(rule);

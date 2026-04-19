@@ -34,20 +34,21 @@ export const DEFAULT_CATEGORIES = [
 export const DEFAULT_RULES: Record<string, string[]> = {
   Groceries: [
     "TRADER JOE", "WHOLE FOODS", "ALDI", "KROGER", "SAFEWAY",
-    "JEWEL OSCO", "INSTACART",
+    "JEWEL OSCO", "INSTACART", "COSTCO", "WALMART GROCERY",
   ],
   "Dining Out": [
     "STARBUCKS", "CHIPOTLE", "DOORDASH", "GRUBHUB", "UBER EATS",
     "PIZZERIA", "RESTAURANT", "COFFEE", "CAFE",
   ],
   Transport: [
-    "UBER", "LYFT", "CURB", "AMTRAK", "PARKING", "TOLL", "METRA", "CTA",
+    "UBER", "LYFT", "CURB", "PARKING", "TOLL", "METRA", "CTA",
+    "EXXON", "BP", "SUNOCO", "SHELL", "CHEVRON", "MOBIL",
   ],
   Travel: [
     "AIRLINES", "AIR CANADA", "BRITISH AIR", "DELTA AIR", "UNITED AIR",
-    "AMERICAN AIR", "JETBLUE", "SOUTHWEST", "MARRIOTT", "HILTON",
-    "HYATT", "AIRBNB", "BOOKING.COM", "EXPEDIA", "HOTELS.COM",
-    "HERTZ", "ENTERPRISE RENT", "AVIS",
+    "AMERICAN AIR", "JETBLUE", "SOUTHWEST", "SPIRIT AIR", "AMTRAK",
+    "MARRIOTT", "HILTON", "HYATT", "AIRBNB", "BOOKING.COM", "EXPEDIA",
+    "HOTELS.COM", "HERTZ", "ENTERPRISE RENT", "AVIS",
   ],
   Utilities: [
     "COMED", "PEOPLES GAS", "XFINITY", "COMCAST", "VERIZON", "T-MOBILE",
@@ -61,7 +62,7 @@ export const DEFAULT_RULES: Record<string, string[]> = {
     "NETFLIX", "HULU", "STUBHUB", "TICKETMASTER", "THEATRE", "CINEMA",
   ],
   Shopping: [
-    "AMAZON", "TARGET", "WALMART", "COSTCO", "USPS", "FEDEX", "UPS ",
+    "AMAZON", "TARGET", "WALMART", "USPS", "FEDEX", "UPS ",
     "BEST BUY", "ETSY",
   ],
   Clothing: [

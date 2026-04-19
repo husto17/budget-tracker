@@ -24,10 +24,36 @@ export async function GET(request: Request) {
 
   const householdAccountIds = await getHouseholdAccountIds(session.user.id);
 
+  // Collect all user IDs in the household once — used for category resolution.
+  const householdUserIds = [...new Set(
+    (await prisma.account.findMany({
+      where: { id: { in: householdAccountIds } },
+      select: { userId: true },
+    })).map((a) => a.userId)
+  )];
+
   // Parse the search string for operators (amount:>100, category:dining, …).
   // The text remainder still goes through the normal fulltext description/
   // merchant match.
   const parsed = parseSearch(search ?? "");
+
+  // When a categoryId is supplied via the dropdown, resolve it to ALL same-named
+  // categories across the household. Without this, transactions on a partner's
+  // account (categorized with the partner's category UUID) are invisible when
+  // the logged-in user filters by their own UUID for the same category name.
+  let resolvedCategoryIds: string[] | null = null;
+  if (categoryId) {
+    const cat = await prisma.category.findUnique({ where: { id: categoryId }, select: { name: true } });
+    if (cat) {
+      const matching = await prisma.category.findMany({
+        where: { userId: { in: householdUserIds }, name: { equals: cat.name, mode: "insensitive" } },
+        select: { id: true },
+      });
+      resolvedCategoryIds = matching.map((c) => c.id);
+    } else {
+      resolvedCategoryIds = [categoryId];
+    }
+  }
 
   // Resolve category/account operators to concrete IDs via case-insensitive
   // contains match against the user's own data.
@@ -35,10 +61,7 @@ export async function GET(request: Request) {
   if (parsed.categoryLike) {
     const cats = await prisma.category.findMany({
       where: {
-        userId: { in: (await prisma.account.findMany({
-          where: { id: { in: householdAccountIds } },
-          select: { userId: true },
-        })).map((a) => a.userId) },
+        userId: { in: householdUserIds },
         name: { contains: parsed.categoryLike, mode: "insensitive" },
       },
       select: { id: true },
@@ -87,8 +110,8 @@ export async function GET(request: Request) {
   const where = {
     accountId: accountIdFilter,
     deletedAt: null,
-    ...(categoryId
-      ? { categoryId }
+    ...(resolvedCategoryIds
+      ? { categoryId: { in: resolvedCategoryIds } }
       : operatorCategoryIds
       ? { categoryId: { in: operatorCategoryIds } }
       : {}),

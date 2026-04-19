@@ -113,7 +113,7 @@ export async function PATCH(
     try {
       const pattern = updated.merchant.trim();
       const existing = await prisma.categoryRule.findFirst({
-        where: { userId: session.user.id, pattern, isRegex: false },
+        where: { userId: session.user.id, pattern: { equals: pattern, mode: "insensitive" }, isRegex: false },
       });
       if (!existing) {
         const rule = await prisma.categoryRule.create({
