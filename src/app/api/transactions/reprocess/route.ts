@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds, getHouseholdCategoryOwnerId, mergeHouseholdCategories } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdCategoryOwnerId, getPartnerUserId } from "@/lib/household";
 import { normalizeMerchantHardcoded } from "@/lib/auto-categorize";
-import { ensureDefaultCategories } from "@/lib/default-categories";
+import { ensureDefaultCategories, CATEGORY_RENAMES } from "@/lib/default-categories";
 
 /**
  * Re-run merchant-name normalization on every transaction in the household,
@@ -17,18 +17,36 @@ export async function POST() {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = session.user.id;
-
-  // Merge partner categories into canonical owner, then seed defaults.
-  try {
-    await mergeHouseholdCategories(userId);
-  } catch (e) {
-    console.error("mergeHouseholdCategories failed", e);
-  }
   const ownerId = await getHouseholdCategoryOwnerId(userId);
-  try {
-    await ensureDefaultCategories(ownerId);
-  } catch (e) {
-    console.error("ensureDefaultCategories failed", e);
+  const partnerUserId = await getPartnerUserId(userId);
+  const householdUserIds = partnerUserId ? [ownerId, partnerUserId === ownerId ? userId : partnerUserId] : [ownerId];
+
+  // Apply default-category seeds and renames (e.g. Transportation→Transport)
+  // for every user in the household. Running for both ensures the rename lands
+  // regardless of which account still has the old name.
+  for (const uid of householdUserIds) {
+    try { await ensureDefaultCategories(uid); } catch (e) {
+      console.error("ensureDefaultCategories failed for", uid, e);
+    }
+  }
+
+  // Explicitly fix any remaining old-name → new-name category mismatches by
+  // moving transactions across household users. ensureDefaultCategories handles
+  // the rename within a single user; this handles the cross-user case where
+  // one user's transactions point to the partner's old category.
+  for (const rename of CATEGORY_RENAMES) {
+    for (const uid of householdUserIds) {
+      const fromCat = await prisma.category.findFirst({ where: { userId: uid, name: rename.from }, select: { id: true } });
+      if (!fromCat) continue;
+      const toCat = await prisma.category.findFirst({ where: { userId: uid, name: rename.to }, select: { id: true } });
+      if (toCat) {
+        await prisma.transaction.updateMany({ where: { categoryId: fromCat.id }, data: { categoryId: toCat.id } });
+        await prisma.categoryRule.updateMany({ where: { categoryId: fromCat.id }, data: { categoryId: toCat.id } });
+        await prisma.category.delete({ where: { id: fromCat.id } });
+      } else {
+        await prisma.category.update({ where: { id: fromCat.id }, data: { name: rename.to } });
+      }
+    }
   }
 
   const accountIds = await getHouseholdAccountIds(userId);
