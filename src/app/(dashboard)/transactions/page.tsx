@@ -44,62 +44,9 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson, FetchError, formatCurrency } from "@/lib/fetcher";
 import { TransactionDrawer } from "./transaction-drawer";
-
-interface Category {
-  id: string;
-  name: string;
-  color: string;
-  icon?: string | null;
-}
-
-interface Account {
-  id: string;
-  name: string;
-  type: string;
-}
-
-interface TransactionSplit {
-  id: string;
-  amount: number;
-  note: string | null;
-  categoryId: string | null;
-  category: Category | null;
-}
-
-interface ReimbursementLink {
-  id: string;
-  amount: number;
-  note: string | null;
-  reimbursementTx?: { id: string; date: string | Date; merchant: string | null; description: string; amount: number };
-  originalTx?: { id: string; date: string | Date; merchant: string | null; description: string; amount: number };
-}
-
-interface Transaction {
-  id: string;
-  date: string;
-  description: string;
-  merchant: string | null;
-  amount: number;
-  isCredit: boolean;
-  isPending: boolean;
-  isReconciled: boolean;
-  source: string;
-  category: Category | null;
-  account: Account;
-  notes: string | null;
-  transferPairId: string | null;
-  transferPair: { account: { id: string; name: string } } | null;
-  splits: TransactionSplit[];
-  reimbursementsReceived?: ReimbursementLink[];
-  reimbursementsApplied?: ReimbursementLink[];
-}
-
-function netOfReimbursements(tx: Transaction): { net: number; offset: number } {
-  const offset = tx.isCredit
-    ? (tx.reimbursementsApplied ?? []).reduce((s, r) => s + r.amount, 0)
-    : (tx.reimbursementsReceived ?? []).reduce((s, r) => s + r.amount, 0);
-  return { net: Math.max(tx.amount - offset, 0), offset };
-}
+import type { Category, Account, Transaction } from "./types";
+import { netOfReimbursements } from "./types";
+import { exportTransactionsCsv } from "./export-csv";
 
 function TransactionsContent() {
   const searchParams = useSearchParams();
@@ -665,60 +612,16 @@ function TransactionsContent() {
   async function exportCsv() {
     setExporting(true);
     try {
-      // Pull the entire filtered set by paging through the API.
-      const params = new URLSearchParams({
-        limit: "500",
-        ...(filterAccount !== "all" ? { accountId: filterAccount } : {}),
-        ...(filterCategory !== "all" ? { categoryId: filterCategory } : {}),
-        ...(filterUncategorized ? { uncategorized: "true" } : {}),
-        ...(search ? { search } : {}),
-        ...(from ? { from } : {}),
-        ...(to ? { to } : {}),
-        ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+      const count = await exportTransactionsCsv({
+        accountId: filterAccount,
+        categoryId: filterCategory,
+        uncategorized: filterUncategorized,
+        search,
+        from,
+        to,
+        status: statusFilter,
       });
-      const rows: Transaction[] = [];
-      let p = 1;
-      const cap = 20; // hard cap → 10,000 rows
-      while (p <= cap) {
-        params.set("page", String(p));
-        const data = await fetchJson<{ transactions: Transaction[]; total: number }>(
-          `/api/transactions?${params}`,
-        );
-        rows.push(...data.transactions);
-        if (rows.length >= data.total || data.transactions.length === 0) break;
-        p++;
-      }
-      const esc = (v: string | number | null | undefined) => {
-        if (v == null) return "";
-        const s = String(v);
-        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-      };
-      const header = ["Date", "Merchant", "Amount", "Type", "Category", "Account", "Status", "Notes"];
-      const csv = [
-        header.join(","),
-        ...rows.map((t) =>
-          [
-            format(new Date(t.date), "yyyy-MM-dd"),
-            esc(t.description),
-            t.isCredit ? t.amount : -t.amount,
-            t.isCredit ? "Credit" : "Debit",
-            esc(t.category?.name ?? ""),
-            esc(t.account?.name ?? ""),
-            t.isPending ? "Pending" : "Posted",
-            esc(t.notes ?? ""),
-          ].join(","),
-        ),
-      ].join("\n");
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `transactions-${format(new Date(), "yyyy-MM-dd")}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast.success(`Exported ${rows.length} transactions`);
+      toast.success(`Exported ${count} transactions`);
     } catch (e) {
       toast.error(e instanceof FetchError ? e.message : "Couldn't export");
     } finally {
