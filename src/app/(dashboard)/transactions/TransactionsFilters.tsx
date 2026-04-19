@@ -226,46 +226,59 @@ export function TransactionsFilters({
             { label: "7d", days: 7 },
             { label: "30d", days: 30 },
             { label: "90d", days: 90 },
-          ] as const).map((chip) => (
-            <button
-              key={chip.label}
-              type="button"
-              onClick={() => {
-                const today = new Date();
-                const start = subDays(today, chip.days);
-                onFilterChange({ from: format(start, "yyyy-MM-dd"), to: format(today, "yyyy-MM-dd") });
-                onResetPage();
-              }}
-              className="px-2.5 py-1 text-xs rounded-full font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-            >
-              {chip.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => {
-              const now = new Date();
-              const start = new Date(now.getFullYear(), now.getMonth(), 1);
-              onFilterChange({ from: format(start, "yyyy-MM-dd"), to: format(now, "yyyy-MM-dd") });
-              onResetPage();
-            }}
-            className="px-2.5 py-1 text-xs rounded-full font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-          >
-            This month
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const now = new Date();
-              const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-              const end = new Date(now.getFullYear(), now.getMonth(), 0);
-              onFilterChange({ from: format(start, "yyyy-MM-dd"), to: format(end, "yyyy-MM-dd") });
-              onResetPage();
-            }}
-            className="px-2.5 py-1 text-xs rounded-full font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-          >
-            Last month
-          </button>
+          ] as const).map((chip) => {
+            const today = new Date();
+            const start = subDays(today, chip.days);
+            const active = filters.from === format(start, "yyyy-MM-dd") && filters.to === format(today, "yyyy-MM-dd");
+            return (
+              <button
+                key={chip.label}
+                type="button"
+                onClick={() => {
+                  onFilterChange({ from: format(start, "yyyy-MM-dd"), to: format(today, "yyyy-MM-dd") });
+                  onResetPage();
+                }}
+                className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${active ? "bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"}`}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
+          {(() => {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), now.getMonth(), 1);
+            const active = filters.from === format(start, "yyyy-MM-dd") && filters.to === format(now, "yyyy-MM-dd");
+            return (
+              <button
+                type="button"
+                onClick={() => {
+                  onFilterChange({ from: format(start, "yyyy-MM-dd"), to: format(now, "yyyy-MM-dd") });
+                  onResetPage();
+                }}
+                className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${active ? "bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"}`}
+              >
+                This month
+              </button>
+            );
+          })()}
+          {(() => {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const end = new Date(now.getFullYear(), now.getMonth(), 0);
+            const active = filters.from === format(start, "yyyy-MM-dd") && filters.to === format(end, "yyyy-MM-dd");
+            return (
+              <button
+                type="button"
+                onClick={() => {
+                  onFilterChange({ from: format(start, "yyyy-MM-dd"), to: format(end, "yyyy-MM-dd") });
+                  onResetPage();
+                }}
+                className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${active ? "bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"}`}
+              >
+                Last month
+              </button>
+            );
+          })()}
         </div>
         {hasActiveFilter && (
           <Button
