@@ -142,19 +142,21 @@ export async function GET(request: Request) {
     dates: Date[];
     categoryId: string | null;
     categoryName: string | null;
+    manualType: string | null; // most recent manual override for this merchant
   }
   const merchantData: Record<string, MerchantEntry> = {};
-  for (const tx of transactions) {
+  for (const tx of transactionsRaw) { // use raw so we can read recurringType before reimbursement netting
     const name = tx.merchant ?? tx.description;
     if (!merchantData[name]) {
-      merchantData[name] = { amounts: [], dates: [], categoryId: tx.categoryId, categoryName: tx.category?.name ?? null };
+      merchantData[name] = { amounts: [], dates: [], categoryId: tx.categoryId, categoryName: tx.category?.name ?? null, manualType: null };
     }
     merchantData[name].amounts.push(tx.amount);
     merchantData[name].dates.push(tx.date);
-    // Keep category from the most recent tx
+    // Keep category + manual type from the most recent tx
     if (tx.date >= (merchantData[name].dates[merchantData[name].dates.length - 1] ?? tx.date)) {
       merchantData[name].categoryId = tx.categoryId;
       merchantData[name].categoryName = tx.category?.name ?? null;
+      if (tx.recurringType) merchantData[name].manualType = tx.recurringType;
     }
   }
 
@@ -201,6 +203,11 @@ export async function GET(request: Request) {
 
   const subscriptions = Object.entries(merchantData)
     .filter(([, data]) => {
+      // Manual "none" = user explicitly said this is not a subscription/bill
+      if (data.manualType === "none") return false;
+      // Manual subscription/bill tag always shows regardless of auto-detection
+      if (data.manualType === "subscription" || data.manualType === "bill") return true;
+      // Auto-detection: need at least 3 occurrences
       if (data.dates.length < 3) return false;
       // Exclude shopping/dining categories — variable purchases, not bills
       if (isShoppingCategory(data.categoryName)) return false;
@@ -219,10 +226,14 @@ export async function GET(request: Request) {
       const nextExpectedDate = new Date(lastDate.getTime() + intervalDays * 86_400_000);
       const daysUntilNext = Math.round((nextExpectedDate.getTime() - todayMs) / 86_400_000);
       const monthlyEquivalent = cadence ? avgAmount * MONTHLY_FACTOR[cadence] : avgAmount;
-      // Use median of consistent amounts for variance so outliers don't skew type
+      // Manual tag wins; otherwise compute from variance
       const consistent = data.amounts.filter((a) => Math.abs(a - avgAmount) / Math.max(avgAmount, 1) <= 0.25);
-      const variance = consistent.reduce((s, a) => s + Math.abs(a - avgAmount), 0) / consistent.length / Math.max(avgAmount, 1);
-      const type: "subscription" | "bill" = variance <= 0.05 ? "subscription" : "bill";
+      const variance = consistent.length > 0
+        ? consistent.reduce((s, a) => s + Math.abs(a - avgAmount), 0) / consistent.length / Math.max(avgAmount, 1)
+        : 1;
+      const type: "subscription" | "bill" = data.manualType === "subscription" ? "subscription"
+        : data.manualType === "bill" ? "bill"
+        : variance <= 0.05 ? "subscription" : "bill";
       return {
         merchant,
         amount: Math.round(avgAmount * 100) / 100,

@@ -152,6 +152,8 @@ model Transaction {
   // Recurring detection
   isRecurring         Boolean   @default(false)
   recurringGroupId    String?
+  // Manual override: "subscription" | "bill" | "none" | null (auto-detect)
+  recurringType       String?
 
   // Screenshot / pending / reconciliation
   isPending           Boolean   @default(false)

@@ -71,6 +71,7 @@ export async function PATCH(
             ? ((data.payerUserId as string) || null)
             : undefined,
         isExcluded: data.isExcluded !== undefined ? Boolean(data.isExcluded) : undefined,
+        recurringType: data.recurringType !== undefined ? ((data.recurringType as string) || null) : undefined,
       },
     });
   } catch (err) {

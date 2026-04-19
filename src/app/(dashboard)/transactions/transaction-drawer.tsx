@@ -24,7 +24,7 @@ import { MerchantLogo } from "@/components/ui/merchant-logo";
 import { CategoryIcon } from "@/components/ui/category-icon";
 import { toast } from "sonner";
 import { fetchJson, FetchError, formatCurrency } from "@/lib/fetcher";
-import { Scissors, Link2, Unlink, Trash2, ArrowRightLeft, HandCoins, Plus, X } from "lucide-react";
+import { Scissors, Link2, Unlink, Trash2, ArrowRightLeft, HandCoins, Plus, X, Repeat } from "lucide-react";
 
 interface Category {
   id: string;
@@ -67,6 +67,7 @@ interface Transaction {
   reimbursementsReceived?: ReimbursementLink[];
   reimbursementsApplied?: ReimbursementLink[];
   payerUserId?: string | null;
+  recurringType?: string | null;
   tags?: Array<{ tag: Tag }>;
 }
 
@@ -114,6 +115,7 @@ export function TransactionDrawer({
   const [txTags, setTxTags] = useState<Tag[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [isExcluded, setIsExcluded] = useState(false);
+  const [recurringType, setRecurringType] = useState<string | null>(null);
 
   useEffect(() => {
     if (cachedMembers) return;
@@ -143,6 +145,7 @@ export function TransactionDrawer({
     });
     setLearn(true);
     setIsExcluded(tx.isExcluded ?? false);
+    setRecurringType(tx.recurringType ?? null);
     setTxTags((tx.tags ?? []).map((t) => t.tag));
     setTagInput("");
   }, [tx?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -160,6 +163,23 @@ export function TransactionDrawer({
       onChanged();
     } catch {
       setIsExcluded(!next);
+      toast.error("Failed to update");
+    }
+  }
+
+  async function setRecurringTypeRemote(next: string | null) {
+    if (!tx) return;
+    const prev = recurringType;
+    setRecurringType(next);
+    try {
+      await fetchJson(`/api/transactions/${tx.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recurringType: next }),
+      });
+      onChanged();
+    } catch {
+      setRecurringType(prev);
       toast.error("Failed to update");
     }
   }
@@ -199,6 +219,13 @@ export function TransactionDrawer({
   const isOpen = !!tx;
   const hasSplits = tx.splits.length >= 2;
 
+  // If this tx's category isn't in the user's list (e.g. partner's category),
+  // inject it so the dropdown shows the correct value and lets the user change it.
+  const effectiveCategories =
+    tx.category && !categories.find((c) => c.id === tx.category!.id)
+      ? [tx.category, ...categories]
+      : categories;
+
   async function handleSave() {
     if (!tx) return;
     setSaving(true);
@@ -232,7 +259,7 @@ export function TransactionDrawer({
   const chosenCategoryName =
     form.categoryId === "none"
       ? null
-      : categories.find((c) => c.id === form.categoryId)?.name ?? null;
+      : effectiveCategories.find((c) => c.id === form.categoryId)?.name ?? null;
   const autoSkipped = chosenCategoryName
     ? ["Gifts", "Other", "Transfers"].includes(chosenCategoryName)
     : false;
@@ -351,13 +378,13 @@ export function TransactionDrawer({
                     {form.categoryId === "none" ? (
                       <span className="text-gray-400 dark:text-gray-500">— Uncategorized</span>
                     ) : (
-                      categories.find((c) => c.id === form.categoryId)?.name ?? "—"
+                      effectiveCategories.find((c) => c.id === form.categoryId)?.name ?? "—"
                     )}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">— None</SelectItem>
-                  {categories.map((c) => (
+                  {effectiveCategories.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       <div className="flex items-center gap-2">
                         <CategoryIcon icon={c.icon} color={c.color} size="sm" />
@@ -468,6 +495,45 @@ export function TransactionDrawer({
                 className="min-h-[70px]"
               />
             </div>
+
+            {/* Recurring tag — only for debits */}
+            {!tx.isCredit && (
+              <div className="space-y-1.5">
+                <Label className="text-xs flex items-center gap-1.5">
+                  <Repeat className="w-3 h-3" /> Recurring type
+                </Label>
+                <div className="flex gap-1.5 flex-wrap">
+                  {([
+                    { value: null, label: "Auto-detect" },
+                    { value: "subscription", label: "Subscription" },
+                    { value: "bill", label: "Recurring Bill" },
+                    { value: "none", label: "Not recurring" },
+                  ] as const).map(({ value, label }) => (
+                    <button
+                      key={String(value)}
+                      type="button"
+                      onClick={() => setRecurringTypeRemote(value)}
+                      className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-colors ${
+                        recurringType === value
+                          ? value === "subscription"
+                            ? "bg-indigo-600 text-white border-indigo-600"
+                            : value === "bill"
+                            ? "bg-amber-500 text-white border-amber-500"
+                            : value === "none"
+                            ? "bg-gray-700 text-white border-gray-700"
+                            : "bg-gray-900 text-white border-gray-900 dark:bg-gray-100 dark:text-gray-900"
+                          : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                  Overrides automatic detection on the Insights page.
+                </p>
+              </div>
+            )}
 
             {/* Payer — only relevant on joint accounts with at least two
                 household members, and not on transfers (which are internal
