@@ -19,9 +19,17 @@ export async function POST() {
   const userId = session.user.id;
 
   // Merge partner categories into canonical owner, then seed defaults.
-  await mergeHouseholdCategories(userId);
+  try {
+    await mergeHouseholdCategories(userId);
+  } catch (e) {
+    console.error("mergeHouseholdCategories failed", e);
+  }
   const ownerId = await getHouseholdCategoryOwnerId(userId);
-  await ensureDefaultCategories(ownerId);
+  try {
+    await ensureDefaultCategories(ownerId);
+  } catch (e) {
+    console.error("ensureDefaultCategories failed", e);
+  }
 
   const accountIds = await getHouseholdAccountIds(userId);
 

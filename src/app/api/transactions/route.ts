@@ -3,9 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getHouseholdAccountIds, getPartnerUserId, mergeHouseholdCategories, getHouseholdCategoryOwnerId } from "@/lib/household";
-import { ensureDefaultCategories } from "@/lib/default-categories";
+import { ensureDefaultCategories, CATEGORY_RENAMES } from "@/lib/default-categories";
 import { parseSearch } from "@/lib/search-parser";
-import { CATEGORY_RENAMES } from "@/lib/default-categories";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
