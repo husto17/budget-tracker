@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getPartnerUserId } from "@/lib/household";
+import { getPartnerUserId, getHouseholdId } from "@/lib/household";
 
 type Cadence = "weekly" | "biweekly" | "monthly" | "quarterly" | "annual";
 
@@ -52,8 +52,12 @@ export async function GET(request: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = session.user.id;
-  const partnerUserId = await getPartnerUserId(userId);
+  const [partnerUserId, householdId] = await Promise.all([
+    getPartnerUserId(userId),
+    getHouseholdId(userId),
+  ]);
   const userIds = partnerUserId ? [userId, partnerUserId] : [userId];
+  const categoryOwnerWhere = householdId ? { householdId } : { userId };
 
   const url = new URL(request.url);
   const now = new Date();
@@ -266,7 +270,7 @@ export async function GET(request: Request) {
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
   const variableCats = await prisma.category.findMany({
-    where: { userId: { in: userIds }, name: { in: Array.from(VARIABLE_CATEGORIES) } },
+    where: { ...categoryOwnerWhere, name: { in: Array.from(VARIABLE_CATEGORIES) } },
     select: { id: true, name: true, color: true },
   });
   const variableCatIds = variableCats.map((c) => c.id);
