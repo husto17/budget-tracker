@@ -116,6 +116,8 @@ export const DEFAULT_RULES: Record<string, string[]> = {
 const CATEGORY_RENAMES: Array<{ from: string; to: string }> = [
   { from: "Rent / Mortgage", to: "Rent" },
   { from: "Transportation", to: "Transport" },
+  { from: "Grocery", to: "Groceries" },
+  { from: "Grocery & Dining", to: "Groceries" },
 ];
 
 // Creates any default categories the user is missing, and seeds starter rules
@@ -127,7 +129,7 @@ export async function ensureDefaultCategories(userId: string): Promise<void> {
   // the new name tries to get inserted below.
   for (const r of CATEGORY_RENAMES) {
     const fromCat = await prisma.category.findFirst({
-      where: { userId, name: r.from, isDefault: true },
+      where: { userId, name: r.from },
       select: { id: true },
     });
     if (!fromCat) continue;

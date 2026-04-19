@@ -248,7 +248,9 @@ export function TransactionDrawer({
       onChanged();
       onClose();
     } catch (e) {
-      toast.error(e instanceof FetchError ? e.message : "Failed to save");
+      const msg = e instanceof FetchError ? e.message : (e instanceof Error ? e.message : "Failed to save");
+      toast.error(msg);
+      console.error("handleSave failed", e);
     } finally {
       setSaving(false);
     }
