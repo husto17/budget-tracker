@@ -187,13 +187,27 @@ export async function GET(request: Request) {
 
   const todayMs = now.getTime();
 
+  // Categories that indicate shopping/dining — not subscriptions or bills
+  const SHOPPING_CATEGORY_KEYWORDS = [
+    "grocer", "supermarket", "restaurant", "dining", "food", "coffee",
+    "shopping", "retail", "amazon", "department", "clothing", "pharmacy",
+    "drug store", "gas", "fuel", "parking", "transport", "uber", "lyft",
+  ];
+  function isShoppingCategory(categoryName: string | null): boolean {
+    if (!categoryName) return false;
+    const lower = categoryName.toLowerCase();
+    return SHOPPING_CATEGORY_KEYWORDS.some((kw) => lower.includes(kw));
+  }
+
   const subscriptions = Object.entries(merchantData)
     .filter(([, data]) => {
-      if (data.dates.length < 2) return false;
+      if (data.dates.length < 3) return false;
+      // Exclude shopping/dining categories — variable purchases, not bills
+      if (isShoppingCategory(data.categoryName)) return false;
       const avgAmount = data.amounts.reduce((a, b) => a + b, 0) / data.amounts.length;
-      // Up to 20% variance qualifies as recurring; tighter 5% = true subscription
-      const amountsConsistent = data.amounts.every((a) => Math.abs(a - avgAmount) / Math.max(avgAmount, 1) <= 0.20);
-      if (!amountsConsistent) return false;
+      // Allow up to 1 outlier: at least 80% of amounts must be within 25% of avg
+      const consistent = data.amounts.filter((a) => Math.abs(a - avgAmount) / Math.max(avgAmount, 1) <= 0.25);
+      if (consistent.length / data.amounts.length < 0.80) return false;
       const { cadence } = detectCadence(data.dates);
       return cadence !== null;
     })
@@ -205,8 +219,9 @@ export async function GET(request: Request) {
       const nextExpectedDate = new Date(lastDate.getTime() + intervalDays * 86_400_000);
       const daysUntilNext = Math.round((nextExpectedDate.getTime() - todayMs) / 86_400_000);
       const monthlyEquivalent = cadence ? avgAmount * MONTHLY_FACTOR[cadence] : avgAmount;
-      // Classify: variance ≤5% → fixed-price subscription; >5% → variable recurring bill
-      const variance = data.amounts.reduce((s, a) => s + Math.abs(a - avgAmount), 0) / data.amounts.length / Math.max(avgAmount, 1);
+      // Use median of consistent amounts for variance so outliers don't skew type
+      const consistent = data.amounts.filter((a) => Math.abs(a - avgAmount) / Math.max(avgAmount, 1) <= 0.25);
+      const variance = consistent.reduce((s, a) => s + Math.abs(a - avgAmount), 0) / consistent.length / Math.max(avgAmount, 1);
       const type: "subscription" | "bill" = variance <= 0.05 ? "subscription" : "bill";
       return {
         merchant,
