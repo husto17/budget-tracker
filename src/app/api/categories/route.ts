@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureDefaultCategories } from "@/lib/default-categories";
-import { getPartnerUserId } from "@/lib/household";
+import { getHouseholdCategoryOwnerId, mergeHouseholdCategories } from "@/lib/household";
 import { PALETTE } from "@/lib/palette";
 
 async function pickLeastUsedColor(userId: string): Promise<string> {
@@ -33,25 +33,22 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Backfill/rename default categories for both the current user and their
-  // partner — so renames like Transportation→Transport apply to all household
-  // members, keeping category names in sync across joint accounts.
-  const partnerUserId = await getPartnerUserId(session.user.id);
+  // Merge any partner categories into the canonical owner first, then seed
+  // defaults for the owner only. This keeps both household members in sync.
+  const ownerId = await getHouseholdCategoryOwnerId(session.user.id);
   try {
-    await ensureDefaultCategories(session.user.id);
+    await mergeHouseholdCategories(session.user.id);
   } catch (e) {
-    console.error("Failed to sync default categories for user", e);
+    console.error("Failed to merge household categories", e);
   }
-  if (partnerUserId) {
-    try {
-      await ensureDefaultCategories(partnerUserId);
-    } catch (e) {
-      console.error("Failed to sync partner default categories", e);
-    }
+  try {
+    await ensureDefaultCategories(ownerId);
+  } catch (e) {
+    console.error("Failed to sync default categories", e);
   }
 
   const categories = await prisma.category.findMany({
-    where: { userId: session.user.id },
+    where: { userId: ownerId },
     include: {
       rules: true,
       _count: { select: { transactions: true } },
@@ -81,13 +78,14 @@ export async function POST(request: Request) {
     budgetValue = parsed;
   }
 
+  const ownerId = await getHouseholdCategoryOwnerId(session.user.id);
   // Auto-pick the least-used palette colour when one isn't provided, so new
   // categories land on visually distinct colours without the user picking.
-  const finalColor = (typeof color === "string" && color.trim()) || (await pickLeastUsedColor(session.user.id));
+  const finalColor = (typeof color === "string" && color.trim()) || (await pickLeastUsedColor(ownerId));
 
   const category = await prisma.category.create({
     data: {
-      userId: session.user.id,
+      userId: ownerId,
       name,
       color: finalColor,
       icon,

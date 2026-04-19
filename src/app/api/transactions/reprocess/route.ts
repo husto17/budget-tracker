@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds, getPartnerUserId } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdCategoryOwnerId, mergeHouseholdCategories } from "@/lib/household";
 import { normalizeMerchantHardcoded } from "@/lib/auto-categorize";
 import { ensureDefaultCategories } from "@/lib/default-categories";
 
@@ -18,11 +18,10 @@ export async function POST() {
 
   const userId = session.user.id;
 
-  // Sync default categories for current user and partner — this applies any
-  // pending renames (e.g. Transportation→Transport) on both sides.
-  await ensureDefaultCategories(userId);
-  const partnerUserId = await getPartnerUserId(userId);
-  if (partnerUserId) await ensureDefaultCategories(partnerUserId);
+  // Merge partner categories into canonical owner, then seed defaults.
+  await mergeHouseholdCategories(userId);
+  const ownerId = await getHouseholdCategoryOwnerId(userId);
+  await ensureDefaultCategories(ownerId);
 
   const accountIds = await getHouseholdAccountIds(userId);
 
@@ -32,11 +31,11 @@ export async function POST() {
       select: { id: true, description: true, merchant: true, categoryId: true },
     }),
     prisma.merchantAlias.findMany({
-      where: { userId },
+      where: { userId: ownerId },
       select: { fromName: true, toName: true },
     }),
     prisma.categoryRule.findMany({
-      where: { userId },
+      where: { userId: ownerId },
       orderBy: { priority: "desc" },
       select: { categoryId: true, pattern: true, isRegex: true },
     }),

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdCategoryOwnerId } from "@/lib/household";
 
 export async function PATCH(
   request: Request,
@@ -19,7 +19,10 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const householdAccountIds = await getHouseholdAccountIds(session.user.id);
+  const [householdAccountIds, ownerId] = await Promise.all([
+    getHouseholdAccountIds(session.user.id),
+    getHouseholdCategoryOwnerId(session.user.id),
+  ]);
   const tx = await prisma.transaction.findFirst({ where: { id, deletedAt: null } });
   if (!tx || !householdAccountIds.includes(tx.accountId)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -113,12 +116,12 @@ export async function PATCH(
     try {
       const pattern = updated.merchant.trim();
       const existing = await prisma.categoryRule.findFirst({
-        where: { userId: session.user.id, pattern: { equals: pattern, mode: "insensitive" }, isRegex: false },
+        where: { userId: ownerId, pattern: { equals: pattern, mode: "insensitive" }, isRegex: false },
       });
       if (!existing) {
         const rule = await prisma.categoryRule.create({
           data: {
-            userId: session.user.id,
+            userId: ownerId,
             categoryId,
             pattern,
             isRegex: false,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getHouseholdCategoryOwnerId } from "@/lib/household";
 
 export async function POST(
   request: Request,
@@ -13,8 +14,9 @@ export async function POST(
   const { id } = await params;
   const { pattern, isRegex } = await request.json();
 
+  const ownerId = await getHouseholdCategoryOwnerId(session.user.id);
   const category = await prisma.category.findUnique({ where: { id } });
-  if (!category || category.userId !== session.user.id) {
+  if (!category || category.userId !== ownerId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -31,12 +33,12 @@ export async function POST(
 
   const trimmed = pattern.trim();
   const existing = await prisma.categoryRule.findFirst({
-    where: { userId: session.user.id, categoryId: id, pattern: { equals: trimmed, mode: "insensitive" }, isRegex: isRegex ?? false },
+    where: { userId: ownerId, categoryId: id, pattern: { equals: trimmed, mode: "insensitive" }, isRegex: isRegex ?? false },
   });
   if (existing) return NextResponse.json(existing);
 
   const rule = await prisma.categoryRule.create({
-    data: { userId: session.user.id, categoryId: id, pattern: trimmed, isRegex: isRegex ?? false },
+    data: { userId: ownerId, categoryId: id, pattern: trimmed, isRegex: isRegex ?? false },
   });
 
   return NextResponse.json(rule);
@@ -67,9 +69,10 @@ export async function DELETE(
     return NextResponse.json({ error: "ruleId required" }, { status: 400 });
   }
 
-  // Verify rule belongs to this user's category.
+  const ownerId2 = await getHouseholdCategoryOwnerId(session.user.id);
+  // Verify rule belongs to this household's category.
   const rule = await prisma.categoryRule.findFirst({
-    where: { id: ruleId, categoryId, userId: session.user.id },
+    where: { id: ruleId, categoryId, userId: ownerId2 },
   });
   if (!rule) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
