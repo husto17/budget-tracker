@@ -38,7 +38,11 @@ export async function GET() {
   // members, keeping category names in sync across joint accounts.
   const partnerUserId = await getPartnerUserId(session.user.id);
   await ensureDefaultCategories(session.user.id);
-  if (partnerUserId) await ensureDefaultCategories(partnerUserId);
+  if (partnerUserId) {
+    try { await ensureDefaultCategories(partnerUserId); } catch (e) {
+      console.error("Failed to sync partner default categories", e);
+    }
+  }
 
   const categories = await prisma.category.findMany({
     where: { userId: session.user.id },
