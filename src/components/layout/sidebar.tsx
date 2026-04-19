@@ -81,6 +81,12 @@ export function Sidebar() {
   const isDark = mounted && resolvedTheme === "dark";
 
   useEffect(() => {
+    function handleOpen() { setOpen(true); }
+    window.addEventListener("sidebar:open", handleOpen);
+    return () => window.removeEventListener("sidebar:open", handleOpen);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     fetchJson<{ uncategorized: number; pending: number }>("/api/stats")
       .then((d) => { if (!cancelled) setUncategorized(d.uncategorized); })
@@ -96,7 +102,7 @@ export function Sidebar() {
     .slice(0, 2) ?? "?";
 
   const sidebarContent = (
-    <aside className="flex flex-col w-60 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 py-6 px-4">
+    <aside className="flex flex-col w-60 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 py-6 px-4 overflow-y-auto">
       <div className="mb-8 px-2 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Budget Tracker</h1>
@@ -211,16 +217,6 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile hamburger button — hidden when drawer is open */}
-      {!open && (
-        <button
-          className="md:hidden fixed top-4 left-4 z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-2 shadow-sm"
-          onClick={() => setOpen(true)}
-          aria-label="Open menu"
-        >
-          <Menu className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-        </button>
-      )}
 
       {/* Desktop sidebar */}
       <div className="hidden md:flex flex-col w-60 min-h-screen">
