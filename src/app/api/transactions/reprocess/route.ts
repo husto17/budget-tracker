@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds } from "@/lib/household";
+import { getHouseholdAccountIds, getPartnerUserId } from "@/lib/household";
 import { normalizeMerchantHardcoded } from "@/lib/auto-categorize";
 import { ensureDefaultCategories } from "@/lib/default-categories";
 
@@ -18,8 +18,11 @@ export async function POST() {
 
   const userId = session.user.id;
 
-  // Make sure default categories + starter rules are present before matching.
+  // Sync default categories for current user and partner — this applies any
+  // pending renames (e.g. Transportation→Transport) on both sides.
   await ensureDefaultCategories(userId);
+  const partnerUserId = await getPartnerUserId(userId);
+  if (partnerUserId) await ensureDefaultCategories(partnerUserId);
 
   const accountIds = await getHouseholdAccountIds(userId);
 
