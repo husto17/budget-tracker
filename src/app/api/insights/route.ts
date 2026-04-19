@@ -366,8 +366,13 @@ export async function GET(request: Request) {
       const late = intervals.slice(mid);
       const avgEarly = early.length ? early.reduce((a, b) => a + b, 0) / early.length : avg;
       const avgLate = late.length ? late.reduce((a, b) => a + b, 0) / late.length : avg;
+      // Require both a 25% relative change AND at least a 3-day absolute shift
+      // so frequent merchants (visited every 2d) don't flip on minor noise.
+      const diff = avgLate - avgEarly;
       const trend: "increasing" | "decreasing" | "stable" =
-        avgLate < avgEarly * 0.8 ? "increasing" : avgLate > avgEarly * 1.2 ? "decreasing" : "stable";
+        diff < 0 && avgLate < avgEarly * 0.75 && Math.abs(diff) >= 3 ? "increasing"
+        : diff > 0 && avgLate > avgEarly * 1.25 && diff >= 3 ? "decreasing"
+        : "stable";
       return {
         merchant,
         visitCount: d.dates.length,
