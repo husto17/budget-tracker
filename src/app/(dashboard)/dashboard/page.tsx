@@ -125,13 +125,16 @@ export default function DashboardPage() {
     try { localStorage.setItem("dashboard:viewFilter", next); } catch {}
   }
 
+  const [accountId, setAccountId] = useState<string>("all");
+
   useEffect(() => {
     setLoading(true);
-    const url = isCurrentMonth
-      ? "/api/insights"
-      : `/api/insights?month=${selectedMonth}`;
+    const insightsParams = new URLSearchParams();
+    if (!isCurrentMonth) insightsParams.set("month", selectedMonth);
+    if (accountId !== "all") insightsParams.set("accountId", accountId);
+    const insightsUrl = `/api/insights${insightsParams.size ? `?${insightsParams}` : ""}`;
     Promise.all([
-      fetch(url).then((r) => {
+      fetch(insightsUrl).then((r) => {
         if (!r.ok) throw new Error(`insights ${r.status}`);
         return r.json();
       }),
@@ -152,7 +155,7 @@ export default function DashboardPage() {
         setLoadError(e.message);
       })
       .finally(() => setLoading(false));
-  }, [selectedMonth, isCurrentMonth]);
+  }, [selectedMonth, isCurrentMonth, accountId]);
 
   if (loading) {
     return (
@@ -261,6 +264,7 @@ export default function DashboardPage() {
   }
 
   const filteredAccounts = accounts.filter((a) => {
+    if (accountId !== "all") return a.id === accountId;
     if (viewFilter === "all") return true;
     if (viewFilter === "mine") return a.owner === "me" && !a.isJoint;
     if (viewFilter === "partner") return a.owner === "partner";
@@ -381,23 +385,37 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
-        {hasPartner && (
-          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-            {(["all", "mine", "partner", "joint"] as ViewFilter[]).map((f) => (
-              <button
-                key={f}
-                onClick={() => setViewFilter(f)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors capitalize ${
-                  viewFilter === f
-                    ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200"
-                }`}
-              >
-                {f === "all" ? "All" : f === "mine" ? "Mine" : f === "partner" ? "Partner's" : "Joint"}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {accounts.length > 1 && (
+            <select
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+              className="text-xs h-8 px-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200"
+            >
+              <option value="all">All accounts</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          )}
+          {hasPartner && accountId === "all" && (
+            <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              {(["all", "mine", "partner", "joint"] as ViewFilter[]).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setViewFilter(f)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors capitalize ${
+                    viewFilter === f
+                      ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm"
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200"
+                  }`}
+                >
+                  {f === "all" ? "All" : f === "mine" ? "Mine" : f === "partner" ? "Partner's" : "Joint"}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* HERO: Net Balance with sparkline */}
