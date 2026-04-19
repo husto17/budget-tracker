@@ -17,12 +17,14 @@ export async function GET() {
         categoryId: null,
         isCredit: false,
         transferPairId: null,
+        deletedAt: null,
       },
     }),
     prisma.transaction.count({
       where: {
         accountId: { in: accountIds },
         isPending: true,
+        deletedAt: null,
       },
     }),
   ]);

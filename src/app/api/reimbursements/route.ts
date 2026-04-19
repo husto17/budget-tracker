@@ -4,13 +4,45 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getHouseholdAccountIds } from "@/lib/household";
 
-// POST /api/reimbursements — link a credit tx to a debit tx that partially
-// offsets it. Body: { originalTxId, reimbursementTxId, amount, note? }.
-//
-// Validates:
-// - both txs belong to the user's household
-// - originalTx is a debit, reimbursementTx is a credit
-// - amount > 0 and <= reimbursementTx's remaining unlinked amount
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const accountIds = await getHouseholdAccountIds(session.user.id);
+
+  const reimbursements = await prisma.reimbursement.findMany({
+    where: {
+      originalTx: { accountId: { in: accountIds } },
+    },
+    include: {
+      originalTx: {
+        select: {
+          id: true,
+          date: true,
+          description: true,
+          merchant: true,
+          amount: true,
+          account: { select: { id: true, name: true } },
+          category: { select: { name: true, color: true } },
+        },
+      },
+      reimbursementTx: {
+        select: {
+          id: true,
+          date: true,
+          description: true,
+          merchant: true,
+          amount: true,
+          account: { select: { id: true, name: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return NextResponse.json(reimbursements);
+}
+
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -34,18 +66,8 @@ export async function POST(request: Request) {
   const householdAccountIds = await getHouseholdAccountIds(session.user.id);
 
   const [original, reimbursement] = await Promise.all([
-    prisma.transaction.findUnique({
-      where: { id: originalTxId },
-      include: {
-        reimbursementsReceived: true,
-      },
-    }),
-    prisma.transaction.findUnique({
-      where: { id: reimbursementTxId },
-      include: {
-        reimbursementsApplied: true,
-      },
-    }),
+    prisma.transaction.findUnique({ where: { id: originalTxId }, include: { reimbursementsReceived: true } }),
+    prisma.transaction.findUnique({ where: { id: reimbursementTxId }, include: { reimbursementsApplied: true } }),
   ]);
 
   if (!original || !householdAccountIds.includes(original.accountId)) {
@@ -55,54 +77,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Reimbursement transaction not found" }, { status: 404 });
   }
   if (original.isCredit) {
-    return NextResponse.json(
-      { error: "originalTxId must be a debit (money out) — you can't reimburse a credit" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "originalTxId must be a debit" }, { status: 400 });
   }
   if (!reimbursement.isCredit) {
-    return NextResponse.json(
-      { error: "reimbursementTxId must be a credit (money in)" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "reimbursementTxId must be a credit" }, { status: 400 });
   }
 
-  // Don't double-apply more than the credit tx's amount
-  const alreadyApplied = reimbursement.reimbursementsApplied.reduce(
-    (s, r) => s + r.amount,
-    0,
-  );
+  const alreadyApplied = reimbursement.reimbursementsApplied.reduce((s, r) => s + r.amount, 0);
   if (alreadyApplied + amount > reimbursement.amount + 0.01) {
-    return NextResponse.json(
-      {
-        error: `Only ${(reimbursement.amount - alreadyApplied).toFixed(2)} of this credit is still unapplied.`,
-      },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: `Only ${(reimbursement.amount - alreadyApplied).toFixed(2)} still unapplied.` }, { status: 400 });
   }
 
-  // Don't over-reimburse the original either
-  const alreadyReceived = original.reimbursementsReceived.reduce(
-    (s, r) => s + r.amount,
-    0,
-  );
+  const alreadyReceived = original.reimbursementsReceived.reduce((s, r) => s + r.amount, 0);
   if (alreadyReceived + amount > original.amount + 0.01) {
-    return NextResponse.json(
-      {
-        error: `Original is already offset by ${alreadyReceived.toFixed(2)} — can't exceed the original amount.`,
-      },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: `Would exceed original amount.` }, { status: 400 });
   }
 
   const created = await prisma.reimbursement.create({
-    data: {
-      userId: session.user.id,
-      originalTxId,
-      reimbursementTxId,
-      amount,
-      note: note || null,
-    },
+    data: { userId: session.user.id, originalTxId, reimbursementTxId, amount, note: note || null },
   });
 
   return NextResponse.json(created);

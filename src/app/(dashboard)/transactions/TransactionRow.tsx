@@ -289,7 +289,7 @@ export function TransactionRow({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-gray-200"
+              className="h-7 w-7 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200"
               title="Edit transaction"
               onClick={() => actions.onOpenEdit(tx)}
             >
@@ -298,7 +298,7 @@ export function TransactionRow({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-gray-300 dark:text-gray-600 hover:text-purple-500"
+              className="h-7 w-7 text-gray-400 dark:text-gray-500 hover:text-purple-500"
               title="Split transaction"
               onClick={() => actions.onOpenSplit(tx)}
             >
@@ -308,7 +308,7 @@ export function TransactionRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-gray-300 dark:text-gray-600 hover:text-blue-500"
+                className="h-7 w-7 text-gray-400 dark:text-gray-500 hover:text-blue-500"
                 title="Link as transfer"
                 onClick={() => actions.onLinkTransfer(tx)}
               >
@@ -329,7 +329,7 @@ export function TransactionRow({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-gray-300 dark:text-gray-600 hover:text-red-500"
+              className="h-7 w-7 text-gray-400 dark:text-gray-500 hover:text-red-500"
               onClick={() => actions.onRequestDelete(tx.id)}
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -494,7 +494,7 @@ export function TransactionCard({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-gray-300 dark:text-gray-600 hover:text-red-500 shrink-0"
+          className="h-7 w-7 text-gray-400 dark:text-gray-500 hover:text-red-500 shrink-0"
           onClick={() => actions.onRequestDelete(tx.id)}
         >
           <Trash2 className="w-3.5 h-3.5" />

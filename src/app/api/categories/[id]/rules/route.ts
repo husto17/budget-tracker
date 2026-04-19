@@ -48,11 +48,29 @@ export async function DELETE(
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id: _categoryId } = await params;
-  const { ruleId } = await request.json();
+  const { id: categoryId } = await params;
 
-  const rule = await prisma.categoryRule.findUnique({ where: { id: ruleId } });
-  if (!rule || rule.userId !== session.user.id) {
+  // Accept ruleId from query param (preferred) or JSON body (legacy).
+  const { searchParams } = new URL(request.url);
+  let ruleId = searchParams.get("ruleId");
+  if (!ruleId) {
+    try {
+      const body = await request.json();
+      ruleId = body.ruleId ?? null;
+    } catch {
+      // body missing or not JSON — ruleId stays null
+    }
+  }
+
+  if (!ruleId) {
+    return NextResponse.json({ error: "ruleId required" }, { status: 400 });
+  }
+
+  // Verify rule belongs to this user's category.
+  const rule = await prisma.categoryRule.findFirst({
+    where: { id: ruleId, categoryId, userId: session.user.id },
+  });
+  if (!rule) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

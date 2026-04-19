@@ -40,6 +40,12 @@ export interface ReimbursementLink {
   };
 }
 
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export interface Transaction {
   id: string;
   date: string;
@@ -49,6 +55,7 @@ export interface Transaction {
   isCredit: boolean;
   isPending: boolean;
   isReconciled: boolean;
+  isExcluded: boolean;
   source: string;
   category: Category | null;
   account: Account;
@@ -59,6 +66,7 @@ export interface Transaction {
   reimbursementsReceived?: ReimbursementLink[];
   reimbursementsApplied?: ReimbursementLink[];
   payerUserId?: string | null;
+  tags?: Array<{ tag: Tag }>;
 }
 
 // Net amount after subtracting linked reimbursements (for debits) or applied

@@ -14,11 +14,13 @@ export async function GET(request: Request) {
   const limit = Math.min(Math.max(parseInt(searchParams.get("limit") ?? "50") || 50, 1), 500);
   const accountId = searchParams.get("accountId");
   const categoryId = searchParams.get("categoryId");
+  const tagId = searchParams.get("tagId");
   const search = searchParams.get("search");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const uncategorized = searchParams.get("uncategorized") === "true";
   const status = searchParams.get("status"); // "pending" | "posted" | "all"
+  const sort = searchParams.get("sort") === "asc" ? "asc" : "desc";
 
   const householdAccountIds = await getHouseholdAccountIds(session.user.id);
 
@@ -59,8 +61,12 @@ export async function GET(request: Request) {
 
   // Combine URL filters (from/to/amount sources) with operator filters. URL
   // params take priority when both are set to avoid surprising the UI.
-  const dateGte = from ? new Date(from) : parsed.from;
-  const dateLte = to ? new Date(to) : parsed.to;
+  const dateGte = from ? new Date(from + "T00:00:00.000Z") : parsed.from;
+  // End of the requested day — parse as start of NEXT day so all transactions
+  // on the "to" date are included regardless of their time component.
+  const dateLte = to
+    ? new Date(new Date(to + "T00:00:00.000Z").getTime() + 86_400_000 - 1)
+    : parsed.to;
 
   // amount filter — one of exact, range, min-only, max-only.
   const amountFilter: { gte?: number; lte?: number; equals?: number } = {};
@@ -80,6 +86,7 @@ export async function GET(request: Request) {
 
   const where = {
     accountId: accountIdFilter,
+    deletedAt: null,
     ...(categoryId
       ? { categoryId }
       : operatorCategoryIds
@@ -105,6 +112,7 @@ export async function GET(request: Request) {
     ...(Object.keys(amountFilter).length > 0 ? { amount: amountFilter } : {}),
     ...(status === "pending" ? { isPending: true } : {}),
     ...(status === "posted" ? { isPending: false } : {}),
+    ...(tagId ? { tags: { some: { tagId } } } : {}),
   };
 
   const [transactions, total] = await Promise.all([
@@ -134,8 +142,9 @@ export async function GET(request: Request) {
             },
           },
         },
+        tags: { include: { tag: true } },
       },
-      orderBy: { date: "desc" },
+      orderBy: { date: sort },
       skip: (page - 1) * limit,
       take: limit,
     }),

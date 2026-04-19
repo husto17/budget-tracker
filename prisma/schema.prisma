@@ -39,6 +39,7 @@ model User {
   accounts        Account[]
   categories      Category[]
   categoryRules   CategoryRule[]
+  tags            Tag[]
   uploads         Upload[]
   merchantAliases MerchantAlias[]
   goals           Goal[]
@@ -94,8 +95,9 @@ model Category {
   name          String
   color         String          @default("#6B7280")
   icon          String?
-  monthlyBudget Float?
-  isDefault     Boolean         @default(false)
+  monthlyBudget  Float?
+  budgetRollover Boolean         @default(false)
+  isDefault      Boolean         @default(false)
   createdAt     DateTime        @default(now())
   transactions  Transaction[]
   rules         CategoryRule[]
@@ -156,12 +158,18 @@ model Transaction {
   isReconciled        Boolean   @default(false)
   source              String    @default("statement")
 
+  // Exclude from budget/spending math without deleting
+  isExcluded          Boolean   @default(false)
+
   splits              TransactionSplit[]
+  tags                TransactionTag[]
 
   // Reimbursements — many-to-many via Reimbursement join model.
   // Back-references allow computing net spending per tx.
   reimbursementsReceived Reimbursement[] @relation("ReimbursementOriginal")
   reimbursementsApplied  Reimbursement[] @relation("ReimbursementCredit")
+
+  deletedAt           DateTime?
 
   createdAt           DateTime  @default(now())
 
@@ -246,4 +254,27 @@ model Upload {
 
   @@index([userId])
   @@index([accountId])
+}
+
+model Tag {
+  id           String           @id @default(cuid())
+  userId       String
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  color        String           @default("#6366f1")
+  createdAt    DateTime         @default(now())
+  transactions TransactionTag[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model TransactionTag {
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  tagId         String
+  tag           Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([transactionId, tagId])
+  @@index([tagId])
 }

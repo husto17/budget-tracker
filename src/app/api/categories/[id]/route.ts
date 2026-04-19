@@ -34,6 +34,7 @@ export async function PATCH(
       color: data.color,
       icon: data.icon,
       monthlyBudget,
+      ...(typeof data.budgetRollover === "boolean" ? { budgetRollover: data.budgetRollover } : {}),
     },
   });
 

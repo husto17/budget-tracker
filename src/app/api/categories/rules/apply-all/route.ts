@@ -33,6 +33,7 @@ export async function POST(_request: Request) {
     where: {
       accountId: { in: accountIds },
       categoryId: null,
+      deletedAt: null,
     },
     select: { id: true, description: true },
   });

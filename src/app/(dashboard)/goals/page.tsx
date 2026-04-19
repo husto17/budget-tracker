@@ -33,6 +33,7 @@ interface AccountLite {
   id: string;
   name: string;
   type: string;
+  computedBalance: number;
 }
 
 export default function GoalsPage() {
@@ -81,10 +82,11 @@ export default function GoalsPage() {
 
   function openEdit(g: Goal) {
     setEditing(g);
+    const linkedAcc = g.linkedAccountId ? accounts.find((a) => a.id === g.linkedAccountId) : null;
     setForm({
       name: g.name,
       targetAmount: String(g.targetAmount),
-      currentAmount: String(g.currentAmount),
+      currentAmount: linkedAcc ? String(Math.max(0, linkedAcc.computedBalance)) : String(g.currentAmount),
       targetDate: g.targetDate ? g.targetDate.slice(0, 10) : "",
       linkedAccountId: g.linkedAccountId ?? "",
     });
@@ -335,7 +337,15 @@ export default function GoalsPage() {
               <Label>Track an account <span className="text-gray-400 dark:text-gray-500 text-xs">(optional)</span></Label>
               <select
                 value={form.linkedAccountId}
-                onChange={(e) => setForm((f) => ({ ...f, linkedAccountId: e.target.value }))}
+                onChange={(e) => {
+                  const accId = e.target.value;
+                  const acc = accounts.find((a) => a.id === accId);
+                  setForm((f) => ({
+                    ...f,
+                    linkedAccountId: accId,
+                    currentAmount: acc ? String(Math.max(0, acc.computedBalance)) : f.currentAmount,
+                  }));
+                }}
                 className="w-full h-9 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3"
               >
                 <option value="">— none —</option>

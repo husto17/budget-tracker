@@ -33,6 +33,7 @@ export async function POST(
     where: {
       accountId: { in: accountIds },
       categoryId: { not: id },
+      deletedAt: null,
     },
     select: { id: true, description: true },
   });

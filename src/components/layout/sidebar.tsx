@@ -21,6 +21,9 @@ import {
   Moon,
   HelpCircle,
   ArrowLeftRight,
+  Trash2,
+  Receipt,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -56,6 +59,10 @@ const navGroups: Array<{
   {
     items: [
       { href: "/ask", icon: Sparkles, label: "Ask" },
+      { href: "/reimbursements", icon: Receipt, label: "Reimbursements" },
+      { href: "/rules", icon: Zap, label: "Rules" },
+      { href: "/help", icon: HelpCircle, label: "Help" },
+      { href: "/trash", icon: Trash2, label: "Trash" },
       { href: "/settings", icon: Settings, label: "Settings" },
     ],
   },

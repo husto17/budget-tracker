@@ -41,6 +41,12 @@ interface ReimbursementLink {
   originalTx?: { id: string; date: string | Date; merchant: string | null; description: string; amount: number };
 }
 
+interface Tag {
+  id: string;
+  name: string;
+  color: string;
+}
+
 interface Transaction {
   id: string;
   date: string;
@@ -50,6 +56,7 @@ interface Transaction {
   isCredit: boolean;
   isPending: boolean;
   isReconciled: boolean;
+  isExcluded: boolean;
   source: string;
   notes: string | null;
   category: Category | null;
@@ -60,6 +67,7 @@ interface Transaction {
   reimbursementsReceived?: ReimbursementLink[];
   reimbursementsApplied?: ReimbursementLink[];
   payerUserId?: string | null;
+  tags?: Array<{ tag: Tag }>;
 }
 
 interface HouseholdMember {
@@ -102,6 +110,10 @@ export function TransactionDrawer({
   const [learn, setLearn] = useState(true);
   const [saving, setSaving] = useState(false);
   const [members, setMembers] = useState<HouseholdMember[]>(cachedMembers ?? []);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [txTags, setTxTags] = useState<Tag[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [isExcluded, setIsExcluded] = useState(false);
 
   useEffect(() => {
     if (cachedMembers) return;
@@ -116,6 +128,10 @@ export function TransactionDrawer({
   }, []);
 
   useEffect(() => {
+    fetchJson<Tag[]>("/api/tags").then(setAllTags).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!tx) return;
     setForm({
       merchant: tx.merchant ?? tx.description,
@@ -125,8 +141,58 @@ export function TransactionDrawer({
       categoryId: tx.category?.id ?? "none",
       payerUserId: tx.payerUserId ?? "",
     });
-    setLearn(true); // default back on each open
+    setLearn(true);
+    setIsExcluded(tx.isExcluded ?? false);
+    setTxTags((tx.tags ?? []).map((t) => t.tag));
+    setTagInput("");
   }, [tx?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function toggleExclude() {
+    if (!tx) return;
+    const next = !isExcluded;
+    setIsExcluded(next);
+    try {
+      await fetchJson(`/api/transactions/${tx.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isExcluded: next }),
+      });
+      onChanged();
+    } catch {
+      setIsExcluded(!next);
+      toast.error("Failed to update");
+    }
+  }
+
+  async function addTag(name: string, color?: string) {
+    if (!tx || !name.trim()) return;
+    try {
+      const tag = await fetchJson<Tag>(`/api/transactions/${tx.id}/tags`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), color }),
+      });
+      setTxTags((prev) => prev.find((t) => t.id === tag.id) ? prev : [...prev, tag]);
+      if (!allTags.find((t) => t.id === tag.id)) setAllTags((prev) => [...prev, tag]);
+      setTagInput("");
+    } catch {
+      toast.error("Failed to add tag");
+    }
+  }
+
+  async function removeTag(tagId: string) {
+    if (!tx) return;
+    setTxTags((prev) => prev.filter((t) => t.id !== tagId));
+    try {
+      await fetchJson(`/api/transactions/${tx.id}/tags`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tagId }),
+      });
+    } catch {
+      toast.error("Failed to remove tag");
+    }
+  }
 
   if (!tx) return null;
 
@@ -216,8 +282,8 @@ export function TransactionDrawer({
             );
           })()}
 
-          {/* Status badges */}
-          <div className="flex flex-wrap gap-1.5">
+          {/* Status badges + exclude toggle */}
+          <div className="flex flex-wrap gap-1.5 items-center">
             {tx.isPending && !tx.isReconciled && (
               <Badge className="bg-amber-100 text-amber-700 border-amber-200">Pending</Badge>
             )}
@@ -227,6 +293,18 @@ export function TransactionDrawer({
             {tx.source && (
               <Badge variant="outline" className="capitalize">{tx.source}</Badge>
             )}
+            <button
+              type="button"
+              onClick={toggleExclude}
+              title="Excluded transactions are hidden from budgets and spending totals"
+              className={`px-2.5 py-0.5 text-[11px] font-medium rounded-full border transition-colors ${
+                isExcluded
+                  ? "bg-gray-800 text-white border-gray-700"
+                  : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              {isExcluded ? "Excluded from totals" : "Exclude from totals"}
+            </button>
           </div>
 
           {/* Editable fields */}
@@ -325,6 +403,58 @@ export function TransactionDrawer({
                       </>
                     )}
                   </label>
+                </div>
+              )}
+            </div>
+
+            {/* Tags */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Tags</Label>
+              <div className="flex flex-wrap gap-1.5 mb-1.5">
+                {txTags.map((tag) => (
+                  <span
+                    key={tag.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: tag.color }}
+                  >
+                    {tag.name}
+                    <button type="button" onClick={() => removeTag(tag.id)} className="ml-0.5 opacity-70 hover:opacity-100">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-1.5">
+                <Input
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(tagInput); } }}
+                  placeholder="Add tag…"
+                  className="h-8 text-xs flex-1"
+                  list={`tag-suggestions-${tx.id}`}
+                />
+                <datalist id={`tag-suggestions-${tx.id}`}>
+                  {allTags.filter((t) => !txTags.find((tt) => tt.id === t.id)).map((t) => (
+                    <option key={t.id} value={t.name} />
+                  ))}
+                </datalist>
+                <Button type="button" size="sm" variant="outline" className="h-8 px-2" onClick={() => addTag(tagInput)}>
+                  <Plus className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+              {allTags.filter((t) => !txTags.find((tt) => tt.id === t.id)).length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {allTags.filter((t) => !txTags.find((tt) => tt.id === t.id)).map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => addTag(t.name, t.color)}
+                      className="px-2 py-0.5 rounded-full text-[11px] border border-dashed text-gray-500 dark:text-gray-400 hover:opacity-80"
+                      style={{ borderColor: t.color, color: t.color }}
+                    >
+                      + {t.name}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>

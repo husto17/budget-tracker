@@ -195,7 +195,7 @@ function CompareContent() {
                 setMonthB(thisMonth);
               }}
             >
-              YTD vs January
+              Jan vs this month
             </Button>
           </div>
         </CardContent>

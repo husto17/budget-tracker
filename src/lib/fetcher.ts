@@ -33,3 +33,12 @@ export async function fetchJson<T = unknown>(
 export function formatCurrency(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 }
+
+// Compact formatter for chart axes — avoids "$0k" for sub-$1k values.
+export function formatAxisCurrency(v: number): string {
+  const abs = Math.abs(v);
+  if (abs === 0) return "$0";
+  if (abs >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `$${(v / 1_000).toFixed(1)}k`;
+  return `$${Math.round(v)}`;
+}

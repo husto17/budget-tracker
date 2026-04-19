@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { format, parseISO } from "date-fns";
 import {
   BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency } from "@/lib/fetcher";
+import { formatCurrency, formatAxisCurrency } from "@/lib/fetcher";
 import { CategoryIcon } from "@/components/ui/category-icon";
 import { MerchantLogo } from "@/components/ui/merchant-logo";
 import { MonthPicker } from "@/components/ui/month-picker";
@@ -32,7 +32,7 @@ interface InsightData {
   topCategories: [string, number][];
   recurring: Array<{ name: string; amount: number; months: number }>;
   anomalies: Array<{ category: string; thisMonth: number; average: number; ratio: number }>;
-  budgetUtilization: Array<{ category: string; color: string; spent: number; budget: number; remaining: number; pct: number }>;
+  budgetUtilization: Array<{ category: string; color: string; spent: number; budget: number; baseBudget: number; rolloverAmount: number; remaining: number; pct: number }>;
   incomeVsSpending: Array<{ month: string; income: number; spending: number; net: number }>;
   spendingByMember: Record<string, { name: string; amount: number }>;
   pendingCount: number;
@@ -41,9 +41,13 @@ interface InsightData {
   subscriptions: Array<{
     merchant: string;
     amount: number;
+    cadence: "weekly" | "biweekly" | "monthly" | "quarterly" | "annual" | null;
+    monthlyEquivalent: number;
     categoryId: string | null;
     categoryName: string | null;
     lastDate: string;
+    nextExpectedDate: string;
+    daysUntilNext: number;
     monthlyCount: number;
   }>;
   topMerchants: Array<{ merchant: string; amount: number; count: number; categoryName: string | null; categoryColor: string | null }>;
@@ -289,7 +293,7 @@ export default function DashboardPage() {
 
   const momDelta = insights.thisMonthTotal - insights.previousMonthSpending;
   const momUp = momDelta > 0;
-  const recurringMonthly = insights.recurring.reduce((s, r) => s + r.amount, 0);
+  const recurringMonthly = (insights.subscriptions ?? []).reduce((s, r) => s + r.monthlyEquivalent, 0);
 
   // Cash-flow forecast — split variable from recurring so the projection
   // doesn't extrapolate fixed costs that have already been paid.
@@ -308,12 +312,9 @@ export default function DashboardPage() {
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
 
   const upcomingRecurringAmount = (insights.subscriptions ?? []).reduce((sum, s) => {
-    const last = new Date(s.lastDate).getTime();
-    if (isNaN(last)) return sum;
-    const next = last + 30 * 86_400_000;
-    // Already hit this month (or earlier)? Assume it's already in spent_so_far.
+    const next = new Date(s.nextExpectedDate).getTime();
+    if (isNaN(next)) return sum;
     if (next <= Date.now()) return sum;
-    // Future but outside this month? Not relevant to this month's forecast.
     if (next > monthEnd) return sum;
     return sum + s.amount;
   }, 0);
@@ -338,19 +339,10 @@ export default function DashboardPage() {
       ? (forecastDelta / insights.previousMonthSpending) * 100
       : 0;
 
-  // Upcoming bills — projected next charge for each detected subscription.
-  // Uses 30-day cadence from the last-seen date; filter to next 21 days.
-  const nowMs = Date.now();
-  const DAY = 86400000;
+  // Upcoming bills — use cadence-aware nextExpectedDate from API.
   const upcomingBills = (insights.subscriptions ?? [])
-    .map((s) => {
-      const last = new Date(s.lastDate).getTime();
-      if (isNaN(last)) return null;
-      const next = last + 30 * DAY;
-      const days = Math.round((next - nowMs) / DAY);
-      return { ...s, nextDate: next, daysUntil: days };
-    })
-    .filter((b): b is NonNullable<typeof b> => !!b && b.daysUntil >= -2 && b.daysUntil <= 21)
+    .filter((s) => s.daysUntilNext >= -2 && s.daysUntilNext <= 21)
+    .map((s) => ({ ...s, nextDate: new Date(s.nextExpectedDate).getTime(), daysUntil: s.daysUntilNext }))
     .sort((a, b) => a.daysUntil - b.daysUntil)
     .slice(0, 5);
 
@@ -491,18 +483,18 @@ export default function DashboardPage() {
                   </defs>
                   <XAxis
                     dataKey="date"
-                    tickFormatter={(d) => format(parseISO(d as string), "MMM")}
+                    tickFormatter={(d) => format(parseISO(d as string), "MMM d")}
                     tick={{ fontSize: 10, fill: "#9ca3af" }}
                     axisLine={false}
                     tickLine={false}
-                    minTickGap={40}
+                    minTickGap={50}
                   />
                   <YAxis
                     tick={{ fontSize: 10, fill: "#9ca3af" }}
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(v) => formatCurrency(Number(v))}
-                    width={60}
+                    tickFormatter={(v) => formatAxisCurrency(Number(v))}
+                    width={70}
                   />
                   <Tooltip
                     contentStyle={{ background: "rgba(15,23,42,0.9)", border: "none", borderRadius: 6, fontSize: 11, color: "#fff" }}
@@ -510,6 +502,7 @@ export default function DashboardPage() {
                     formatter={(v) => [formatCurrency(Number(v ?? 0)), "Net worth"]}
                     labelFormatter={(d) => format(parseISO(d as string), "d MMM yyyy")}
                   />
+                  <ReferenceLine y={0} stroke="#9ca3af" strokeDasharray="3 3" strokeOpacity={0.5} />
                   <Area type="monotone" dataKey="balance" stroke="#6366f1" strokeWidth={2} fill="url(#netWorthFill)" />
                 </AreaChart>
               </ResponsiveContainer>
@@ -607,7 +600,7 @@ export default function DashboardPage() {
           <CardContent className="p-3 sm:pt-5 sm:pb-4 sm:px-6">
             <p className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs font-medium uppercase tracking-wide">Recurring</p>
             <p className="text-base sm:text-2xl font-bold mt-0.5 sm:mt-1 text-gray-900 dark:text-gray-100 tabular-nums">{formatCurrency(recurringMonthly)}</p>
-            <p className="hidden sm:block text-xs text-gray-400 dark:text-gray-500 mt-1">{insights.recurring.length} subscriptions</p>
+            <p className="hidden sm:block text-xs text-gray-400 dark:text-gray-500 mt-1">{(insights.subscriptions ?? []).length} subscriptions</p>
           </CardContent>
         </Card>
       </div>
@@ -763,7 +756,7 @@ export default function DashboardPage() {
                     </linearGradient>
                   </defs>
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} stroke="#9ca3af" />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatAxisCurrency(Number(v))} stroke="#9ca3af" />
                   <Tooltip
                     contentStyle={{ background: "white", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12 }}
                     formatter={(v) => formatCurrency(Number(v ?? 0))}
@@ -829,7 +822,7 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={incomeSpendingData}>
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} stroke="#9ca3af" />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatAxisCurrency(Number(v))} stroke="#9ca3af" />
                 <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} />
                 <Legend />
                 <Line type="monotone" dataKey="income" stroke="#22C55E" strokeWidth={2.5} dot={false} name="Income" />
@@ -841,11 +834,72 @@ export default function DashboardPage() {
         </Card>
       )}
 
+      {/* Budget alerts — categories ≥80% or over */}
+      {isCurrentMonth && (() => {
+        const alerts = insights.budgetUtilization.filter((b) => b.pct >= 80);
+        if (alerts.length === 0) return null;
+        return (
+          <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 space-y-2">
+            <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Budget Alerts
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {alerts.map((b) => {
+                const over = b.remaining < 0;
+                return (
+                  <Link
+                    key={b.category}
+                    href={`/transactions?categoryName=${encodeURIComponent(b.category)}`}
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      over
+                        ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60"
+                        : "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60"
+                    }`}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: b.color }}
+                    />
+                    {b.category}
+                    <span className="font-bold">
+                      {over
+                        ? `over by ${formatCurrency(Math.abs(b.remaining))}`
+                        : `${Math.round(b.pct)}%`}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Budget utilization as rings */}
       {insights.budgetUtilization.length > 0 && (
         <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
           <CardHeader>
-            <CardTitle className="text-base">Budgets — {thisMonth}</CardTitle>
+            <div className="flex items-start justify-between gap-4">
+              <CardTitle className="text-base">Budgets — {thisMonth}</CardTitle>
+              {(() => {
+                const totalBudget = insights.budgetUtilization.reduce((s, b) => s + b.budget, 0);
+                const totalSpent = insights.budgetUtilization.reduce((s, b) => s + b.spent, 0);
+                const totalRemaining = totalBudget - totalSpent;
+                const totalPct = totalBudget > 0 ? Math.min((totalSpent / totalBudget) * 100, 100) : 0;
+                const over = totalRemaining < 0;
+                return (
+                  <div className="text-right shrink-0">
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                      {formatCurrency(totalSpent)} of {formatCurrency(totalBudget)}
+                    </p>
+                    <p className={`text-sm font-semibold ${over ? "text-red-600" : "text-emerald-600"}`}>
+                      {over ? `${formatCurrency(Math.abs(totalRemaining))} over` : `${formatCurrency(totalRemaining)} left`}
+                      <span className="text-xs font-normal text-gray-400 dark:text-gray-500 ml-1">({Math.round(totalPct)}%)</span>
+                    </p>
+                  </div>
+                );
+              })()}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -879,6 +933,11 @@ export default function DashboardPage() {
                       <p className="text-sm font-medium truncate">{b.category}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         {formatCurrency(b.spent)} / {formatCurrency(b.budget)}
+                        {b.rolloverAmount > 0 && (
+                          <span className="ml-1 text-indigo-500" title={`Includes ${formatCurrency(b.rolloverAmount)} rolled over from last month`}>
+                            +{formatCurrency(b.rolloverAmount)} rollover
+                          </span>
+                        )}
                       </p>
                       <p className={`text-xs mt-0.5 ${over ? "text-red-600 font-medium" : "text-gray-400 dark:text-gray-500"}`}>
                         {over ? `Over by ${formatCurrency(Math.abs(b.remaining))}` : `${formatCurrency(b.remaining)} left`}
@@ -1127,17 +1186,17 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {insights.recurring.length === 0 ? (
+            {(insights.subscriptions ?? []).length === 0 ? (
               <p className="text-sm text-gray-400 dark:text-gray-500">Not enough data yet to detect recurring transactions</p>
             ) : (
               <div className="space-y-2">
-                {insights.recurring.slice(0, 8).map((r) => (
-                  <div key={r.name} className="flex items-center justify-between py-1">
+                {(insights.subscriptions ?? []).slice(0, 8).map((s) => (
+                  <div key={s.merchant} className="flex items-center justify-between py-1">
                     <div className="flex items-center gap-2 min-w-0">
-                      <p className="text-sm truncate">{r.name}</p>
-                      <Badge variant="secondary" className="text-[10px] h-4 shrink-0">{r.months}mo</Badge>
+                      <p className="text-sm truncate">{s.merchant}</p>
+                      <Badge variant="secondary" className="text-[10px] h-4 shrink-0 capitalize">{s.cadence ?? "recurring"}</Badge>
                     </div>
-                    <span className="text-sm font-medium ml-3 shrink-0">{formatCurrency(r.amount)}</span>
+                    <span className="text-sm font-medium ml-3 shrink-0">{formatCurrency(s.monthlyEquivalent)}<span className="text-xs text-gray-400 dark:text-gray-500">/mo</span></span>
                   </div>
                 ))}
               </div>
@@ -1157,7 +1216,7 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={monthlySpendingData}>
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} stroke="#9ca3af" />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatAxisCurrency(Number(v))} stroke="#9ca3af" />
                 <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} />
                 <Bar
                   dataKey="total"
@@ -1174,6 +1233,61 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Net worth milestones */}
+      {(() => {
+        const MILESTONES = [1_000, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000];
+        const crossed: Array<{ amount: number; date: string }> = [];
+        for (const threshold of MILESTONES) {
+          // Find first day balance crossed this threshold from below
+          for (let i = 1; i < balanceHistory.length; i++) {
+            const prev = balanceHistory[i - 1].balance;
+            const cur = balanceHistory[i].balance;
+            if (prev < threshold && cur >= threshold) {
+              crossed.push({ amount: threshold, date: balanceHistory[i].date });
+              break;
+            }
+          }
+        }
+        const currentBalance = balanceHistory[balanceHistory.length - 1]?.balance ?? 0;
+        const nextMilestone = MILESTONES.find((m) => m > currentBalance);
+        if (crossed.length === 0 && !nextMilestone) return null;
+        return (
+          <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Target className="w-4 h-4 text-indigo-500" /> Net Worth Milestones
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {crossed.map((m) => (
+                  <div key={m.amount} className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2">
+                      <span className="text-green-500 font-bold">✓</span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">{formatCurrency(m.amount)}</span>
+                    </span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      {format(parseISO(m.date), "MMM d, yyyy")}
+                    </span>
+                  </div>
+                ))}
+                {nextMilestone && (
+                  <div className="flex items-center justify-between text-sm pt-1 border-t border-gray-100 dark:border-gray-800 mt-1">
+                    <span className="flex items-center gap-2">
+                      <span className="text-gray-300 dark:text-gray-600 font-bold">○</span>
+                      <span className="text-gray-500 dark:text-gray-400">{formatCurrency(nextMilestone)}</span>
+                    </span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      {formatCurrency(nextMilestone - currentBalance)} away
+                    </span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
     </div>
   );
 }

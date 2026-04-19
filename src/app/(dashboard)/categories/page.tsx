@@ -32,6 +32,7 @@ interface Category {
   name: string;
   color: string;
   monthlyBudget: number | null;
+  budgetRollover: boolean;
   isDefault: boolean;
   rules: CategoryRule[];
   _count: { transactions: number };
@@ -64,7 +65,9 @@ export default function CategoriesPage() {
 
   const [form, setForm] = useState({
     name: "",
+    color: "#6366f1",
     monthlyBudget: "",
+    budgetRollover: false,
   });
 
   async function fetchCategories() {
@@ -83,7 +86,7 @@ export default function CategoriesPage() {
 
   function openAdd() {
     setEditingCat(null);
-    setForm({ name: "", monthlyBudget: "" });
+    setForm({ name: "", color: "#6366f1", monthlyBudget: "", budgetRollover: false });
     setShowDialog(true);
   }
 
@@ -91,7 +94,9 @@ export default function CategoriesPage() {
     setEditingCat(cat);
     setForm({
       name: cat.name,
+      color: cat.color,
       monthlyBudget: cat.monthlyBudget?.toString() ?? "",
+      budgetRollover: cat.budgetRollover,
     });
     setShowDialog(true);
   }
@@ -105,8 +110,10 @@ export default function CategoriesPage() {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...form,
+        name: form.name,
+        color: form.color,
         monthlyBudget: form.monthlyBudget ? parseFloat(form.monthlyBudget) : null,
+        budgetRollover: form.budgetRollover,
       }),
     });
 
@@ -177,13 +184,14 @@ export default function CategoriesPage() {
   }
 
   async function deleteRule(cat: Category, ruleId: string) {
-    const res = await fetch(`/api/categories/${cat.id}/rules`, {
+    const res = await fetch(`/api/categories/${cat.id}/rules?ruleId=${encodeURIComponent(ruleId)}`, {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ruleId }),
     });
     if (res.ok) {
       fetchCategories();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast.error(data.error ?? "Failed to delete rule");
     }
   }
 
@@ -285,6 +293,11 @@ export default function CategoriesPage() {
                             Budget: {formatCurrency(cat.monthlyBudget)}/mo
                           </Badge>
                         )}
+                        {cat.budgetRollover && (
+                          <Badge variant="outline" className="text-xs text-indigo-600 border-indigo-200 dark:border-indigo-800">
+                            Rollover on
+                          </Badge>
+                        )}
                         {cat.isDefault && (
                           <Badge variant="secondary" className="text-xs">Default</Badge>
                         )}
@@ -355,7 +368,8 @@ export default function CategoriesPage() {
                           >
                             {rule.isRegex ? "regex:" : ""}{rule.pattern}
                             <button
-                              onClick={() => deleteRule(cat, rule.id)}
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); deleteRule(cat, rule.id); }}
                               className="ml-1 hover:text-red-600 font-normal text-gray-400 dark:text-gray-500"
                             >
                               ×
@@ -406,11 +420,20 @@ export default function CategoriesPage() {
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Name</Label>
-              <Input
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Groceries"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={form.color}
+                  onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
+                  className="h-9 w-9 rounded border border-gray-200 dark:border-gray-700 cursor-pointer p-0.5 shrink-0"
+                  title="Category color"
+                />
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Groceries"
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Monthly Budget <span className="text-gray-400 dark:text-gray-500">(optional)</span></Label>
@@ -427,6 +450,24 @@ export default function CategoriesPage() {
                 />
               </div>
             </div>
+            {form.monthlyBudget && (
+              <label className={`flex items-center justify-between gap-3 cursor-pointer select-none rounded-lg px-3 py-2.5 border transition-colors ${
+                form.budgetRollover
+                  ? "border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20"
+                  : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40"
+              }`}>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Roll over unused budget</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">Unused budget carries forward to next month</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={form.budgetRollover}
+                  onChange={(e) => setForm((f) => ({ ...f, budgetRollover: e.target.checked }))}
+                  className="h-4 w-4 rounded border-gray-300 shrink-0"
+                />
+              </label>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>

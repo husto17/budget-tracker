@@ -20,7 +20,7 @@ export async function PATCH(
   }
 
   const householdAccountIds = await getHouseholdAccountIds(session.user.id);
-  const tx = await prisma.transaction.findUnique({ where: { id } });
+  const tx = await prisma.transaction.findFirst({ where: { id, deletedAt: null } });
   if (!tx || !householdAccountIds.includes(tx.accountId)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -70,6 +70,7 @@ export async function PATCH(
           data.payerUserId !== undefined
             ? ((data.payerUserId as string) || null)
             : undefined,
+        isExcluded: data.isExcluded !== undefined ? Boolean(data.isExcluded) : undefined,
       },
     });
   } catch (err) {
@@ -161,7 +162,7 @@ export async function DELETE(
   const { id } = await params;
 
   const householdAccountIds = await getHouseholdAccountIds(session.user.id);
-  const tx = await prisma.transaction.findUnique({ where: { id } });
+  const tx = await prisma.transaction.findFirst({ where: { id, deletedAt: null } });
   if (!tx || !householdAccountIds.includes(tx.accountId)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -175,7 +176,7 @@ export async function DELETE(
     });
   }
 
-  await prisma.transaction.delete({ where: { id } });
+  await prisma.transaction.update({ where: { id }, data: { deletedAt: new Date() } });
 
   return NextResponse.json({ success: true });
 }

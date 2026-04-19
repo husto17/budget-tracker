@@ -85,7 +85,13 @@ export default function UploadPage() {
         body: formData,
       });
       setResult(data);
-      toast.success(`Imported ${data.imported} transactions`);
+      if (data.imported === 0 && data.skipped > 0) {
+        toast.info(`Already up to date — ${data.skipped} duplicate${data.skipped !== 1 ? "s" : ""} skipped`);
+      } else if (data.imported === 0) {
+        toast.warning("No transactions found — check that you selected the right account and file");
+      } else {
+        toast.success(`Imported ${data.imported} transaction${data.imported !== 1 ? "s" : ""}${data.skipped > 0 ? ` (${data.skipped} duplicates skipped)` : ""}`);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed — please try again");
     } finally {
@@ -147,10 +153,11 @@ export default function UploadPage() {
           <CardTitle className="text-base">2. Upload file</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="mb-3 p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800">
-            <strong>Tip:</strong> CSV exports parse most reliably. PDF works for
-            text-based statements, but if results are incomplete, try downloading
-            a CSV from your bank&apos;s online portal instead.
+          <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg text-xs text-blue-800 dark:text-blue-200 space-y-1">
+            <p><strong>Tip:</strong> CSV exports parse most reliably. PDF works for text-based statements — if results are incomplete, try a CSV from your bank&apos;s portal instead.</p>
+            <p className="text-blue-600 dark:text-blue-300">
+              <strong>Supported PDF banks:</strong> Bank of America (checking &amp; credit), Chase, Wells Fargo, Citi, Capital One, Ally Bank, Apple Card — plus a generic fallback for others.
+            </p>
           </div>
           <div
             className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${
@@ -221,11 +228,11 @@ export default function UploadPage() {
       </Button>
 
       {result && (
-        <Card className="border-green-200 bg-green-50">
+        <Card className={result.imported === 0 ? "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/40" : "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20"}>
           <CardContent className="pt-6 space-y-3">
-            <div className="flex items-center gap-2 text-green-700">
+            <div className={`flex items-center gap-2 ${result.imported === 0 ? "text-gray-600 dark:text-gray-300" : "text-green-700 dark:text-green-400"}`}>
               <CheckCircle className="w-5 h-5" />
-              <span className="font-semibold">Import complete</span>
+              <span className="font-semibold">{result.imported === 0 ? "Nothing new to import" : "Import complete"}</span>
             </div>
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="bg-white dark:bg-gray-900 rounded-lg p-3 border border-green-200">

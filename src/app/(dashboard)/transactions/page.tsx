@@ -50,6 +50,7 @@ function TransactionsContent() {
       initialStatus === "pending" ? "pending" : initialStatus === "posted" ? "posted" : "all",
     from: "",
     to: "",
+    sort: "desc",
   });
 
   // ────── Selection + expanded pairs ──────
@@ -104,6 +105,7 @@ function TransactionsContent() {
       ...(filters.from ? { from: filters.from } : {}),
       ...(filters.to ? { to: filters.to } : {}),
       ...(filters.statusFilter !== "all" ? { status: filters.statusFilter } : {}),
+      ...(filters.sort !== "desc" ? { sort: filters.sort } : {}),
     });
     try {
       const data = await fetchJson<{ transactions: Transaction[]; total: number }>(
@@ -128,6 +130,7 @@ function TransactionsContent() {
     filters.from,
     filters.to,
     filters.statusFilter,
+    filters.sort,
   ]);
 
   useEffect(() => {
@@ -179,10 +182,8 @@ function TransactionsContent() {
               label: "Don't remember",
               onClick: async () => {
                 try {
-                  await fetchJson(`/api/categories/${catId}/rules`, {
+                  await fetchJson(`/api/categories/${catId}/rules?ruleId=${encodeURIComponent(ruleId)}`, {
                     method: "DELETE",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ ruleId }),
                   });
                   toast.success("Rule forgotten — future uploads won't auto-assign");
                 } catch {
@@ -657,7 +658,7 @@ function TransactionsContent() {
         open={!!deleteTargetId}
         onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}
         title="Delete transaction?"
-        description="This transaction will be permanently removed. This cannot be undone."
+        description="This transaction will be moved to the trash and hidden from all views."
         confirmLabel="Delete"
         destructive
         onConfirm={handleDelete}

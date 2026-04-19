@@ -25,7 +25,7 @@ export async function POST() {
 
   const [transactions, aliases, rules] = await Promise.all([
     prisma.transaction.findMany({
-      where: { accountId: { in: accountIds } },
+      where: { accountId: { in: accountIds }, deletedAt: null },
       select: { id: true, description: true, merchant: true, categoryId: true },
     }),
     prisma.merchantAlias.findMany({

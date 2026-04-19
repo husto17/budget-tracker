@@ -10,6 +10,9 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const monthsBack = Math.min(Math.max(parseInt(searchParams.get("months") ?? "6") || 6, 1), 24);
+  const accountIdFilter = searchParams.get("accountId");
+  const fromParam = searchParams.get("from"); // YYYY-MM-DD custom range
+  const toParam = searchParams.get("to");     // YYYY-MM-DD custom range
 
   // Optional ?month=YYYY-MM — rebase "this month / last month / upcoming bills /
   // top merchants / dailySpending" semantics onto a specific historical month
@@ -21,9 +24,6 @@ export async function GET(request: Request) {
 
   const userId = session.user.id;
   const realNow = new Date();
-  // `now` acts as "this month" for the rest of the computation. When a specific
-  // month is requested we pin it to the last day of that month so all the
-  // month-derived keys still line up.
   const now =
     anchorYear !== null && anchorMonth !== null
       ? new Date(anchorYear, anchorMonth + 1, 0, 23, 59, 59)
@@ -31,8 +31,18 @@ export async function GET(request: Request) {
   const isAnchored = now.getTime() !== realNow.getTime();
   const startDate = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1);
 
+  // Custom date range overrides monthsBack
+  const effectiveStart = fromParam ? new Date(fromParam + "T00:00:00") : startDate;
+  const effectiveEnd: Date | null = toParam
+    ? new Date(toParam + "T23:59:59")
+    : isAnchored ? now : null;
+
   // Get all household account IDs (own + partner's)
   const accountIds = await getHouseholdAccountIds(userId);
+  const effectiveAccountIds =
+    accountIdFilter && accountIds.includes(accountIdFilter)
+      ? [accountIdFilter]
+      : accountIds;
 
   // Get all spending transactions in range (debits only, exclude transfers).
   // Pending screenshot transactions ARE included — this is intentional so
@@ -41,9 +51,11 @@ export async function GET(request: Request) {
   // become the statement transaction (never two records for the same expense).
   const transactionsRaw = await prisma.transaction.findMany({
     where: {
-      accountId: { in: accountIds },
+      accountId: { in: effectiveAccountIds },
       isCredit: false,
-      date: isAnchored ? { gte: startDate, lte: now } : { gte: startDate },
+      isExcluded: false,
+      deletedAt: null,
+      date: effectiveEnd ? { gte: effectiveStart, lte: effectiveEnd } : { gte: effectiveStart },
       transferPairId: null,
     },
     include: {
@@ -64,6 +76,22 @@ export async function GET(request: Request) {
       return { ...tx, amount: netAmount, grossAmount: tx.amount };
     })
     .filter((tx) => tx.amount > 0.005);
+
+  // Day-of-week spending distribution
+  const DOW_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const dowMap: Record<number, { amount: number; count: number }> = {};
+  for (let i = 0; i < 7; i++) dowMap[i] = { amount: 0, count: 0 };
+  for (const tx of transactions) {
+    const d = tx.date.getDay();
+    dowMap[d].amount += tx.amount;
+    dowMap[d].count += 1;
+  }
+  const dayOfWeekSpending = DOW_NAMES.map((dayName, i) => ({
+    dayName,
+    amount: Math.round(dowMap[i].amount * 100) / 100,
+    count: dowMap[i].count,
+    avg: dowMap[i].count > 0 ? Math.round((dowMap[i].amount / dowMap[i].count) * 100) / 100 : 0,
+  }));
 
   // Monthly spending by category.
   // If a tx has splits, credit each split to its own category (don't double-count
@@ -104,73 +132,90 @@ export async function GET(request: Request) {
     .sort(([, a], [, b]) => b - a)
     .slice(0, 5);
 
-  // Recurring transactions (same merchant/amount every month for 2+ months)
-  const merchantMonths: Record<string, Set<string>> = {};
-  for (const tx of transactions) {
-    const key = `${tx.merchant ?? tx.description}|${tx.amount}`;
-    const monthKey = `${tx.date.getFullYear()}-${String(tx.date.getMonth() + 1).padStart(2, "0")}`;
-    if (!merchantMonths[key]) merchantMonths[key] = new Set();
-    merchantMonths[key].add(monthKey);
-  }
-  const recurring = Object.entries(merchantMonths)
-    .filter(([, months]) => months.size >= 2)
-    .map(([key, months]) => {
-      const [name, amountStr] = key.split("|");
-      return { name, amount: parseFloat(amountStr), months: months.size };
-    })
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 10);
+  // Legacy simple recurring (kept for backwards compat, not shown in new UI)
+  const recurring: Array<{ name: string; amount: number; months: number }> = [];
 
-  // Subscription detection: group by merchant, find those appearing in 2+ different months
-  // with similar amounts (within 10%)
+  // Subscription / recurring detection with cadence analysis
+  type Cadence = "weekly" | "biweekly" | "monthly" | "quarterly" | "annual";
   interface MerchantEntry {
     amounts: number[];
-    months: Set<string>;
-    lastDate: Date;
+    dates: Date[];
     categoryId: string | null;
     categoryName: string | null;
   }
   const merchantData: Record<string, MerchantEntry> = {};
   for (const tx of transactions) {
-    const merchantName = tx.merchant ?? tx.description;
-    const monthKey = `${tx.date.getFullYear()}-${String(tx.date.getMonth() + 1).padStart(2, "0")}`;
-    if (!merchantData[merchantName]) {
-      merchantData[merchantName] = {
-        amounts: [],
-        months: new Set(),
-        lastDate: tx.date,
-        categoryId: tx.categoryId,
-        categoryName: tx.category?.name ?? null,
-      };
+    const name = tx.merchant ?? tx.description;
+    if (!merchantData[name]) {
+      merchantData[name] = { amounts: [], dates: [], categoryId: tx.categoryId, categoryName: tx.category?.name ?? null };
     }
-    merchantData[merchantName].amounts.push(tx.amount);
-    merchantData[merchantName].months.add(monthKey);
-    if (tx.date > merchantData[merchantName].lastDate) {
-      merchantData[merchantName].lastDate = tx.date;
-      merchantData[merchantName].categoryId = tx.categoryId;
-      merchantData[merchantName].categoryName = tx.category?.name ?? null;
+    merchantData[name].amounts.push(tx.amount);
+    merchantData[name].dates.push(tx.date);
+    // Keep category from the most recent tx
+    if (tx.date >= (merchantData[name].dates[merchantData[name].dates.length - 1] ?? tx.date)) {
+      merchantData[name].categoryId = tx.categoryId;
+      merchantData[name].categoryName = tx.category?.name ?? null;
     }
   }
 
+  function detectCadence(dates: Date[]): { cadence: Cadence | null; intervalDays: number } {
+    if (dates.length < 2) return { cadence: null, intervalDays: 0 };
+    const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
+    const intervals: number[] = [];
+    for (let i = 1; i < sorted.length; i++) {
+      intervals.push((sorted[i].getTime() - sorted[i - 1].getTime()) / 86_400_000);
+    }
+    intervals.sort((a, b) => a - b);
+    const median = intervals[Math.floor(intervals.length / 2)];
+    if (median <= 10) return { cadence: "weekly", intervalDays: 7 };
+    if (median <= 20) return { cadence: "biweekly", intervalDays: 14 };
+    if (median <= 50) return { cadence: "monthly", intervalDays: 30 };
+    if (median <= 120) return { cadence: "quarterly", intervalDays: 91 };
+    if (median <= 400) return { cadence: "annual", intervalDays: 365 };
+    return { cadence: null, intervalDays: median };
+  }
+
+  const MONTHLY_FACTOR: Record<Cadence, number> = {
+    weekly: 4.33,
+    biweekly: 2.17,
+    monthly: 1,
+    quarterly: 1 / 3,
+    annual: 1 / 12,
+  };
+
+  const todayMs = now.getTime();
+
   const subscriptions = Object.entries(merchantData)
     .filter(([, data]) => {
-      if (data.months.size < 2) return false;
-      // Check if amounts are similar (within 10%)
+      if (data.dates.length < 2) return false;
       const avgAmount = data.amounts.reduce((a, b) => a + b, 0) / data.amounts.length;
-      return data.amounts.every((a) => Math.abs(a - avgAmount) / avgAmount <= 0.1);
+      const amountsConsistent = data.amounts.every((a) => Math.abs(a - avgAmount) / Math.max(avgAmount, 1) <= 0.15);
+      if (!amountsConsistent) return false;
+      const { cadence } = detectCadence(data.dates);
+      return cadence !== null;
     })
     .map(([merchant, data]) => {
       const avgAmount = data.amounts.reduce((a, b) => a + b, 0) / data.amounts.length;
+      const sorted = [...data.dates].sort((a, b) => a.getTime() - b.getTime());
+      const lastDate = sorted[sorted.length - 1];
+      const { cadence, intervalDays } = detectCadence(data.dates);
+      const nextExpectedDate = new Date(lastDate.getTime() + intervalDays * 86_400_000);
+      const daysUntilNext = Math.round((nextExpectedDate.getTime() - todayMs) / 86_400_000);
+      const monthlyEquivalent = cadence ? avgAmount * MONTHLY_FACTOR[cadence] : avgAmount;
       return {
         merchant,
         amount: Math.round(avgAmount * 100) / 100,
+        cadence,
+        monthlyEquivalent: Math.round(monthlyEquivalent * 100) / 100,
         categoryId: data.categoryId,
         categoryName: data.categoryName,
-        lastDate: data.lastDate.toISOString().slice(0, 10),
-        monthlyCount: data.months.size,
+        lastDate: lastDate.toISOString().slice(0, 10),
+        nextExpectedDate: nextExpectedDate.toISOString().slice(0, 10),
+        daysUntilNext,
+        monthlyCount: data.dates.length,
       };
     })
-    .sort((a, b) => b.amount - a.amount);
+    .sort((a, b) => b.monthlyEquivalent - a.monthlyEquivalent);
 
   // Anomalies: categories where this month > 150% of average
   const anomalies: Array<{ category: string; thisMonth: number; average: number; ratio: number }> = [];
@@ -187,18 +232,49 @@ export async function GET(request: Request) {
     }
   }
 
+  // All category colors (for chart coloring in the frontend)
+  const allCategoryRows = await prisma.category.findMany({
+    where: { userId },
+    select: { name: true, color: true },
+  });
+  const categoryColors: Record<string, string> = Object.fromEntries(
+    allCategoryRows.map((c) => [c.name, c.color])
+  );
+
   // Budget utilization (categories with budgets set)
   const categories = await prisma.category.findMany({
     where: { userId, monthlyBudget: { not: null } },
   });
+
+  // Historical budget vs actual per category (last 12 months)
+  const budgetHistoryMonths = Object.keys(monthlyByCategory).sort().slice(-12);
+  const categoryBudgetHistory = categories
+    .map((cat: typeof categories[0]) => ({
+      category: cat.name,
+      color: cat.color,
+      budget: cat.monthlyBudget!,
+      history: budgetHistoryMonths.map((month) => ({
+        month,
+        spent: monthlyByCategory[month]?.[cat.name] ?? 0,
+        budget: cat.monthlyBudget!,
+      })),
+    }))
+    .filter((c) => c.history.some((h) => h.spent > 0));
+
   const budgetUtilization = categories.map((cat: typeof categories[0]) => {
     const spent = thisMonthCats[cat.name] ?? 0;
-    const budget = cat.monthlyBudget!;
+    const base = cat.monthlyBudget!;
+    const rolloverAmount = cat.budgetRollover
+      ? Math.max(0, base - (categorySpendingPrevMonth[cat.name] ?? 0))
+      : 0;
+    const budget = base + rolloverAmount;
     return {
       category: cat.name,
       color: cat.color,
       spent,
       budget,
+      baseBudget: base,
+      rolloverAmount,
       remaining: budget - spent,
       pct: Math.min((spent / budget) * 100, 100),
     };
@@ -209,9 +285,10 @@ export async function GET(request: Request) {
   // a prior debit. A credit that's 100% reimbursement is 0 income.
   const incomeRaw = await prisma.transaction.findMany({
     where: {
-      accountId: { in: accountIds },
+      accountId: { in: effectiveAccountIds },
       isCredit: true,
-      date: isAnchored ? { gte: startDate, lte: now } : { gte: startDate },
+      deletedAt: null,
+      date: effectiveEnd ? { gte: effectiveStart, lte: effectiveEnd } : { gte: effectiveStart },
       transferPairId: null,
     },
     include: { reimbursementsApplied: { select: { amount: true } } },
@@ -241,6 +318,147 @@ export async function GET(request: Request) {
 
   // Previous month category spending (for MoM comparison per category)
   const categorySpendingPrevMonth: Record<string, number> = monthlyByCategory[lastMonth] ?? {};
+
+  // ── Merchant loyalty map ─────────────────────────────────────────────────
+  const merchantLoyalty = Object.entries(merchantData)
+    .filter(([, d]) => d.dates.length >= 3)
+    .map(([merchant, d]) => {
+      const sorted = [...d.dates].sort((a, b) => a.getTime() - b.getTime());
+      const intervals: number[] = [];
+      for (let i = 1; i < sorted.length; i++)
+        intervals.push((sorted[i].getTime() - sorted[i - 1].getTime()) / 86_400_000);
+      const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const mid = Math.floor(intervals.length / 2);
+      const early = intervals.slice(0, mid);
+      const late = intervals.slice(mid);
+      const avgEarly = early.length ? early.reduce((a, b) => a + b, 0) / early.length : avg;
+      const avgLate = late.length ? late.reduce((a, b) => a + b, 0) / late.length : avg;
+      const trend: "increasing" | "decreasing" | "stable" =
+        avgLate < avgEarly * 0.8 ? "increasing" : avgLate > avgEarly * 1.2 ? "decreasing" : "stable";
+      return {
+        merchant,
+        visitCount: d.dates.length,
+        avgDaysBetween: Math.round(avg),
+        trend,
+        lastVisit: sorted[sorted.length - 1].toISOString().slice(0, 10),
+        totalSpent: Math.round(d.amounts.reduce((a, b) => a + b, 0) * 100) / 100,
+      };
+    })
+    .sort((a, b) => a.avgDaysBetween - b.avgDaysBetween)
+    .slice(0, 12);
+
+  // ── Payday pattern ───────────────────────────────────────────────────────
+  const dayOfMonthIncome: Record<number, number> = {};
+  for (const tx of incomeTransactions) {
+    if (tx.amount <= 0.005) continue;
+    const day = tx.date.getDate();
+    dayOfMonthIncome[day] = (dayOfMonthIncome[day] ?? 0) + tx.amount;
+  }
+  const totalIncomeAmount = Object.values(dayOfMonthIncome).reduce((a, b) => a + b, 0);
+  const detectedPaydays = Object.entries(dayOfMonthIncome)
+    .filter(([, amt]) => totalIncomeAmount > 0 && amt > totalIncomeAmount * 0.08)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 3)
+    .map(([d]) => parseInt(d))
+    .sort((a, b) => a - b);
+  const spendingByDayMap: Record<number, { amount: number; count: number }> = {};
+  for (let i = 1; i <= 31; i++) spendingByDayMap[i] = { amount: 0, count: 0 };
+  for (const tx of transactions) {
+    const d = tx.date.getDate();
+    spendingByDayMap[d].amount += tx.amount;
+    spendingByDayMap[d].count += 1;
+  }
+  const spendingByDayOfMonth = Array.from({ length: 31 }, (_, i) => ({
+    day: i + 1,
+    amount: Math.round((spendingByDayMap[i + 1].amount) * 100) / 100,
+    count: spendingByDayMap[i + 1].count,
+  }));
+  const paydayPattern = detectedPaydays.length > 0
+    ? { detectedPaydays, spendingByDayOfMonth }
+    : null;
+
+  // ── Transaction size distribution ────────────────────────────────────────
+  const SIZE_BUCKETS = [
+    { label: "$0–25", min: 0, max: 25 },
+    { label: "$25–50", min: 25, max: 50 },
+    { label: "$50–100", min: 50, max: 100 },
+    { label: "$100–250", min: 100, max: 250 },
+    { label: "$250–500", min: 250, max: 500 },
+    { label: "$500+", min: 500, max: Infinity },
+  ];
+  const txSizeDistribution = SIZE_BUCKETS.map(({ label, min, max }) => {
+    const matches = transactions.filter((tx) => tx.amount >= min && tx.amount < max);
+    return {
+      label,
+      count: matches.length,
+      amount: Math.round(matches.reduce((s, tx) => s + tx.amount, 0) * 100) / 100,
+    };
+  });
+
+  // ── Surprise expenses (large one-offs not in recurring list) ─────────────
+  const recurringMerchantSet = new Set(subscriptions.map((s) => s.merchant));
+  const catAvgMap: Record<string, number> = {};
+  const catMonthCounts: Record<string, number> = {};
+  for (const [, cats] of Object.entries(monthlyByCategory)) {
+    for (const [cat, amt] of Object.entries(cats)) {
+      catAvgMap[cat] = (catAvgMap[cat] ?? 0) + amt;
+      catMonthCounts[cat] = (catMonthCounts[cat] ?? 0) + 1;
+    }
+  }
+  for (const cat of Object.keys(catAvgMap))
+    catAvgMap[cat] = catAvgMap[cat] / (catMonthCounts[cat] || 1);
+  const ninetyDaysAgo = new Date(now);
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  const surpriseExpenses = transactions
+    .filter((tx) => {
+      if (tx.date < ninetyDaysAgo) return false;
+      const merchant = tx.merchant ?? tx.description;
+      if (recurringMerchantSet.has(merchant)) return false;
+      const cat = tx.category?.name ?? "Uncategorized";
+      const avg = catAvgMap[cat] ?? 0;
+      return avg > 10 && tx.amount > avg * 2;
+    })
+    .map((tx) => ({
+      merchant: tx.merchant ?? tx.description,
+      amount: tx.amount,
+      date: tx.date.toISOString().slice(0, 10),
+      categoryName: tx.category?.name ?? null,
+      categoryAvg: Math.round((catAvgMap[tx.category?.name ?? "Uncategorized"] ?? 0) * 100) / 100,
+    }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 8);
+
+  // ── Categorization hygiene score ─────────────────────────────────────────
+  const totalTxCount = transactions.length;
+  const categorizedCount = transactions.filter((tx) => tx.categoryId !== null).length;
+  const totalAmount = transactions.reduce((s, tx) => s + tx.amount, 0);
+  const categorizedAmount = transactions
+    .filter((tx) => tx.categoryId !== null)
+    .reduce((s, tx) => s + tx.amount, 0);
+  const catAmtPct = totalAmount > 0 ? (categorizedAmount / totalAmount) * 100 : 100;
+  const catCountPct = totalTxCount > 0 ? (categorizedCount / totalTxCount) * 100 : 100;
+  const hygiene = {
+    totalTxCount,
+    categorizedCount,
+    categorizedPct: Math.round(catCountPct),
+    totalAmount: Math.round(totalAmount * 100) / 100,
+    categorizedAmount: Math.round(categorizedAmount * 100) / 100,
+    categorizedAmountPct: Math.round(catAmtPct),
+    score: Math.round(catCountPct * 0.4 + catAmtPct * 0.6),
+  };
+
+  // ── Bill timing risk ─────────────────────────────────────────────────────
+  const billTimingRisk = subscriptions
+    .filter((s) => s.daysUntilNext >= 0 && s.daysUntilNext <= 21)
+    .flatMap((s) => {
+      const d = new Date(s.nextExpectedDate).getDate();
+      const reason =
+        d >= 26 ? "charges near month-end — balance may be low" :
+        d <= 5 ? "charges in first 5 days — before payday clears" :
+        detectedPaydays.some((p) => Math.abs(p - d) <= 2) ? "charges right around payday" :
+        null;
+      return reason ? [{ merchant: s.merchant, amount: s.amount, nextExpectedDate: s.nextExpectedDate, daysUntilNext: s.daysUntilNext, riskReason: reason }] : [];
+    });
 
   // Spending by household member
   const partnerUserId = await getPartnerUserId(userId);
@@ -276,6 +494,7 @@ export async function GET(request: Request) {
       where: {
         accountId: { in: myAccountIds },
         isCredit: false,
+        deletedAt: null,
         transferPairId: null,
         date: isAnchored ? { gte: thisMonthStart, lte: now } : { gte: thisMonthStart },
       },
@@ -285,6 +504,7 @@ export async function GET(request: Request) {
       where: {
         accountId: { in: partnerAccountIds },
         isCredit: false,
+        deletedAt: null,
         transferPairId: null,
         date: isAnchored ? { gte: thisMonthStart, lte: now } : { gte: thisMonthStart },
       },
@@ -308,6 +528,7 @@ export async function GET(request: Request) {
     where: {
       accountId: { in: accountIds },
       isPending: true,
+      deletedAt: null,
     },
     select: { amount: true },
   });
@@ -356,7 +577,7 @@ export async function GET(request: Request) {
 
   // Recent transactions (last 8 across all accounts)
   const recentTransactions = await prisma.transaction.findMany({
-    where: { accountId: { in: accountIds } },
+    where: { accountId: { in: accountIds }, deletedAt: null },
     include: {
       category: { select: { name: true, color: true, icon: true } },
       account: { select: { name: true } },
@@ -377,6 +598,15 @@ export async function GET(request: Request) {
   return NextResponse.json({
     monthlyByCategory,
     monthlyTotals,
+    categoryColors,
+    dayOfWeekSpending,
+    categoryBudgetHistory,
+    merchantLoyalty,
+    paydayPattern,
+    txSizeDistribution,
+    surpriseExpenses,
+    hygiene,
+    billTimingRisk,
     thisMonthTotal,
     lastMonthTotal,
     momChange,

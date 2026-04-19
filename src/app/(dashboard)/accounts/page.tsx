@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, CreditCard, Landmark, Wallet, PiggyBank, DollarSign, ArrowRight, Upload as UploadIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, CreditCard, Landmark, Wallet, PiggyBank, DollarSign, ArrowRight, Upload as UploadIcon, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +26,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ReconcileWizardDialog } from "./ReconcileWizardDialog";
 
 const ACCOUNT_TYPES = [
   { value: "CHECKING", label: "Current / Checking", icon: Landmark },
@@ -76,6 +77,7 @@ export default function AccountsPage() {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
+  const [reconcileTarget, setReconcileTarget] = useState<Account | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -285,10 +287,13 @@ export default function AccountsPage() {
                     </div>
                     <div className="flex gap-1">
                       <Link href={`/upload?accountId=${account.id}`}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Upload statement for this account">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Upload statement">
                           <UploadIcon className="w-3.5 h-3.5" />
                         </Button>
                       </Link>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Reconcile" onClick={() => setReconcileTarget(account)}>
+                        <CheckSquare className="w-3.5 h-3.5" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(account)}>
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
@@ -521,6 +526,16 @@ export default function AccountsPage() {
         destructive
         onConfirm={handleDelete}
       />
+
+      {reconcileTarget && (
+        <ReconcileWizardDialog
+          open={!!reconcileTarget}
+          onOpenChange={(open) => { if (!open) setReconcileTarget(null); }}
+          accountId={reconcileTarget.id}
+          accountName={reconcileTarget.name}
+          openingBalance={reconcileTarget.openingBalance ?? 0}
+        />
+      )}
     </div>
   );
 }

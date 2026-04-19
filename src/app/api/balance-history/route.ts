@@ -47,7 +47,7 @@ export async function GET(request: Request) {
   // Net delta of tx BEFORE the window starts.
   const beforeGrouped = await prisma.transaction.groupBy({
     by: ["isCredit"],
-    where: { accountId: { in: accountIds }, date: { lt: windowStart } },
+    where: { accountId: { in: accountIds }, date: { lt: windowStart }, deletedAt: null, isExcluded: false },
     _sum: { amount: true },
   });
   const preWindowDelta = beforeGrouped.reduce(
@@ -57,7 +57,7 @@ export async function GET(request: Request) {
 
   // All tx in the window, summed per day.
   const inWindow = await prisma.transaction.findMany({
-    where: { accountId: { in: accountIds }, date: { gte: windowStart } },
+    where: { accountId: { in: accountIds }, date: { gte: windowStart }, deletedAt: null, isExcluded: false },
     select: { date: true, amount: true, isCredit: true },
     orderBy: { date: "asc" },
   });
@@ -79,5 +79,18 @@ export async function GET(request: Request) {
     series.push({ date: key, balance: Math.round(running * 100) / 100 });
   }
 
-  return NextResponse.json(series);
+  // Trim leading flat segment: if there are no pre-window transactions and no
+  // opening balance anchors, the series starts at $0 for months before data
+  // exists — visually confusing. Start a few days before the first real tx.
+  let trimmed = series;
+  if (openingAnchors === 0 && preWindowDelta === 0 && inWindow.length > 0) {
+    const firstTxDay = inWindow[0].date.toISOString().slice(0, 10);
+    const ctxDate = new Date(firstTxDay);
+    ctxDate.setDate(ctxDate.getDate() - 7);
+    const ctxKey = ctxDate.toISOString().slice(0, 10);
+    const idx = series.findIndex((p) => p.date >= ctxKey);
+    if (idx > 0) trimmed = series.slice(idx);
+  }
+
+  return NextResponse.json(trimmed);
 }

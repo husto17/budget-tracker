@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { format, subDays } from "date-fns";
-import { Search, Filter, Download } from "lucide-react";
+import { Search, Filter, Download, ArrowUpDown, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +26,7 @@ export interface FilterState {
   statusFilter: StatusFilter;
   from: string;
   to: string;
+  sort: "asc" | "desc";
 }
 
 interface Props {
@@ -52,6 +53,7 @@ export function TransactionsFilters({
   disableExport,
 }: Props) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mobileExpanded, setMobileExpanded] = useState(false);
 
   function handleSearchInput(value: string) {
     onFilterChange({ searchInput: value });
@@ -67,14 +69,41 @@ export function TransactionsFilters({
     filters.filterAccount !== "all" ||
     filters.filterCategory !== "all" ||
     filters.filterUncategorized ||
+    filters.statusFilter !== "all" ||
     filters.from ||
     filters.to;
 
+  const activeCount = [
+    filters.searchInput,
+    filters.filterAccount !== "all",
+    filters.filterCategory !== "all",
+    filters.filterUncategorized,
+    filters.statusFilter !== "all",
+    filters.from,
+    filters.to,
+  ].filter(Boolean).length;
+
   return (
     <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 space-y-3">
-      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
-        <Filter className="w-4 h-4" /> Filters
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+          <Filter className="w-4 h-4" /> Filters
+          {activeCount > 0 && (
+            <span className="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-indigo-600 text-white">
+              {activeCount}
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setMobileExpanded((v) => !v)}
+          className="md:hidden flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"
+        >
+          {mobileExpanded ? <><ChevronUp className="w-3.5 h-3.5" /> Hide</> : <><ChevronDown className="w-3.5 h-3.5" /> Show</>}
+        </button>
       </div>
+
+      <div className={`${mobileExpanded ? "block" : "hidden"} md:block space-y-3`}>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div className="relative col-span-1 md:col-span-1 w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
@@ -250,8 +279,10 @@ export function TransactionsFilters({
                 filterAccount: "all",
                 filterCategory: "all",
                 filterUncategorized: false,
+                statusFilter: "all",
                 from: "",
                 to: "",
+                sort: "desc",
               });
               onResetPage();
             }}
@@ -259,17 +290,32 @@ export function TransactionsFilters({
             Clear filters
           </Button>
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 ml-auto"
-          onClick={onExport}
-          disabled={exporting || disableExport}
-          title="Download current filtered view as CSV"
-        >
-          <Download className="w-3.5 h-3.5 mr-1.5" />
-          {exporting ? "Exporting..." : "Export CSV"}
-        </Button>
+        <div className="flex items-center gap-2 ml-auto">
+          <button
+            type="button"
+            onClick={() => {
+              onFilterChange({ sort: filters.sort === "desc" ? "asc" : "desc" });
+              onResetPage();
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+            title="Toggle sort order"
+          >
+            <ArrowUpDown className="w-3 h-3" />
+            {filters.sort === "desc" ? "Newest first" : "Oldest first"}
+          </button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8"
+            onClick={onExport}
+            disabled={exporting || disableExport}
+            title="Download current filtered view as CSV"
+          >
+            <Download className="w-3.5 h-3.5 mr-1.5" />
+            {exporting ? "Exporting..." : "Export CSV"}
+          </Button>
+        </div>
+      </div>
       </div>
     </div>
   );
