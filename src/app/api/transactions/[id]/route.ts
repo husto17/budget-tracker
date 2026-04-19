@@ -38,7 +38,7 @@ export async function PATCH(
   ) {
     try {
       const existingAlias = await prisma.merchantAlias.findUnique({
-        where: { userId_fromName: { userId: session.user.id, fromName: tx.merchant } },
+        where: { userId_fromName: { userId: ownerId, fromName: tx.merchant } },
       });
       if (existingAlias) {
         await prisma.merchantAlias.update({
@@ -47,7 +47,7 @@ export async function PATCH(
         });
       } else {
         await prisma.merchantAlias.create({
-          data: { userId: session.user.id, fromName: tx.merchant, toName: data.merchant },
+          data: { userId: ownerId, fromName: tx.merchant, toName: data.merchant },
         });
       }
     } catch (err) {

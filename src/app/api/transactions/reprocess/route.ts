@@ -17,34 +17,37 @@ export async function POST() {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = session.user.id;
-  const ownerId = await getHouseholdCategoryOwnerId(userId);
-  const partnerUserId = await getPartnerUserId(userId);
-  const householdUserIds = partnerUserId ? [ownerId, partnerUserId === ownerId ? userId : partnerUserId] : [ownerId];
+  const [ownerId, partnerUserId] = await Promise.all([
+    getHouseholdCategoryOwnerId(userId),
+    getPartnerUserId(userId),
+  ]);
+  // All household user IDs — used for category-rename sweep below.
+  const allUserIds = partnerUserId ? [userId, partnerUserId] : [userId];
 
-  // Apply default-category seeds and renames (e.g. Transportation→Transport)
-  // for every user in the household. Running for both ensures the rename lands
-  // regardless of which account still has the old name.
-  for (const uid of householdUserIds) {
-    try { await ensureDefaultCategories(uid); } catch (e) {
-      console.error("ensureDefaultCategories failed for", uid, e);
-    }
+  // Seed/rename default categories for the canonical owner only.
+  // Running ensureDefaultCategories for the partner risks recreating their
+  // categories if the household merge has already emptied their namespace.
+  try { await ensureDefaultCategories(ownerId); } catch (e) {
+    console.error("ensureDefaultCategories failed", e);
   }
 
-  // Explicitly fix any remaining old-name → new-name category mismatches by
-  // moving transactions across household users. ensureDefaultCategories handles
-  // the rename within a single user; this handles the cross-user case where
-  // one user's transactions point to the partner's old category.
+  // Apply all CATEGORY_RENAMES for every household user — safe because it
+  // only acts when the old-name category actually exists.
   for (const rename of CATEGORY_RENAMES) {
-    for (const uid of householdUserIds) {
-      const fromCat = await prisma.category.findFirst({ where: { userId: uid, name: rename.from }, select: { id: true } });
-      if (!fromCat) continue;
-      const toCat = await prisma.category.findFirst({ where: { userId: uid, name: rename.to }, select: { id: true } });
-      if (toCat) {
-        await prisma.transaction.updateMany({ where: { categoryId: fromCat.id }, data: { categoryId: toCat.id } });
-        await prisma.categoryRule.updateMany({ where: { categoryId: fromCat.id }, data: { categoryId: toCat.id } });
-        await prisma.category.delete({ where: { id: fromCat.id } });
-      } else {
-        await prisma.category.update({ where: { id: fromCat.id }, data: { name: rename.to } });
+    for (const uid of allUserIds) {
+      try {
+        const fromCat = await prisma.category.findFirst({ where: { userId: uid, name: rename.from }, select: { id: true } });
+        if (!fromCat) continue;
+        const toCat = await prisma.category.findFirst({ where: { userId: uid, name: rename.to }, select: { id: true } });
+        if (toCat) {
+          await prisma.transaction.updateMany({ where: { categoryId: fromCat.id }, data: { categoryId: toCat.id } });
+          await prisma.categoryRule.updateMany({ where: { categoryId: fromCat.id }, data: { categoryId: toCat.id } });
+          await prisma.category.delete({ where: { id: fromCat.id } });
+        } else {
+          await prisma.category.update({ where: { id: fromCat.id }, data: { name: rename.to } });
+        }
+      } catch (e) {
+        console.error(`Category rename ${rename.from}→${rename.to} failed for ${uid}`, e);
       }
     }
   }

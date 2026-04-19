@@ -54,7 +54,7 @@ export async function exportTransactionsCsv(filters: ExportFilters): Promise<num
     ...rows.map((t) =>
       [
         format(new Date(t.date), "yyyy-MM-dd"),
-        esc(t.description),
+        esc(t.merchant ?? t.description),
         t.isCredit ? t.amount : -t.amount,
         t.isCredit ? "Credit" : "Debit",
         esc(t.category?.name ?? ""),
