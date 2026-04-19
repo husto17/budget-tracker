@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { ensureDefaultCategories } from "@/lib/default-categories";
-import { getHouseholdCategoryOwnerId, mergeHouseholdCategories } from "@/lib/household";
+import { ensureDefaultCategories, CATEGORY_RENAMES } from "@/lib/default-categories";
+import { getHouseholdCategoryOwnerId, mergeHouseholdCategories, getPartnerUserId } from "@/lib/household";
 import { PALETTE } from "@/lib/palette";
 
 async function pickLeastUsedColor(userId: string): Promise<string> {
@@ -35,16 +35,36 @@ export async function GET() {
 
   // Merge any partner categories into the canonical owner first, then seed
   // defaults for the owner only. This keeps both household members in sync.
-  const ownerId = await getHouseholdCategoryOwnerId(session.user.id);
-  try {
-    await mergeHouseholdCategories(session.user.id);
-  } catch (e) {
+  const [ownerId, partnerUserId] = await Promise.all([
+    getHouseholdCategoryOwnerId(session.user.id),
+    getPartnerUserId(session.user.id),
+  ]);
+  try { await mergeHouseholdCategories(session.user.id); } catch (e) {
     console.error("Failed to merge household categories", e);
   }
-  try {
-    await ensureDefaultCategories(ownerId);
-  } catch (e) {
+  try { await ensureDefaultCategories(ownerId); } catch (e) {
     console.error("Failed to sync default categories", e);
+  }
+  // Force-apply category renames (e.g. Transportation→Transport) for every
+  // household user on every categories load — no-op once data is clean.
+  const allUserIds = partnerUserId ? [session.user.id, partnerUserId] : [session.user.id];
+  for (const rename of CATEGORY_RENAMES) {
+    for (const uid of allUserIds) {
+      try {
+        const fromCat = await prisma.category.findFirst({ where: { userId: uid, name: rename.from }, select: { id: true } });
+        if (!fromCat) continue;
+        const toCat = await prisma.category.findFirst({ where: { userId: uid, name: rename.to }, select: { id: true } });
+        if (toCat) {
+          await prisma.transaction.updateMany({ where: { categoryId: fromCat.id }, data: { categoryId: toCat.id } });
+          await prisma.categoryRule.updateMany({ where: { categoryId: fromCat.id }, data: { categoryId: toCat.id } });
+          await prisma.category.delete({ where: { id: fromCat.id } });
+        } else {
+          await prisma.category.update({ where: { id: fromCat.id }, data: { name: rename.to } });
+        }
+      } catch (e) {
+        console.error(`Rename ${rename.from}→${rename.to} failed for ${uid}`, e);
+      }
+    }
   }
 
   const categories = await prisma.category.findMany({
