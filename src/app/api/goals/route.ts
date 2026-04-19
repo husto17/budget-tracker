@@ -15,7 +15,7 @@ async function applyLinkedBalances<T extends { id: string; linkedAccountId: stri
   if (linkedIds.length === 0) return goals;
   const grouped = await prisma.transaction.groupBy({
     by: ["accountId", "isCredit"],
-    where: { accountId: { in: linkedIds } },
+    where: { accountId: { in: linkedIds }, deletedAt: null, isExcluded: false },
     _sum: { amount: true },
   });
   const balances = new Map<string, number>();

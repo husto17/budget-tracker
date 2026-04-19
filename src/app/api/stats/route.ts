@@ -25,6 +25,7 @@ export async function GET() {
         accountId: { in: accountIds },
         isPending: true,
         deletedAt: null,
+        isExcluded: false,
       },
     }),
   ]);

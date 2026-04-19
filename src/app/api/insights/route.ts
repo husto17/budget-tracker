@@ -256,7 +256,12 @@ export async function GET(request: Request) {
   if (allMonths.length >= 2) {
     const allCats = new Set(Object.values(monthlyByCategory).flatMap((m) => Object.keys(m)));
     for (const cat of allCats) {
-      const historical = allMonths.map((m) => monthlyByCategory[m][cat] ?? 0);
+      // Only average months where the category had actual spending (avoids
+      // zero-fill deflating the average for infrequent categories)
+      const historical = allMonths
+        .map((m) => monthlyByCategory[m][cat] ?? 0)
+        .filter((v) => v > 0);
+      if (historical.length < 2) continue; // need at least 2 months of history
       const avg = historical.reduce((a, b) => a + b, 0) / historical.length;
       const current = thisMonthCats[cat] ?? 0;
       if (avg > 10 && current > avg * 1.5) {
@@ -273,6 +278,9 @@ export async function GET(request: Request) {
   const categoryColors: Record<string, string> = Object.fromEntries(
     allCategoryRows.map((c) => [c.name, c.color])
   );
+
+  // Previous month category spending (needed for budget rollover calc below)
+  const categorySpendingPrevMonth: Record<string, number> = monthlyByCategory[lastMonth] ?? {};
 
   // Budget utilization (categories with budgets set)
   const categories = await prisma.category.findMany({
@@ -349,8 +357,6 @@ export async function GET(request: Request) {
     net: (monthlyIncome[month] ?? 0) - (monthlyTotals[month] ?? 0),
   }));
 
-  // Previous month category spending (for MoM comparison per category)
-  const categorySpendingPrevMonth: Record<string, number> = monthlyByCategory[lastMonth] ?? {};
 
   // ── Merchant loyalty map ─────────────────────────────────────────────────
   const merchantLoyalty = Object.entries(merchantData)

@@ -224,7 +224,10 @@ export async function GET(request: Request) {
   for (const { dom, avgAmount } of paydays) {
     // Check this month and next month
     for (let mo = 0; mo <= 2; mo++) {
-      const d = new Date(year, month - 1 + mo, dom);
+      // Clamp dom to last day of the target month (e.g. day 31 in Feb → Feb 28)
+      const daysInMonth = new Date(year, month - 1 + mo + 1, 0).getDate();
+      const clampedDom = Math.min(dom, daysInMonth);
+      const d = new Date(year, month - 1 + mo, clampedDom);
       if (d < gridStart || d > gridEnd) continue;
       const key = d.toISOString().slice(0, 10);
       if (key <= todayStr) continue;
