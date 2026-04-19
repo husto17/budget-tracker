@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getHouseholdAccountIds } from "@/lib/household";
 import { parseSearch } from "@/lib/search-parser";
+import { CATEGORY_RENAMES } from "@/lib/default-categories";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -45,11 +46,21 @@ export async function GET(request: Request) {
   if (categoryId) {
     const cat = await prisma.category.findUnique({ where: { id: categoryId }, select: { name: true } });
     if (cat) {
+      // Also include any historical names that rename to this category — handles
+      // the case where a household partner's categories haven't been migrated yet
+      // (e.g. partner still has "Transportation" while current user has "Transport").
+      const historicalNames = CATEGORY_RENAMES
+        .filter((r) => r.to.toLowerCase() === cat.name.toLowerCase())
+        .map((r) => r.from);
+      const allNames = [cat.name, ...historicalNames];
       const matching = await prisma.category.findMany({
-        where: { userId: { in: householdUserIds }, name: { equals: cat.name, mode: "insensitive" } },
+        where: {
+          userId: { in: householdUserIds },
+          OR: allNames.map((n) => ({ name: { equals: n, mode: "insensitive" as const } })),
+        },
         select: { id: true },
       });
-      resolvedCategoryIds = matching.map((c) => c.id);
+      resolvedCategoryIds = matching.length > 0 ? matching.map((c) => c.id) : [categoryId];
     } else {
       resolvedCategoryIds = [categoryId];
     }

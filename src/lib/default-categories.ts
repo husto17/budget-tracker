@@ -115,7 +115,7 @@ export const DEFAULT_RULES: Record<string, string[]> = {
 
 // Renames of default categories over time — older installs get migrated
 // transparently on the next GET /api/categories.
-const CATEGORY_RENAMES: Array<{ from: string; to: string }> = [
+export const CATEGORY_RENAMES: Array<{ from: string; to: string }> = [
   { from: "Rent / Mortgage", to: "Rent" },
   { from: "Transportation", to: "Transport" },
   { from: "Grocery", to: "Groceries" },
