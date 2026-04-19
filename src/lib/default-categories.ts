@@ -62,8 +62,7 @@ export const DEFAULT_RULES: Record<string, string[]> = {
     "NETFLIX", "HULU", "STUBHUB", "TICKETMASTER", "THEATRE", "CINEMA",
   ],
   Shopping: [
-    "AMAZON", "TARGET", "WAL-MART", "USPS", "FEDEX", "UPS ",
-    "BEST BUY", "ETSY", "EBAY",
+    "BEST BUY", "ETSY", "EBAY", "USPS", "FEDEX", "UPS ",
   ],
   Clothing: [
     "LULULEMON", "VUORI", "ALO YOGA", "NIKE", "ADIDAS", "PATAGONIA",
