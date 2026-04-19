@@ -23,7 +23,6 @@ import {
   ArrowLeftRight,
   Trash2,
   Receipt,
-  Zap,
   CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -55,14 +54,13 @@ const navGroups: Array<{
     items: [
       { href: "/cashflow", icon: CalendarDays, label: "Cash Flow" },
       { href: "/goals", icon: Target, label: "Goals" },
-      { href: "/categories", icon: Tags, label: "Categories" },
+      { href: "/categories", icon: Tags, label: "Rules" },
       { href: "/accounts", icon: Wallet, label: "Accounts" },
     ],
   },
   {
     items: [
       { href: "/ask", icon: Sparkles, label: "Ask" },
-      { href: "/rules", icon: Zap, label: "Rules" },
       { href: "/help", icon: HelpCircle, label: "Help" },
       { href: "/trash", icon: Trash2, label: "Trash" },
       { href: "/settings", icon: Settings, label: "Settings" },

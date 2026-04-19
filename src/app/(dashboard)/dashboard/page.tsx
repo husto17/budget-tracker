@@ -584,8 +584,8 @@ export default function DashboardPage() {
 
       {/* Secondary stats — tighter on mobile so $x,xxx.xx fits all three in a row */}
       <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4">
-        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-rose-50 to-white ring-1 ring-rose-100/80">
-          <div className="hidden sm:flex absolute top-4 right-4 w-8 h-8 rounded-full bg-rose-100 items-center justify-center">
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-rose-50 to-white dark:from-rose-950/40 dark:to-gray-900 ring-1 ring-rose-100/80 dark:ring-rose-900/40">
+          <div className="hidden sm:flex absolute top-4 right-4 w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-900/40 items-center justify-center">
             <TrendingDown className="w-4 h-4 text-rose-600" />
           </div>
           <CardContent className="p-3 sm:pt-5 sm:pb-4 sm:px-6">
@@ -600,8 +600,8 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
-        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-sky-50 to-white ring-1 ring-sky-100/80">
-          <div className="hidden sm:flex absolute top-4 right-4 w-8 h-8 rounded-full bg-sky-100 items-center justify-center">
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-sky-50 to-white dark:from-sky-950/40 dark:to-gray-900 ring-1 ring-sky-100/80 dark:ring-sky-900/40">
+          <div className="hidden sm:flex absolute top-4 right-4 w-8 h-8 rounded-full bg-sky-100 dark:bg-sky-900/40 items-center justify-center">
             <Receipt className="w-4 h-4 text-sky-600" />
           </div>
           <CardContent className="p-3 sm:pt-5 sm:pb-4 sm:px-6">
@@ -612,8 +612,8 @@ export default function DashboardPage() {
             <p className="hidden sm:block text-xs text-gray-400 dark:text-gray-500 mt-1">Final total</p>
           </CardContent>
         </Card>
-        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-violet-50 to-white ring-1 ring-violet-100/80">
-          <div className="hidden sm:flex absolute top-4 right-4 w-8 h-8 rounded-full bg-violet-100 items-center justify-center">
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-violet-50 to-white dark:from-violet-950/40 dark:to-gray-900 ring-1 ring-violet-100/80 dark:ring-violet-900/40">
+          <div className="hidden sm:flex absolute top-4 right-4 w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/40 items-center justify-center">
             <Repeat className="w-4 h-4 text-violet-600" />
           </div>
           <CardContent className="p-3 sm:pt-5 sm:pb-4 sm:px-6">

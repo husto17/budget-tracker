@@ -15,21 +15,26 @@ function eventColor(ev: CashFlowEvent): string {
   if (ev.type === "income") return "bg-emerald-100 text-emerald-700 border-emerald-200";
   if (ev.type === "credit") return "bg-emerald-50 text-emerald-600 border-emerald-100";
   if (ev.type === "bill") return "bg-red-100 text-red-700 border-red-200";
+  if (ev.type === "category-estimate") return "bg-indigo-50 text-indigo-600 border-indigo-200 border-dashed";
   return "bg-gray-100 text-gray-600 border-gray-200";
 }
 
 function EventChip({ ev, onDismiss }: { ev: CashFlowEvent; onDismiss?: () => void }) {
   const cls = eventColor(ev);
+  const isCatEstimate = ev.type === "category-estimate";
+  const href = isCatEstimate
+    ? `/transactions?categoryName=${encodeURIComponent(ev.label)}`
+    : `/transactions?search=${encodeURIComponent(ev.label)}`;
+  const prefix = ev.type === "income" || ev.type === "credit" ? "+" : isCatEstimate ? "~" : "−";
   return (
     <div className="flex items-center gap-0.5 group/chip">
       <Link
-        href={`/transactions?search=${encodeURIComponent(ev.label)}`}
+        href={href}
         className={`flex-1 truncate text-[9px] font-medium px-1 py-0.5 rounded border ${cls} hover:opacity-80 transition-opacity`}
         title={`${ev.label} — ${ev.isProjected ? "projected " : ""}${formatCurrency(ev.amount)}`}
         onClick={(e) => e.stopPropagation()}
       >
-        {ev.type === "income" ? "+" : ev.type === "credit" ? "+" : "−"}
-        {formatCurrency(ev.amount)} {ev.label}
+        {prefix}{formatCurrency(ev.amount)} {ev.label}
       </Link>
       {onDismiss && (
         <button

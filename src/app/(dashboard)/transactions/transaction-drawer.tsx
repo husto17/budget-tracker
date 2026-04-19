@@ -371,31 +371,16 @@ export function TransactionDrawer({
 
             <div className="space-y-1.5">
               <Label className="text-xs">Category</Label>
-              <Select
+              <select
                 value={form.categoryId}
-                onValueChange={(v) => setForm((f) => ({ ...f, categoryId: v ?? "none" }))}
+                onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
+                className="w-full h-9 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-2"
               >
-                <SelectTrigger>
-                  <SelectValue>
-                    {form.categoryId === "none" ? (
-                      <span className="text-gray-400 dark:text-gray-500">— Uncategorized</span>
-                    ) : (
-                      effectiveCategories.find((c) => c.id === form.categoryId)?.name ?? "—"
-                    )}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— None</SelectItem>
-                  {effectiveCategories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      <div className="flex items-center gap-2">
-                        <CategoryIcon icon={c.icon} color={c.color} size="sm" />
-                        {c.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <option value="none">— Uncategorized</option>
+                {effectiveCategories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
 
               {/* Remember toggle — always visible when a category is picked so the
                   user sees explicitly whether save will create a rule. */}

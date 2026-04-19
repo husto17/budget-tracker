@@ -23,8 +23,16 @@ function detectCadence(dates: Date[]): { cadence: Cadence | null; intervalDays: 
   return { cadence: null, intervalDays: median };
 }
 
+// Categories where spending is inherently variable — project by category average,
+// not by merchant name (you don't go to the same restaurant every week).
+export const VARIABLE_CATEGORIES = new Set([
+  "Groceries", "Dining Out", "Transport", "Shopping", "Clothing",
+  "Personal Care", "Entertainment", "Travel", "Home", "Gifts",
+  "Family Support", "Charity", "Education", "Other",
+]);
+
 export interface CashFlowEvent {
-  type: "bill" | "income" | "debit" | "credit";
+  type: "bill" | "income" | "debit" | "credit" | "category-estimate";
   label: string;
   amount: number;
   categoryName: string | null;
@@ -160,8 +168,10 @@ export async function GET(request: Request) {
 
   for (const [name, data] of Object.entries(subMap)) {
     if (data.dates.length < 2) continue;
+    // Skip variable-spend categories — those get projected by category average below
+    if (VARIABLE_CATEGORIES.has(data.categoryName ?? "")) continue;
     const avg = data.amounts.reduce((a, b) => a + b, 0) / data.amounts.length;
-    const consistent = data.amounts.every((a) => Math.abs(a - avg) / Math.max(avg, 1) <= 0.2);
+    const consistent = data.amounts.every((a) => Math.abs(a - avg) / Math.max(avg, 1) <= 0.15);
     if (!consistent) continue;
     const { cadence, intervalDays } = detectCadence(data.dates);
     if (!cadence) continue;
@@ -247,6 +257,61 @@ export async function GET(request: Request) {
         categoryColor: null,
         isProjected: true,
       });
+    }
+  }
+
+  // Variable category projections — weekly average spend per category
+  // based on last 3 months, shown as one estimate per category per week (Mondays).
+  const threeMonthsAgo = new Date(now);
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+  const variableCats = await prisma.category.findMany({
+    where: { userId: { in: userIds }, name: { in: Array.from(VARIABLE_CATEGORIES) } },
+    select: { id: true, name: true, color: true },
+  });
+  const variableCatIds = variableCats.map((c) => c.id);
+  const catInfo = new Map(variableCats.map((c) => [c.id, c]));
+
+  if (variableCatIds.length > 0) {
+    const catSpend = await prisma.transaction.groupBy({
+      by: ["categoryId"],
+      where: {
+        accountId: { in: accountIds },
+        isCredit: false,
+        deletedAt: null,
+        isExcluded: false,
+        transferPairId: null,
+        date: { gte: threeMonthsAgo },
+        categoryId: { in: variableCatIds },
+      },
+      _sum: { amount: true },
+    });
+
+    const WEEKS = 13; // ~3 months
+    for (const row of catSpend) {
+      if (!row.categoryId) continue;
+      const cat = catInfo.get(row.categoryId);
+      if (!cat) continue;
+      const weeklyAvg = (row._sum.amount ?? 0) / WEEKS;
+      if (weeklyAvg < 5) continue; // skip negligible categories
+
+      // One projected event per Monday in the future grid
+      for (let i = 0; i <= 41; i++) {
+        const d = new Date(gridStart);
+        d.setDate(d.getDate() + i);
+        if (d > gridEnd) break;
+        const key = d.toISOString().slice(0, 10);
+        if (key <= todayStr) continue;
+        if (d.getDay() !== 1) continue; // Mondays only
+        addProjected(key, {
+          type: "category-estimate",
+          label: cat.name,
+          amount: Math.round(weeklyAvg * 100) / 100,
+          categoryName: cat.name,
+          categoryColor: cat.color,
+          isProjected: true,
+        });
+      }
     }
   }
 
