@@ -50,9 +50,28 @@ function parseAmount(val: string): number {
   return parseFloat(cleaned) || 0;
 }
 
-function hashTransaction(date: Date, description: string, amount: number): string {
-  const str = `${date.toISOString().slice(0, 10)}|${description}|${amount}`;
+function hashTransaction(date: Date, description: string, amount: number, ordinal = 0): string {
+  // Ordinal disambiguates truly-duplicate rows (two $5 coffees, same day,
+  // same merchant). Omitted when 0 so existing hashes keep matching — this
+  // keeps the change backward-compatible against already-imported rows.
+  const base = `${date.toISOString().slice(0, 10)}|${description}|${amount}`;
+  const str = ordinal > 0 ? `${base}|${ordinal}` : base;
   return crypto.createHash("sha256").update(str).digest("hex").slice(0, 16);
+}
+
+// Walk a parsed batch and re-hash any row that shares (date, desc, amount) with
+// an earlier row — the second such row becomes ordinal 1, third becomes 2, etc.
+// Stable against re-parsing the same statement since it only depends on parse
+// order, which our parsers produce deterministically.
+export function assignDuplicateOrdinals(rows: ParsedTransaction[]): ParsedTransaction[] {
+  const counts = new Map<string, number>();
+  return rows.map((t) => {
+    const key = `${t.date.toISOString().slice(0, 10)}|${t.description}|${t.amount}`;
+    const ordinal = counts.get(key) ?? 0;
+    counts.set(key, ordinal + 1);
+    if (ordinal === 0) return t;
+    return { ...t, hash: hashTransaction(t.date, t.description, t.amount, ordinal) };
+  });
 }
 
 function detectColumns(headers: string[]): {
@@ -176,5 +195,5 @@ export function parseCsv(csvText: string): CsvParseResult {
     });
   }
 
-  return { transactions, errors, rawHeaders };
+  return { transactions: assignDuplicateOrdinals(transactions), errors, rawHeaders };
 }

@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import type { ParsedTransaction } from "./csv-parser";
+import { assignDuplicateOrdinals } from "./csv-parser";
 
 export interface PdfParseResult {
   transactions: ParsedTransaction[];
@@ -656,7 +657,7 @@ export function parsePdfText(text: string): PdfParseResult {
   const meta = extractStatementMeta(text);
 
   return {
-    transactions,
+    transactions: assignDuplicateOrdinals(transactions),
     errors,
     rawText: text,
     detectedBank,
