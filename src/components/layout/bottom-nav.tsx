@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ArrowUpDown, Camera, Target, Sparkles } from "lucide-react";
+import { LayoutDashboard, ArrowUpDown, TrendingUp, CalendarDays, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Home" },
   { href: "/transactions", icon: ArrowUpDown, label: "Activity" },
-  { href: "/quick-entry", icon: Camera, label: "Snap" },
-  { href: "/goals", icon: Target, label: "Goals" },
+  { href: "/insights", icon: TrendingUp, label: "Insights" },
+  { href: "/cashflow", icon: CalendarDays, label: "Cash Flow" },
   { href: "/ask", icon: Sparkles, label: "Ask" },
 ];
 

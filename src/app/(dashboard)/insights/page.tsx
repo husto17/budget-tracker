@@ -136,6 +136,28 @@ export default function InsightsPage() {
     try { localStorage.removeItem("insights:dismissed-recurring"); } catch {}
   }
 
+  const [dismissedPaydays, setDismissedPaydays] = useState<Set<number>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const saved = JSON.parse(localStorage.getItem("cashflow:dismissed-paydays") ?? "[]");
+      return new Set(Array.isArray(saved) ? saved : []);
+    } catch { return new Set(); }
+  });
+
+  function dismissPayday(dom: number) {
+    setDismissedPaydays((prev) => {
+      const next = new Set(prev);
+      next.add(dom);
+      try { localStorage.setItem("cashflow:dismissed-paydays", JSON.stringify(Array.from(next))); } catch {}
+      return next;
+    });
+  }
+
+  function restorePaydays() {
+    setDismissedPaydays(new Set());
+    try { localStorage.removeItem("cashflow:dismissed-paydays"); } catch {}
+  }
+
   function setRangePersisted(next: RangeMonths) {
     setRange(next);
     if (next !== "custom") {
@@ -863,11 +885,36 @@ export default function InsightsPage() {
             <CardTitle className="text-base">Spending by Day of Month</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
-              Detected payday{insights.paydayPattern.detectedPaydays.length > 1 ? "s" : ""}: day{" "}
-              {insights.paydayPattern.detectedPaydays.join(" & ")} of the month.
-              Look for spending spikes right after payday.
-            </p>
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <p className="text-xs text-gray-400 dark:text-gray-500">
+                Detected payday{insights.paydayPattern.detectedPaydays.length > 1 ? "s" : ""}:
+              </p>
+              {insights.paydayPattern.detectedPaydays.map((dom) => (
+                dismissedPaydays.has(dom) ? null : (
+                  <span key={dom} className="inline-flex items-center gap-1 text-xs bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-full px-2 py-0.5">
+                    Day {dom}
+                    <button
+                      onClick={() => dismissPayday(dom)}
+                      className="text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-200"
+                      title="Not my payday — dismiss"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )
+              ))}
+              {dismissedPaydays.size > 0 && (
+                <button onClick={restorePaydays} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
+                  Restore dismissed
+                </button>
+              )}
+            </div>
+            {insights.paydayPattern.detectedPaydays.every(d => dismissedPaydays.has(d)) && (
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">All detected paydays dismissed. Cashflow projections won&apos;t include income for these days.</p>
+            )}
+            {!insights.paydayPattern.detectedPaydays.every(d => dismissedPaydays.has(d)) && (
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Look for spending spikes right after payday.</p>
+            )}
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={insights.paydayPattern.spendingByDayOfMonth.filter((d) => d.count > 0)}>
                 <XAxis dataKey="day" tick={{ fontSize: 10 }} />
@@ -882,7 +929,7 @@ export default function InsightsPage() {
                     .map((d) => (
                       <Cell
                         key={d.day}
-                        fill={insights.paydayPattern!.detectedPaydays.includes(d.day) ? "#22c55e" : "#6366f1"}
+                        fill={insights.paydayPattern!.detectedPaydays.includes(d.day) && !dismissedPaydays.has(d.day) ? "#22c55e" : "#6366f1"}
                       />
                     ))}
                 </Bar>

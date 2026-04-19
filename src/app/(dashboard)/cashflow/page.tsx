@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { format, parseISO, isToday, isThisMonth } from "date-fns";
-import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp } from "lucide-react";
+import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchJson, formatCurrency } from "@/lib/fetcher";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,18 +18,29 @@ function eventColor(ev: CashFlowEvent): string {
   return "bg-gray-100 text-gray-600 border-gray-200";
 }
 
-function EventChip({ ev }: { ev: CashFlowEvent }) {
+function EventChip({ ev, onDismiss }: { ev: CashFlowEvent; onDismiss?: () => void }) {
   const cls = eventColor(ev);
   return (
-    <Link
-      href={`/transactions?search=${encodeURIComponent(ev.label)}`}
-      className={`block truncate text-[9px] font-medium px-1 py-0.5 rounded border ${cls} hover:opacity-80 transition-opacity`}
-      title={`${ev.label} — ${ev.isProjected ? "projected " : ""}${formatCurrency(ev.amount)}`}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {ev.type === "income" ? "+" : ev.type === "credit" ? "+" : "−"}
-      {formatCurrency(ev.amount)} {ev.label}
-    </Link>
+    <div className="flex items-center gap-0.5 group/chip">
+      <Link
+        href={`/transactions?search=${encodeURIComponent(ev.label)}`}
+        className={`flex-1 truncate text-[9px] font-medium px-1 py-0.5 rounded border ${cls} hover:opacity-80 transition-opacity`}
+        title={`${ev.label} — ${ev.isProjected ? "projected " : ""}${formatCurrency(ev.amount)}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {ev.type === "income" ? "+" : ev.type === "credit" ? "+" : "−"}
+        {formatCurrency(ev.amount)} {ev.label}
+      </Link>
+      {onDismiss && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+          className="opacity-0 group-hover/chip:opacity-100 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-opacity"
+          title={`Dismiss ${ev.label} projection`}
+        >
+          <X className="w-2.5 h-2.5" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -40,11 +51,42 @@ export default function CashFlowPage() {
   const [days, setDays] = useState<CashFlowDay[]>([]);
   const [currentBalance, setCurrentBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dismissedProjections, setDismissedProjections] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const saved = JSON.parse(localStorage.getItem("cashflow:dismissed") ?? "[]");
+      return new Set(Array.isArray(saved) ? saved : []);
+    } catch { return new Set(); }
+  });
+  const [dismissedPaydays, setDismissedPaydays] = useState<Set<number>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const saved = JSON.parse(localStorage.getItem("cashflow:dismissed-paydays") ?? "[]");
+      return new Set(Array.isArray(saved) ? saved : []);
+    } catch { return new Set(); }
+  });
+
+  function dismissProjection(label: string) {
+    setDismissedProjections((prev) => {
+      const next = new Set(prev);
+      next.add(label);
+      try { localStorage.setItem("cashflow:dismissed", JSON.stringify(Array.from(next))); } catch {}
+      return next;
+    });
+  }
+
+  function restoreProjections() {
+    setDismissedProjections(new Set());
+    setDismissedPaydays(new Set());
+    try { localStorage.removeItem("cashflow:dismissed"); localStorage.removeItem("cashflow:dismissed-paydays"); } catch {}
+  }
 
   useEffect(() => {
     setLoading(true);
+    const cfParams = new URLSearchParams({ year: String(year), month: String(month) });
+    if (dismissedPaydays.size > 0) cfParams.set("excludePaydays", Array.from(dismissedPaydays).join(","));
     fetchJson<{ days: CashFlowDay[]; currentBalance: number }>(
-      `/api/cashflow?year=${year}&month=${month}`
+      `/api/cashflow?${cfParams}`
     )
       .then(({ days, currentBalance }) => {
         setDays(days);
@@ -52,7 +94,7 @@ export default function CashFlowPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [year, month]);
+  }, [year, month, dismissedPaydays]);
 
   function prevMonth() {
     if (month === 1) { setYear(y => y - 1); setMonth(12); }
@@ -72,16 +114,23 @@ export default function CashFlowPage() {
 
   // Upcoming events (future days in view with events)
   const todayStr = now.toISOString().slice(0, 10);
+
+  function filterEvents(events: CashFlowEvent[]) {
+    return events.map(ev =>
+      ev.isProjected && dismissedProjections.has(ev.label) ? null : ev
+    ).filter((ev): ev is CashFlowEvent => ev !== null);
+  }
+
   const upcoming = days
     .filter(d => d.date > todayStr && d.events.length > 0)
     .flatMap(d => d.events.map(ev => ({ ...ev, date: d.date })))
-    .filter(ev => ev.isProjected)
+    .filter(ev => ev.isProjected && !dismissedProjections.has(ev.label))
     .slice(0, 12);
 
-  // Summary: projected net for month
+  // Summary: projected net for month (excluding dismissed)
   const projectedNet = days
     .filter(d => d.date.startsWith(`${year}-${String(month).padStart(2, "0")}`))
-    .flatMap(d => d.events.filter(e => e.isProjected))
+    .flatMap(d => d.events.filter(e => e.isProjected && !dismissedProjections.has(e.label)))
     .reduce((s, e) => s + (e.type === "income" ? e.amount : -e.amount), 0);
 
   return (
@@ -199,8 +248,8 @@ export default function CashFlowPage() {
 
                     {/* Event chips */}
                     <div className="flex flex-col gap-0.5 mt-0.5">
-                      {visibleEvents.map((ev, i) => (
-                        <EventChip key={i} ev={ev} />
+                      {filterEvents(visibleEvents).map((ev, i) => (
+                        <EventChip key={i} ev={ev} onDismiss={ev.isProjected ? () => dismissProjection(ev.label) : undefined} />
                       ))}
                       {overflow > 0 && (
                         <span className="text-[9px] text-gray-400 dark:text-gray-500 pl-1">
@@ -249,17 +298,26 @@ export default function CashFlowPage() {
       {upcoming.length > 0 && (
         <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Upcoming projected events</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Upcoming projected events</CardTitle>
+              {dismissedProjections.size > 0 && (
+                <button
+                  onClick={restoreProjections}
+                  className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  Restore {dismissedProjections.size} dismissed
+                </button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="divide-y divide-gray-50 dark:divide-gray-800">
               {upcoming.map((ev, i) => (
-                <Link
-                  key={i}
-                  href={`/transactions?search=${encodeURIComponent(ev.label)}`}
-                  className="flex items-center justify-between py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800 -mx-2 px-2 rounded-lg transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
+                <div key={i} className="flex items-center justify-between py-2.5 group/row">
+                  <Link
+                    href={`/transactions?search=${encodeURIComponent(ev.label)}`}
+                    className="flex items-center gap-3 min-w-0 flex-1 hover:bg-gray-50 dark:hover:bg-gray-800 -mx-2 px-2 rounded-lg transition-colors"
+                  >
                     <span className={`w-2 h-2 rounded-full shrink-0 ${ev.type === "income" ? "bg-emerald-500" : "bg-red-400"}`} />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{ev.label}</p>
@@ -268,15 +326,32 @@ export default function CashFlowPage() {
                         {ev.categoryName && ` · ${ev.categoryName}`}
                       </p>
                     </div>
+                  </Link>
+                  <div className="flex items-center gap-2 shrink-0 ml-4">
+                    <span className={`text-sm font-semibold ${ev.type === "income" ? "text-emerald-600" : "text-gray-900 dark:text-gray-100"}`}>
+                      {ev.type === "income" ? "+" : "−"}{formatCurrency(ev.amount)}
+                    </span>
+                    {ev.type !== "income" && (
+                      <button
+                        onClick={() => dismissProjection(ev.label)}
+                        className="opacity-0 group-hover/row:opacity-100 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-opacity"
+                        title={`Dismiss ${ev.label} from projections`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
-                  <span className={`text-sm font-semibold shrink-0 ml-4 ${ev.type === "income" ? "text-emerald-600" : "text-gray-900 dark:text-gray-100"}`}>
-                    {ev.type === "income" ? "+" : "−"}{formatCurrency(ev.amount)}
-                  </span>
-                </Link>
+                </div>
               ))}
             </div>
           </CardContent>
         </Card>
+      )}
+      {dismissedProjections.size > 0 && upcoming.length === 0 && (
+        <p className="text-xs text-gray-400 dark:text-gray-500 text-center">
+          {dismissedProjections.size} projection{dismissedProjections.size !== 1 ? "s" : ""} dismissed.{" "}
+          <button onClick={restoreProjections} className="text-indigo-600 dark:text-indigo-400 hover:underline">Restore</button>
+        </p>
       )}
     </div>
   );

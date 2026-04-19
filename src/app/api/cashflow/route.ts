@@ -51,6 +51,12 @@ export async function GET(request: Request) {
   const now = new Date();
   const year = parseInt(url.searchParams.get("year") ?? String(now.getFullYear()));
   const month = parseInt(url.searchParams.get("month") ?? String(now.getMonth() + 1));
+  const excludePaydays = new Set(
+    (url.searchParams.get("excludePaydays") ?? "")
+      .split(",")
+      .map((s) => parseInt(s))
+      .filter((n) => !isNaN(n))
+  );
 
   // Calendar grid: Sunday-aligned, 6 weeks covering the requested month
   const monthStart = new Date(year, month - 1, 1);
@@ -215,9 +221,9 @@ export async function GET(request: Request) {
     domCounts[dom].count += 1;
     domCounts[dom].months.add(mKey);
   }
-  // Paydays: dom that appears in 2+ distinct months
+  // Paydays: dom that appears in 2+ distinct months, excluding user-dismissed days
   const paydays = Object.entries(domCounts)
-    .filter(([, v]) => v.months.size >= 2)
+    .filter(([dom, v]) => v.months.size >= 2 && !excludePaydays.has(parseInt(dom)))
     .map(([dom, v]) => ({ dom: parseInt(dom), avgAmount: v.total / v.count }));
 
   // Project payday income into future grid days
