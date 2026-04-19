@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds } from "@/lib/household";
+import { getHouseholdAccountIds, getPartnerUserId } from "@/lib/household";
 import { parseSearch } from "@/lib/search-parser";
 import { CATEGORY_RENAMES } from "@/lib/default-categories";
 
@@ -25,13 +25,13 @@ export async function GET(request: Request) {
 
   const householdAccountIds = await getHouseholdAccountIds(session.user.id);
 
-  // Collect all user IDs in the household once — used for category resolution.
-  const householdUserIds = [...new Set(
-    (await prisma.account.findMany({
-      where: { id: { in: householdAccountIds } },
-      select: { userId: true },
-    })).map((a) => a.userId)
-  )];
+  // Always include the logged-in user plus their partner (if any) — don't
+  // derive this from accounts, which would miss the logged-in user if they
+  // have no accounts of their own.
+  const partnerUserId = await getPartnerUserId(session.user.id);
+  const householdUserIds = partnerUserId
+    ? [session.user.id, partnerUserId]
+    : [session.user.id];
 
   // Parse the search string for operators (amount:>100, category:dining, …).
   // The text remainder still goes through the normal fulltext description/
