@@ -26,10 +26,18 @@ interface Goal {
   currentAmount: number;
   targetDate: string | null;
   color: string;
+  linkedAccountId: string | null;
+}
+
+interface AccountLite {
+  id: string;
+  name: string;
+  type: string;
 }
 
 export default function GoalsPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [accounts, setAccounts] = useState<AccountLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState(false);
@@ -42,12 +50,17 @@ export default function GoalsPage() {
     targetAmount: "",
     currentAmount: "",
     targetDate: "",
+    linkedAccountId: "",
   });
 
   async function load() {
     try {
-      const data = await fetchJson<Goal[]>("/api/goals");
-      setGoals(data);
+      const [g, a] = await Promise.all([
+        fetchJson<Goal[]>("/api/goals"),
+        fetchJson<AccountLite[]>("/api/accounts"),
+      ]);
+      setGoals(g);
+      setAccounts(a);
       setLoadError(null);
     } catch (e) {
       setLoadError(e instanceof FetchError ? e.message : "Couldn't load goals");
@@ -62,7 +75,7 @@ export default function GoalsPage() {
 
   function openAdd() {
     setEditing(null);
-    setForm({ name: "", targetAmount: "", currentAmount: "", targetDate: "" });
+    setForm({ name: "", targetAmount: "", currentAmount: "", targetDate: "", linkedAccountId: "" });
     setShowDialog(true);
   }
 
@@ -73,6 +86,7 @@ export default function GoalsPage() {
       targetAmount: String(g.targetAmount),
       currentAmount: String(g.currentAmount),
       targetDate: g.targetDate ? g.targetDate.slice(0, 10) : "",
+      linkedAccountId: g.linkedAccountId ?? "",
     });
     setShowDialog(true);
   }
@@ -85,6 +99,7 @@ export default function GoalsPage() {
         targetAmount: parseFloat(form.targetAmount),
         currentAmount: form.currentAmount ? parseFloat(form.currentAmount) : 0,
         targetDate: form.targetDate || null,
+        linkedAccountId: form.linkedAccountId || null,
       };
       await fetchJson(editing ? `/api/goals/${editing.id}` : "/api/goals", {
         method: editing ? "PATCH" : "POST",
@@ -191,6 +206,16 @@ export default function GoalsPage() {
                         <span>
                           {formatCurrency(g.currentAmount)} of {formatCurrency(g.targetAmount)}
                         </span>
+                        {g.linkedAccountId && (() => {
+                          const acc = accounts.find((a) => a.id === g.linkedAccountId);
+                          if (!acc) return null;
+                          return (
+                            <span className="inline-flex items-center gap-1 text-indigo-500">
+                              <span aria-hidden className="w-1 h-1 rounded-full bg-indigo-500" />
+                              Tracks {acc.name}
+                            </span>
+                          );
+                        })()}
                         {g.targetDate && (
                           <span className="inline-flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
@@ -285,7 +310,12 @@ export default function GoalsPage() {
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label>Saved so far</Label>
+                <Label>
+                  Saved so far
+                  {form.linkedAccountId && (
+                    <span className="ml-1 text-xs text-indigo-500 font-normal">(auto from account)</span>
+                  )}
+                </Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm">$</span>
                   <Input
@@ -296,9 +326,28 @@ export default function GoalsPage() {
                     onChange={(e) => setForm((f) => ({ ...f, currentAmount: e.target.value }))}
                     placeholder="0"
                     className="pl-7"
+                    disabled={!!form.linkedAccountId}
                   />
                 </div>
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Track an account <span className="text-gray-400 dark:text-gray-500 text-xs">(optional)</span></Label>
+              <select
+                value={form.linkedAccountId}
+                onChange={(e) => setForm((f) => ({ ...f, linkedAccountId: e.target.value }))}
+                className="w-full h-9 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3"
+              >
+                <option value="">— none —</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+              {form.linkedAccountId && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Progress auto-tracks the account&apos;s current balance.
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Target date <span className="text-gray-400 dark:text-gray-500 text-xs">(optional)</span></Label>

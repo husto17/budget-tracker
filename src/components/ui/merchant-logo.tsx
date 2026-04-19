@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 interface MerchantLogoProps {
   merchant: string;
   fallbackColor?: string | null;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
   className?: string;
 }
 
@@ -26,8 +26,8 @@ function guessDomain(merchant: string): string | null {
 export function MerchantLogo({ merchant, fallbackColor, size = "sm", className }: MerchantLogoProps) {
   const [failed, setFailed] = useState(false);
   const domain = guessDomain(merchant);
-  const dim = size === "sm" ? "w-8 h-8" : "w-10 h-10";
-  const text = size === "sm" ? "text-xs" : "text-sm";
+  const dim = size === "sm" ? "w-8 h-8" : size === "lg" ? "w-14 h-14" : "w-10 h-10";
+  const text = size === "sm" ? "text-xs" : size === "lg" ? "text-lg" : "text-sm";
 
   const initial = merchant.trim().charAt(0).toUpperCase() || "?";
   const bg = fallbackColor ? `${fallbackColor}1f` : "#f3f4f6";

@@ -301,7 +301,7 @@ function CompareContent() {
                       {side.data.topMerchants.slice(0, 6).map((m) => (
                         <Link
                           key={m.merchant}
-                          href={`/transactions?search=${encodeURIComponent(m.merchant)}`}
+                          href={`/merchants/${encodeURIComponent(m.merchant)}`}
                           className="flex items-center gap-2 py-1.5"
                         >
                           <MerchantLogo merchant={m.merchant} fallbackColor={m.categoryColor} size="sm" />
@@ -337,7 +337,7 @@ function CompareContent() {
                     return (
                       <Link
                         key={row.name}
-                        href={`/transactions?search=${encodeURIComponent(row.name)}`}
+                        href={`/merchants/${encodeURIComponent(row.name)}`}
                         className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-3 py-2.5 items-center hover:bg-gray-50 dark:hover:bg-gray-800/40 rounded-md transition-colors"
                       >
                         <MerchantLogo merchant={row.name} fallbackColor={row.categoryColor} size="sm" />

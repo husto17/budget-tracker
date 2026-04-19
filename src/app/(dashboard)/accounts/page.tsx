@@ -165,6 +165,34 @@ export default function AccountsPage() {
     }
   }
 
+  async function repairTransfers(accountId: string) {
+    try {
+      const res = await fetch(`/api/accounts/${accountId}/repair`, { method: "POST" });
+      if (!res.ok) throw new Error("failed");
+      const data = await res.json();
+      toast.success(`Unlinked ${data.fixed} orphan${data.fixed === 1 ? "" : "s"}`);
+      fetchAccounts();
+    } catch {
+      toast.error("Couldn't repair transfers");
+    }
+  }
+
+  async function cleanOverlaps(accountId: string) {
+    try {
+      const res = await fetch(`/api/accounts/${accountId}/clean-overlaps`, { method: "POST" });
+      if (!res.ok) throw new Error("failed");
+      const data = await res.json();
+      if (data.deleted === 0) {
+        toast.info("No empty duplicate uploads to remove");
+      } else {
+        toast.success(`Removed ${data.deleted} duplicate upload${data.deleted === 1 ? "" : "s"}`);
+      }
+      fetchAccounts();
+    } catch {
+      toast.error("Couldn't clean up overlaps");
+    }
+  }
+
   const totalBalance = accounts.reduce((sum, a) => {
     if (a.type === "CREDIT_CARD") return sum - Math.abs(a.computedBalance);
     return sum + a.computedBalance;
@@ -321,36 +349,57 @@ export default function AccountsPage() {
                   {account.warnings && account.warnings.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 space-y-1.5">
                       {account.warnings.map((w, i) => (
-                        <div key={i} className="text-xs text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
-                          <span className="leading-4">•</span>
-                          <span className="leading-4">
-                            {w.type === "missing_statement" && (
-                              <>
-                                <span className="font-medium">Missing statement</span>{" "}
-                                after {new Date(w.afterDate).toLocaleDateString()}{" "}
-                                <span className="text-gray-400 dark:text-gray-500">({w.gapDays}d gap)</span>
-                              </>
-                            )}
-                            {w.type === "overlap_statement" && (
-                              <>
-                                <span className="font-medium">Overlapping uploads:</span>{" "}
-                                <span className="text-gray-500 dark:text-gray-400 truncate">{w.fileA}</span>{" "}
-                                <span className="text-gray-400 dark:text-gray-500">vs</span>{" "}
-                                <span className="text-gray-500 dark:text-gray-400 truncate">{w.fileB}</span>
-                              </>
-                            )}
-                            {w.type === "half_linked_transfers" && (
-                              <>
-                                <Link
-                                  href={`/transactions?accountId=${account.id}`}
-                                  className="underline decoration-dotted hover:decoration-solid"
-                                >
+                        <div key={i} className="text-xs text-amber-700 dark:text-amber-300 flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-1.5 min-w-0">
+                            <span className="leading-4">•</span>
+                            <span className="leading-4 min-w-0">
+                              {w.type === "missing_statement" && (
+                                <>
+                                  <span className="font-medium">Missing statement</span>{" "}
+                                  after {new Date(w.afterDate).toLocaleDateString()}{" "}
+                                  <span className="text-gray-400 dark:text-gray-500">({w.gapDays}d gap)</span>
+                                </>
+                              )}
+                              {w.type === "overlap_statement" && (
+                                <>
+                                  <span className="font-medium">Overlapping uploads:</span>{" "}
+                                  <span className="text-gray-500 dark:text-gray-400 truncate">{w.fileA}</span>{" "}
+                                  <span className="text-gray-400 dark:text-gray-500">vs</span>{" "}
+                                  <span className="text-gray-500 dark:text-gray-400 truncate">{w.fileB}</span>
+                                </>
+                              )}
+                              {w.type === "half_linked_transfers" && (
+                                <>
                                   <span className="font-medium">{w.count} half-linked transfer{w.count !== 1 ? "s" : ""}</span>
-                                </Link>{" "}
-                                — the other side is missing
-                              </>
-                            )}
-                          </span>
+                                  {" "}— the other side is missing
+                                </>
+                              )}
+                            </span>
+                          </div>
+                          {w.type === "missing_statement" && (
+                            <Link
+                              href={`/upload?accountId=${account.id}`}
+                              className="text-xs font-medium text-blue-600 hover:underline shrink-0"
+                            >
+                              Upload
+                            </Link>
+                          )}
+                          {w.type === "overlap_statement" && (
+                            <button
+                              onClick={() => cleanOverlaps(account.id)}
+                              className="text-xs font-medium text-blue-600 hover:underline shrink-0"
+                            >
+                              Clean up
+                            </button>
+                          )}
+                          {w.type === "half_linked_transfers" && (
+                            <button
+                              onClick={() => repairTransfers(account.id)}
+                              className="text-xs font-medium text-blue-600 hover:underline shrink-0"
+                            >
+                              Fix
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>

@@ -291,21 +291,52 @@ export default function DashboardPage() {
   const momUp = momDelta > 0;
   const recurringMonthly = insights.recurring.reduce((s, r) => s + r.amount, 0);
 
-  // Cash-flow forecast — linear projection of this month's spend using the
-  // average daily pace so far. Compared to last month as the budget baseline.
+  // Cash-flow forecast — split variable from recurring so the projection
+  // doesn't extrapolate fixed costs that have already been paid.
+  //
+  //   projected = spent_so_far
+  //             + (variable_spent_so_far / dayOfMonth) × daysLeft
+  //             + recurring_subs_not_yet_charged_this_month
+  //
+  // "Recurring not yet charged" uses last-seen date + 30d cadence to predict
+  // the next charge; only subs whose next charge lands in this month count.
   const today = new Date();
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
   const dayOfMonth = today.getDate();
+  const daysLeft = daysInMonth - dayOfMonth;
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59).getTime();
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
+
+  const upcomingRecurringAmount = (insights.subscriptions ?? []).reduce((sum, s) => {
+    const last = new Date(s.lastDate).getTime();
+    if (isNaN(last)) return sum;
+    const next = last + 30 * 86_400_000;
+    // Already hit this month (or earlier)? Assume it's already in spent_so_far.
+    if (next <= Date.now()) return sum;
+    // Future but outside this month? Not relevant to this month's forecast.
+    if (next > monthEnd) return sum;
+    return sum + s.amount;
+  }, 0);
+
+  // Approximate recurring that's already been charged this month — subscriptions
+  // whose lastDate is within this month. Used to separate the variable pace.
+  const recurringChargedThisMonth = (insights.subscriptions ?? []).reduce((sum, s) => {
+    const last = new Date(s.lastDate).getTime();
+    if (isNaN(last)) return sum;
+    if (last >= monthStart && last <= monthEnd) return sum + s.amount;
+    return sum;
+  }, 0);
+
+  const variableSpent = Math.max(insights.thisMonthTotal - recurringChargedThisMonth, 0);
+  const variableProjectedRemainder =
+    dayOfMonth > 0 ? (variableSpent / dayOfMonth) * daysLeft : 0;
   const projectedMonthTotal =
-    dayOfMonth > 0
-      ? (insights.thisMonthTotal / dayOfMonth) * daysInMonth
-      : insights.thisMonthTotal;
+    insights.thisMonthTotal + variableProjectedRemainder + upcomingRecurringAmount;
   const forecastDelta = projectedMonthTotal - insights.previousMonthSpending;
   const forecastPct =
     insights.previousMonthSpending > 0
       ? (forecastDelta / insights.previousMonthSpending) * 100
       : 0;
-  const daysLeft = daysInMonth - dayOfMonth;
 
   // Upcoming bills — projected next charge for each detected subscription.
   // Uses 30-day cadence from the last-seen date; filter to next 21 days.
@@ -489,27 +520,53 @@ export default function DashboardPage() {
 
       {/* Forecast strip — only meaningful when viewing the current in-progress month */}
       {isCurrentMonth && insights.thisMonthTotal > 0 && dayOfMonth < daysInMonth && (
-        <div className="bg-white dark:bg-gray-900 ring-1 ring-gray-200 dark:ring-gray-800/80 rounded-xl px-4 py-3 flex items-center gap-4 flex-wrap">
-          <div className="flex-1 min-w-[180px]">
-            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Projected end of {thisMonth.split(" ")[0]}</p>
-            <p className="text-xl font-bold mt-0.5">{formatCurrency(projectedMonthTotal)}</p>
+        <div className="bg-white dark:bg-gray-900 ring-1 ring-gray-200 dark:ring-gray-800/80 rounded-xl px-4 py-3 space-y-2">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex-1 min-w-[180px]">
+              <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Projected end of {thisMonth.split(" ")[0]}</p>
+              <p className="text-xl font-bold mt-0.5">{formatCurrency(projectedMonthTotal)}</p>
+            </div>
+            <div className="flex-1 min-w-[140px]">
+              <p className="text-xs text-gray-400 dark:text-gray-500">vs last month</p>
+              <p className={`text-sm font-semibold ${forecastDelta > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                {forecastDelta > 0 ? "+" : "−"}{formatCurrency(Math.abs(forecastDelta))}
+                {insights.previousMonthSpending > 0 && (
+                  <span className="text-gray-400 dark:text-gray-500 font-normal"> ({forecastPct > 0 ? "+" : ""}{forecastPct.toFixed(0)}%)</span>
+                )}
+              </p>
+            </div>
+            <div className="flex-1 min-w-[160px]">
+              <p className="text-xs text-gray-400 dark:text-gray-500">Pace (variable only)</p>
+              <p className="text-sm text-gray-700 dark:text-gray-200">
+                {formatCurrency(variableSpent / dayOfMonth)}/day
+                <span className="text-gray-400 dark:text-gray-500"> · {daysLeft} day{daysLeft !== 1 ? "s" : ""} left</span>
+              </p>
+            </div>
           </div>
-          <div className="flex-1 min-w-[140px]">
-            <p className="text-xs text-gray-400 dark:text-gray-500">vs last month</p>
-            <p className={`text-sm font-semibold ${forecastDelta > 0 ? "text-rose-600" : "text-emerald-600"}`}>
-              {forecastDelta > 0 ? "+" : "−"}{formatCurrency(Math.abs(forecastDelta))}
-              {insights.previousMonthSpending > 0 && (
-                <span className="text-gray-400 dark:text-gray-500 font-normal"> ({forecastPct > 0 ? "+" : ""}{forecastPct.toFixed(0)}%)</span>
+          {(recurringChargedThisMonth > 0 || upcomingRecurringAmount > 0) && (
+            <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-3 flex-wrap pt-2 border-t border-gray-100 dark:border-gray-800">
+              <span>
+                <span className="text-gray-400 dark:text-gray-500">Fixed charged:</span>{" "}
+                <span className="font-medium text-gray-700 dark:text-gray-200 tabular-nums">
+                  {formatCurrency(recurringChargedThisMonth)}
+                </span>
+              </span>
+              {upcomingRecurringAmount > 0 && (
+                <span>
+                  <span className="text-gray-400 dark:text-gray-500">Fixed due this month:</span>{" "}
+                  <span className="font-medium text-gray-700 dark:text-gray-200 tabular-nums">
+                    {formatCurrency(upcomingRecurringAmount)}
+                  </span>
+                </span>
               )}
-            </p>
-          </div>
-          <div className="flex-1 min-w-[160px]">
-            <p className="text-xs text-gray-400 dark:text-gray-500">Pace</p>
-            <p className="text-sm text-gray-700 dark:text-gray-200">
-              {formatCurrency(insights.thisMonthTotal / dayOfMonth)}/day
-              <span className="text-gray-400 dark:text-gray-500"> · {daysLeft} day{daysLeft !== 1 ? "s" : ""} left</span>
-            </p>
-          </div>
+              <span>
+                <span className="text-gray-400 dark:text-gray-500">Variable so far:</span>{" "}
+                <span className="font-medium text-gray-700 dark:text-gray-200 tabular-nums">
+                  {formatCurrency(variableSpent)}
+                </span>
+              </span>
+            </div>
+          )}
         </div>
       )}
 
@@ -896,7 +953,7 @@ export default function DashboardPage() {
                   return (
                     <Link
                       key={m.merchant}
-                      href={`/transactions?search=${encodeURIComponent(m.merchant)}`}
+                      href={`/merchants/${encodeURIComponent(m.merchant)}`}
                       className="block group"
                     >
                       <div className="flex items-center justify-between gap-2 mb-1">

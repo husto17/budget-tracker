@@ -55,10 +55,15 @@ model Goal {
   targetDate    DateTime?
   color         String    @default("#6366F1")
   icon          String?
+  // Optional: link to an account whose current balance becomes the goal's
+  // progress. When set, currentAmount is ignored at read time and replaced
+  // with the account's computed balance.
+  linkedAccountId String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([userId])
+  @@index([linkedAccountId])
 }
 
 model Account {

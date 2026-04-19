@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getHouseholdAccountIds } from "@/lib/household";
 
 export async function PATCH(
   request: Request,
@@ -24,6 +25,7 @@ export async function PATCH(
     targetDate?: Date | null;
     color?: string;
     icon?: string | null;
+    linkedAccountId?: string | null;
   } = {};
 
   if (typeof body.name === "string" && body.name.trim()) data.name = body.name.trim();
@@ -52,6 +54,14 @@ export async function PATCH(
   }
   if (typeof body.color === "string") data.color = body.color;
   if (body.icon !== undefined) data.icon = body.icon;
+  if (body.linkedAccountId !== undefined) {
+    if (body.linkedAccountId === null || body.linkedAccountId === "") {
+      data.linkedAccountId = null;
+    } else if (typeof body.linkedAccountId === "string") {
+      const householdIds = await getHouseholdAccountIds(session.user.id);
+      data.linkedAccountId = householdIds.includes(body.linkedAccountId) ? body.linkedAccountId : null;
+    }
+  }
 
   const updated = await prisma.goal.update({ where: { id }, data });
   return NextResponse.json(updated);
