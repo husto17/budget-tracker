@@ -37,9 +37,15 @@ export async function GET() {
   // partner — so renames like Transportation→Transport apply to all household
   // members, keeping category names in sync across joint accounts.
   const partnerUserId = await getPartnerUserId(session.user.id);
-  await ensureDefaultCategories(session.user.id);
+  try {
+    await ensureDefaultCategories(session.user.id);
+  } catch (e) {
+    console.error("Failed to sync default categories for user", e);
+  }
   if (partnerUserId) {
-    try { await ensureDefaultCategories(partnerUserId); } catch (e) {
+    try {
+      await ensureDefaultCategories(partnerUserId);
+    } catch (e) {
       console.error("Failed to sync partner default categories", e);
     }
   }
