@@ -58,7 +58,7 @@ export function MonthPicker({ value, onChange, min, max, className, showNav = tr
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           render={
-            <Button variant="outline" size="sm" className="gap-1.5 h-8 min-w-[120px] justify-between">
+            <Button variant="outline" size="sm" className="gap-1.5 h-8 min-w-[140px] justify-center">
               <Calendar className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
               <span>{format(current, "MMMM yyyy")}</span>
             </Button>
