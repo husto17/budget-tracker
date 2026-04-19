@@ -782,14 +782,16 @@ function TransactionsContent() {
           <Filter className="w-4 h-4" /> Filters
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          {/* Search — full-width on mobile */}
+          {/* Search — full-width on mobile. Supports operators: amount:>100,
+              category:dining, merchant:amazon, account:chase, from:/to:. */}
           <div className="relative col-span-1 md:col-span-1 w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
             <Input
               value={searchInput}
               onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="Search transactions..."
+              placeholder="Search or amount:>100 category:dining"
               className="pl-9 w-full"
+              title="Operators: amount:>100, amount:50-150, category:dining, merchant:amazon, account:chase, from:2026-01-01, to:2026-03-31"
             />
           </div>
           <Select

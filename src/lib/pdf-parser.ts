@@ -541,8 +541,9 @@ function extractStatementMeta(text: string): {
   } = {};
 
   // Opening balance — Chase "Beginning Balance $1,234.56", BofA "Previous Balance",
-  // WF "Beginning balance on MM/DD", Amex "Previous Balance".
-  const openRe = /(?:Beginning|Opening|Previous|Starting)(?:\s+Balance(?:\s+on\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?)?\s*\.?\s*:?\s*-?\$?\s*\(?([\d,]+\.\d{2})\)?/i;
+  // WF "Beginning balance on MM/DD", Amex "Previous Balance". Captures optional
+  // leading sign and surrounding parens so parseMoney can detect negatives.
+  const openRe = /(?:Beginning|Opening|Previous|Starting)(?:\s+Balance(?:\s+on\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?)?\s*\.?\s*:?\s*(-?\$?\s*\(?[\d,]+\.\d{2}\)?)/i;
   const openMatch = text.match(openRe);
   if (openMatch) {
     const v = parseMoney(openMatch[1]);
@@ -551,7 +552,7 @@ function extractStatementMeta(text: string): {
 
   // Closing balance — "Ending Balance $x", "New Balance $x", "Statement Balance $x".
   // Avoid "Minimum Payment" and "Interest Charged" by matching at line start.
-  const closeRe = /(?:Ending|Closing|New|Statement)\s+Balance\s*\.?\s*:?\s*-?\$?\s*\(?([\d,]+\.\d{2})\)?/i;
+  const closeRe = /(?:Ending|Closing|New|Statement)\s+Balance\s*\.?\s*:?\s*(-?\$?\s*\(?[\d,]+\.\d{2}\)?)/i;
   const closeMatch = text.match(closeRe);
   if (closeMatch) {
     const v = parseMoney(closeMatch[1]);

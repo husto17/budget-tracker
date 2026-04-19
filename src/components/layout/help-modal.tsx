@@ -67,6 +67,17 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    title: "Search operators",
+    items: [
+      { label: "amount:>100", desc: "Greater than $100. Also works with < or ranges (amount:50-200)." },
+      { label: "category:dining", desc: "Match a category by partial name." },
+      { label: "merchant:amazon", desc: "Merchant-only match (skips description body)." },
+      { label: "account:chase", desc: "Filter to accounts whose name contains 'chase'." },
+      { label: "from:2026-01-01 to:2026-03-31", desc: "Restrict by date range. Works with only one side too." },
+      { label: "Combine freely", desc: "e.g. \"amazon amount:>50 category:shopping\" — plain text still matches description/merchant." },
+    ],
+  },
+  {
     title: "Transactions page",
     items: [
       {

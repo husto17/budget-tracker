@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getHouseholdAccountIds } from "@/lib/household";
+import { parseSearch } from "@/lib/search-parser";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -21,26 +22,87 @@ export async function GET(request: Request) {
 
   const householdAccountIds = await getHouseholdAccountIds(session.user.id);
 
+  // Parse the search string for operators (amount:>100, category:dining, …).
+  // The text remainder still goes through the normal fulltext description/
+  // merchant match.
+  const parsed = parseSearch(search ?? "");
+
+  // Resolve category/account operators to concrete IDs via case-insensitive
+  // contains match against the user's own data.
+  let operatorCategoryIds: string[] | null = null;
+  if (parsed.categoryLike) {
+    const cats = await prisma.category.findMany({
+      where: {
+        userId: { in: (await prisma.account.findMany({
+          where: { id: { in: householdAccountIds } },
+          select: { userId: true },
+        })).map((a) => a.userId) },
+        name: { contains: parsed.categoryLike, mode: "insensitive" },
+      },
+      select: { id: true },
+    });
+    operatorCategoryIds = cats.map((c) => c.id);
+    if (operatorCategoryIds.length === 0) operatorCategoryIds = ["__no_match__"];
+  }
+  let operatorAccountIds: string[] | null = null;
+  if (parsed.accountLike) {
+    const accs = await prisma.account.findMany({
+      where: {
+        id: { in: householdAccountIds },
+        name: { contains: parsed.accountLike, mode: "insensitive" },
+      },
+      select: { id: true },
+    });
+    operatorAccountIds = accs.map((a) => a.id);
+    if (operatorAccountIds.length === 0) operatorAccountIds = ["__no_match__"];
+  }
+
+  // Combine URL filters (from/to/amount sources) with operator filters. URL
+  // params take priority when both are set to avoid surprising the UI.
+  const dateGte = from ? new Date(from) : parsed.from;
+  const dateLte = to ? new Date(to) : parsed.to;
+
+  // amount filter — one of exact, range, min-only, max-only.
+  const amountFilter: { gte?: number; lte?: number; equals?: number } = {};
+  if (parsed.amount != null) amountFilter.equals = parsed.amount;
+  else {
+    if (parsed.amountMin != null) amountFilter.gte = parsed.amountMin;
+    if (parsed.amountMax != null) amountFilter.lte = parsed.amountMax;
+  }
+
+  const accountIdFilter = accountId
+    ? accountId
+    : operatorAccountIds
+    ? { in: operatorAccountIds }
+    : { in: householdAccountIds };
+
+  const textSearch = parsed.text || (parsed.merchantLike ?? "");
+
   const where = {
-    accountId: accountId ? accountId : { in: householdAccountIds },
-    ...(categoryId ? { categoryId } : {}),
+    accountId: accountIdFilter,
+    ...(categoryId
+      ? { categoryId }
+      : operatorCategoryIds
+      ? { categoryId: { in: operatorCategoryIds } }
+      : {}),
     ...(uncategorized ? { categoryId: null } : {}),
-    ...(search
+    ...(textSearch
       ? {
           OR: [
-            { description: { contains: search, mode: "insensitive" as const } },
-            { merchant: { contains: search, mode: "insensitive" as const } },
+            { description: { contains: textSearch, mode: "insensitive" as const } },
+            { merchant: { contains: textSearch, mode: "insensitive" as const } },
           ],
         }
       : {}),
-    ...(from || to
+    ...(dateGte || dateLte
       ? {
           date: {
-            ...(from ? { gte: new Date(from) } : {}),
-            ...(to ? { lte: new Date(to) } : {}),
+            ...(dateGte ? { gte: dateGte } : {}),
+            ...(dateLte ? { lte: dateLte } : {}),
           },
         }
       : {}),
+    ...(Object.keys(amountFilter).length > 0 ? { amount: amountFilter } : {}),
     ...(status === "pending" ? { isPending: true } : {}),
     ...(status === "posted" ? { isPending: false } : {}),
   };
@@ -50,7 +112,7 @@ export async function GET(request: Request) {
       where,
       include: {
         category: true,
-        account: { select: { id: true, name: true, type: true } },
+        account: { select: { id: true, name: true, type: true, isJoint: true } },
         transferPair: {
           include: { account: { select: { id: true, name: true } } },
         },

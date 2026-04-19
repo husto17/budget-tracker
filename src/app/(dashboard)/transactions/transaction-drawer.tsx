@@ -53,13 +53,22 @@ interface Transaction {
   source: string;
   notes: string | null;
   category: Category | null;
-  account: { id: string; name: string; type: string };
+  account: { id: string; name: string; type: string; isJoint?: boolean };
   transferPairId: string | null;
   transferPair: { account: { id: string; name: string } } | null;
   splits: Array<{ id: string; amount: number; note: string | null; categoryId: string | null; category: Category | null }>;
   reimbursementsReceived?: ReimbursementLink[];
   reimbursementsApplied?: ReimbursementLink[];
+  payerUserId?: string | null;
 }
+
+interface HouseholdMember {
+  id: string;
+  name: string;
+}
+
+// Module-level cache so we don't refetch household on every drawer open.
+let cachedMembers: HouseholdMember[] | null = null;
 
 interface TransactionDrawerProps {
   tx: Transaction | null;
@@ -88,9 +97,23 @@ export function TransactionDrawer({
     date: "",
     notes: "",
     categoryId: "",
+    payerUserId: "",
   });
   const [learn, setLearn] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [members, setMembers] = useState<HouseholdMember[]>(cachedMembers ?? []);
+
+  useEffect(() => {
+    if (cachedMembers) return;
+    fetch("/api/household")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const list: HouseholdMember[] = d?.household?.members ?? [];
+        cachedMembers = list;
+        setMembers(list);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!tx) return;
@@ -100,6 +123,7 @@ export function TransactionDrawer({
       date: format(parseISO(tx.date), "yyyy-MM-dd"),
       notes: tx.notes ?? "",
       categoryId: tx.category?.id ?? "none",
+      payerUserId: tx.payerUserId ?? "",
     });
     setLearn(true); // default back on each open
   }, [tx?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -123,6 +147,7 @@ export function TransactionDrawer({
           date: form.date,
           notes: form.notes || null,
           categoryId: form.categoryId === "none" ? null : form.categoryId,
+          payerUserId: form.payerUserId || null,
           learn,
         }),
       });
@@ -313,6 +338,27 @@ export function TransactionDrawer({
                 className="min-h-[70px]"
               />
             </div>
+
+            {/* Payer — only relevant on joint accounts with at least two
+                household members, and not on transfers (which are internal
+                money moves, not expenses to attribute). */}
+            {tx.account.isJoint && members.length >= 2 && !tx.transferPairId && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Whose expense?</Label>
+                <select
+                  value={form.payerUserId}
+                  onChange={(e) => setForm((f) => ({ ...f, payerUserId: e.target.value }))}
+                  className="w-full h-9 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2"
+                >
+                  <option value="">Shared (default)</option>
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Splits */}

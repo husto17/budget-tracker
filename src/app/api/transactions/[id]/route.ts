@@ -66,6 +66,10 @@ export async function PATCH(
         merchant: data.merchant !== undefined ? (data.merchant as string) : undefined,
         amount: data.amount !== undefined ? parseFloat(String(data.amount)) : undefined,
         date: data.date !== undefined ? new Date(String(data.date)) : undefined,
+        payerUserId:
+          data.payerUserId !== undefined
+            ? ((data.payerUserId as string) || null)
+            : undefined,
       },
     });
   } catch (err) {

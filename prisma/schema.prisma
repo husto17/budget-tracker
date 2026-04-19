@@ -134,6 +134,10 @@ model Transaction {
   hash                String
   uploadId            String?
   upload              Upload?   @relation(fields: [uploadId], references: [id])
+  // On joint accounts, whose expense was this really? Null means "shared /
+  // unspecified" (the default). Set to me/partner to attribute a specific
+  // transaction on a shared card/account to one person.
+  payerUserId         String?
 
   // Transfer linking — pairs transactions across accounts
   transferPairId      String?
