@@ -566,31 +566,27 @@ export default function InsightsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-1">
-                <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800">
-                  <span>Category</span>
-                  <span className="text-right">Last month</span>
-                  <span className="text-right">This month</span>
-                  <span className="text-right">Change</span>
-                </div>
+              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4">
+                <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800">Category</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800 text-right">Last month</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800 text-right">This month</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800 text-right">Change</span>
                 {rows.map(({ cat, cur, prev, change }) => (
                   <Link
                     key={cat}
                     href={`/transactions?categoryName=${encodeURIComponent(cat)}`}
-                    className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 py-2.5 items-center text-sm hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg px-1 -mx-1 transition-colors"
+                    className="contents group"
                   >
-                    <span className="font-medium text-gray-900 dark:text-gray-100 truncate">{cat}</span>
-                    <span className="text-right text-gray-400 dark:text-gray-500">{prev > 0 ? formatCurrency(prev) : "—"}</span>
-                    <span className="text-right font-medium">{cur > 0 ? formatCurrency(cur) : "—"}</span>
-                    <span className={`text-right text-xs font-semibold flex items-center justify-end gap-0.5 ${
+                    <span className="py-2.5 font-medium text-sm text-gray-900 dark:text-gray-100 truncate group-hover:bg-gray-50 dark:group-hover:bg-gray-800 rounded-l-lg pl-1 -ml-1">{cat}</span>
+                    <span className="py-2.5 text-right text-sm text-gray-400 dark:text-gray-500 group-hover:bg-gray-50 dark:group-hover:bg-gray-800 tabular-nums">{prev > 0 ? formatCurrency(prev) : "—"}</span>
+                    <span className="py-2.5 text-right text-sm font-medium group-hover:bg-gray-50 dark:group-hover:bg-gray-800 tabular-nums">{cur > 0 ? formatCurrency(cur) : "—"}</span>
+                    <span className={`py-2.5 text-right text-xs font-semibold flex items-center justify-end gap-0.5 rounded-r-lg pr-1 -mr-1 group-hover:bg-gray-50 dark:group-hover:bg-gray-800 ${
                       change === null ? "text-gray-400 dark:text-gray-500" :
                       change > 0 ? "text-red-500" : "text-green-600"
                     }`}>
                       {change === null ? "New" : (
                         <>
-                          {change > 0
-                            ? <TrendingUp className="w-3 h-3" />
-                            : <TrendingDown className="w-3 h-3" />}
+                          {change > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                           {Math.abs(change).toFixed(0)}%
                         </>
                       )}
