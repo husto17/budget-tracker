@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds, getPartnerUserId } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdId, getPartnerUserId } from "@/lib/household";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -38,7 +38,11 @@ export async function GET(request: Request) {
     : isAnchored ? now : null;
 
   // Get all household account IDs (own + partner's)
-  const accountIds = await getHouseholdAccountIds(userId);
+  const [accountIds, householdId] = await Promise.all([
+    getHouseholdAccountIds(userId),
+    getHouseholdId(userId),
+  ]);
+  const categoryOwnerWhere = householdId ? { householdId } : { userId };
   const effectiveAccountIds =
     accountIdFilter && accountIds.includes(accountIdFilter)
       ? [accountIdFilter]
@@ -272,7 +276,7 @@ export async function GET(request: Request) {
 
   // All category colors (for chart coloring in the frontend)
   const allCategoryRows = await prisma.category.findMany({
-    where: { userId },
+    where: categoryOwnerWhere,
     select: { name: true, color: true },
   });
   const categoryColors: Record<string, string> = Object.fromEntries(
@@ -284,7 +288,7 @@ export async function GET(request: Request) {
 
   // Budget utilization (categories with budgets set)
   const categories = await prisma.category.findMany({
-    where: { userId, monthlyBudget: { not: null } },
+    where: { ...categoryOwnerWhere, monthlyBudget: { not: null } },
   });
 
   // Historical budget vs actual per category (last 12 months)

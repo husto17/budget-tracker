@@ -25,9 +25,17 @@ export async function POST() {
   await prisma.transactionTag.deleteMany({ where: { transaction: { accountId: { in: accountIds } } } });
   await prisma.transactionSplit.deleteMany({ where: { transaction: { accountId: { in: accountIds } } } });
   await prisma.transaction.deleteMany({ where: { accountId: { in: accountIds } } });
-  await prisma.categoryRule.deleteMany({ where: { userId: { in: userIds } } });
-  await prisma.category.deleteMany({ where: { userId: { in: userIds } } });
-  await prisma.merchantAlias.deleteMany({ where: { userId: { in: userIds } } });
+  // Delete by householdId when set — covers records owned by either partner.
+  const householdId = user?.householdId;
+  if (householdId) {
+    await prisma.categoryRule.deleteMany({ where: { householdId } });
+    await prisma.category.deleteMany({ where: { householdId } });
+    await prisma.merchantAlias.deleteMany({ where: { householdId } });
+  } else {
+    await prisma.categoryRule.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.category.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.merchantAlias.deleteMany({ where: { userId: { in: userIds } } });
+  }
   await prisma.upload.deleteMany({ where: { userId: { in: userIds } } });
 
   return NextResponse.json({ success: true });

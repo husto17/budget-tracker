@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getHouseholdId } from "@/lib/household";
 
 export async function PATCH(
   request: Request,
@@ -11,7 +12,11 @@ export async function PATCH(
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const rule = await prisma.categoryRule.findFirst({ where: { id, userId: session.user.id } });
+  const householdId = await getHouseholdId(session.user.id);
+
+  const rule = await prisma.categoryRule.findFirst({
+    where: householdId ? { id, householdId } : { id, userId: session.user.id },
+  });
   if (!rule) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const { pattern, categoryId, isRegex, priority } = await request.json();
@@ -36,7 +41,11 @@ export async function DELETE(
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const rule = await prisma.categoryRule.findFirst({ where: { id, userId: session.user.id } });
+  const householdId = await getHouseholdId(session.user.id);
+
+  const rule = await prisma.categoryRule.findFirst({
+    where: householdId ? { id, householdId } : { id, userId: session.user.id },
+  });
   if (!rule) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await prisma.categoryRule.delete({ where: { id } });

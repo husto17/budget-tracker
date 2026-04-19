@@ -6,10 +6,12 @@ import { prisma } from "./prisma";
  */
 export async function autoCategorize(
   userId: string,
-  description: string
+  description: string,
+  householdId?: string | null
 ): Promise<string | null> {
+  const where = householdId ? { householdId } : { userId };
   const rules = await prisma.categoryRule.findMany({
-    where: { userId },
+    where,
     orderBy: { priority: "desc" },
   });
 
@@ -212,12 +214,23 @@ export function normalizeMerchantHardcoded(description: string): string {
  * When a user edits a transaction's merchant field, the mapping is saved to MerchantAlias
  * and automatically applied to future transactions from the same merchant.
  */
-export async function normalizeMerchant(userId: string, description: string): Promise<string> {
+export async function normalizeMerchant(
+  userId: string,
+  description: string,
+  householdId?: string | null
+): Promise<string> {
   const hardcoded = normalizeMerchantHardcoded(description);
 
-  const alias = await prisma.merchantAlias.findUnique({
-    where: { userId_fromName: { userId, fromName: hardcoded } },
-  });
+  let alias = null;
+  if (householdId) {
+    alias = await prisma.merchantAlias.findFirst({
+      where: { householdId, fromName: hardcoded },
+    });
+  } else {
+    alias = await prisma.merchantAlias.findUnique({
+      where: { userId_fromName: { userId, fromName: hardcoded } },
+    });
+  }
 
   return alias?.toName ?? hardcoded;
 }

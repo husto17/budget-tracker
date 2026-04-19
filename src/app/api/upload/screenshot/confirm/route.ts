@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdId } from "@/lib/household";
 import { autoCategorize, normalizeMerchant } from "@/lib/auto-categorize";
 import crypto from "crypto";
 
@@ -26,7 +26,10 @@ export async function POST(request: Request) {
   }
 
   // Verify account belongs to household
-  const householdAccountIds = await getHouseholdAccountIds(session.user.id);
+  const [householdAccountIds, householdId] = await Promise.all([
+    getHouseholdAccountIds(session.user.id),
+    getHouseholdId(session.user.id),
+  ]);
   const account = await prisma.account.findUnique({ where: { id: accountId } });
   if (!account || !householdAccountIds.includes(account.id)) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
@@ -61,8 +64,8 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const merchant = await normalizeMerchant(session.user.id, tx.description);
-    const categoryId = await autoCategorize(session.user.id, tx.description);
+    const merchant = await normalizeMerchant(session.user.id, tx.description, householdId);
+    const categoryId = await autoCategorize(session.user.id, tx.description, householdId);
 
     await prisma.transaction.create({
       data: {

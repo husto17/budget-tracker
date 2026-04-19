@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdId } from "@/lib/household";
 
 export async function POST(
   request: Request,
@@ -18,7 +18,10 @@ export async function POST(
     return NextResponse.json({ error: "pairedTransactionId is required" }, { status: 400 });
   }
 
-  const householdAccountIds = await getHouseholdAccountIds(session.user.id);
+  const [householdAccountIds, householdId] = await Promise.all([
+    getHouseholdAccountIds(session.user.id),
+    getHouseholdId(session.user.id),
+  ]);
 
   // Verify both transactions belong to household-visible accounts
   const txA = await prisma.transaction.findUnique({ where: { id } });
@@ -31,9 +34,10 @@ export async function POST(
     return NextResponse.json({ error: "Paired transaction not found" }, { status: 404 });
   }
 
-  // Find or resolve "Transfers" category for this user's household
   const transfersCategory = await prisma.category.findFirst({
-    where: { userId: session.user.id, name: "Transfers" },
+    where: householdId
+      ? { householdId, name: "Transfers" }
+      : { userId: session.user.id, name: "Transfers" },
   });
 
   const transferCategoryId = transfersCategory?.id ?? null;

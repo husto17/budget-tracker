@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import Anthropic from "@anthropic-ai/sdk";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdId } from "@/lib/household";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -94,13 +94,14 @@ async function runTool(
   input: Record<string, unknown>,
   userId: string,
   accountIds: string[],
+  categoryOwnerWhere: { householdId: string } | { userId: string },
 ): Promise<unknown> {
   const toDate = (s: unknown) => (typeof s === "string" ? new Date(s) : undefined);
 
   switch (name) {
     case "list_categories": {
       const cats = await prisma.category.findMany({
-        where: { userId },
+        where: categoryOwnerWhere,
         orderBy: { name: "asc" },
         include: { _count: { select: { transactions: true } } },
       });
@@ -295,7 +296,11 @@ export async function POST(request: Request) {
   if (history.length === 0) return new Response("No messages", { status: 400 });
 
   const userId = session.user.id;
-  const accountIds = await getHouseholdAccountIds(userId);
+  const [accountIds, householdId] = await Promise.all([
+    getHouseholdAccountIds(userId),
+    getHouseholdId(userId),
+  ]);
+  const categoryOwnerWhere = householdId ? { householdId } : { userId };
 
   const apiMessages: Anthropic.MessageParam[] = history.map((m) => ({
     role: m.role,
@@ -338,7 +343,7 @@ export async function POST(request: Request) {
             const toolResults: Anthropic.ToolResultBlockParam[] = [];
             for (const tu of toolUses) {
               try {
-                const result = await runTool(tu.name, tu.input as Record<string, unknown>, userId, accountIds);
+                const result = await runTool(tu.name, tu.input as Record<string, unknown>, userId, accountIds, categoryOwnerWhere);
                 toolResults.push({ type: "tool_result", tool_use_id: tu.id, content: JSON.stringify(result) });
               } catch (err) {
                 toolResults.push({
