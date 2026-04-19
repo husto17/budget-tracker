@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureDefaultCategories } from "@/lib/default-categories";
+import { getPartnerUserId } from "@/lib/household";
 import { PALETTE } from "@/lib/palette";
 
 async function pickLeastUsedColor(userId: string): Promise<string> {
@@ -32,9 +33,12 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Backfill any default categories the user is missing (e.g. when we add
-  // a new default after they registered). No-op when already present.
+  // Backfill/rename default categories for both the current user and their
+  // partner — so renames like Transportation→Transport apply to all household
+  // members, keeping category names in sync across joint accounts.
+  const partnerUserId = await getPartnerUserId(session.user.id);
   await ensureDefaultCategories(session.user.id);
+  if (partnerUserId) await ensureDefaultCategories(partnerUserId);
 
   const categories = await prisma.category.findMany({
     where: { userId: session.user.id },
