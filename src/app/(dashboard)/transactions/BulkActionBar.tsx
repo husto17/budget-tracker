@@ -1,6 +1,6 @@
 "use client";
 
-import { Tag, Link2 } from "lucide-react";
+import { Tag, Link2, EyeOff, Eye, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -21,11 +21,12 @@ interface Props {
   bulkLinkEligible: boolean;
   linkingBulk: boolean;
   onLink: () => void;
+  onExclude: () => void;
+  onDelete: () => void;
+  working: boolean;
   onClear: () => void;
 }
 
-// Sticky toolbar shown at the bottom when rows are selected. Bumps above the
-// mobile bottom-nav (bottom-16) so it doesn't collide.
 export function BulkActionBar({
   count,
   categories,
@@ -36,20 +37,25 @@ export function BulkActionBar({
   bulkLinkEligible,
   linkingBulk,
   onLink,
+  onExclude,
+  onDelete,
+  working,
   onClear,
 }: Props) {
   if (count === 0) return null;
 
   return (
-    <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-50 bg-gray-900 text-white px-4 py-3 flex flex-wrap items-center gap-3 shadow-2xl">
-      <span className="text-sm font-medium">
-        {count} transaction{count !== 1 ? "s" : ""} selected
+    <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-50 bg-gray-900 text-white px-4 py-3 flex flex-wrap items-center gap-3 shadow-2xl border-t border-gray-700">
+      <span className="text-sm font-semibold tabular-nums">
+        {count} selected
       </span>
-      <div className="flex items-center gap-2 flex-1 min-w-0">
-        <Tag className="w-4 h-4 text-gray-400 dark:text-gray-500 shrink-0" />
+
+      {/* Category picker */}
+      <div className="flex items-center gap-2">
+        <Tag className="w-4 h-4 text-gray-400 shrink-0" />
         <Select value={bulkCatId} onValueChange={(v) => onBulkCatIdChange(v ?? "")}>
-          <SelectTrigger className="h-8 bg-gray-800 border-gray-700 text-white text-sm max-w-[200px]">
-            <SelectValue placeholder="Pick category..." />
+          <SelectTrigger className="h-8 bg-gray-800 border-gray-700 text-white text-sm w-44">
+            <SelectValue placeholder="Assign category…" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">— None (remove)</SelectItem>
@@ -69,27 +75,58 @@ export function BulkActionBar({
           onClick={onApply}
           className="bg-blue-600 hover:bg-blue-700 text-white shrink-0"
         >
-          {applyingBulk ? "Applying..." : "Apply"}
+          {applyingBulk ? "Applying…" : "Apply"}
         </Button>
       </div>
-      {bulkLinkEligible && (
+
+      <div className="flex items-center gap-2">
+        {/* Exclude toggle */}
         <Button
           size="sm"
-          disabled={linkingBulk}
-          onClick={onLink}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 gap-1"
+          variant="ghost"
+          disabled={working}
+          onClick={onExclude}
+          className="text-amber-300 hover:text-amber-200 hover:bg-gray-800 gap-1.5 shrink-0"
+          title="Exclude selected from totals & charts"
         >
-          <Link2 className="w-3.5 h-3.5" />
-          {linkingBulk ? "Linking..." : "Link as transfer"}
+          <EyeOff className="w-3.5 h-3.5" />
+          Exclude
         </Button>
-      )}
+
+        {/* Link as transfer */}
+        {bulkLinkEligible && (
+          <Button
+            size="sm"
+            disabled={linkingBulk}
+            onClick={onLink}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 gap-1"
+          >
+            <Link2 className="w-3.5 h-3.5" />
+            {linkingBulk ? "Linking…" : "Link transfer"}
+          </Button>
+        )}
+
+        {/* Delete */}
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={working}
+          onClick={onDelete}
+          className="text-red-400 hover:text-red-300 hover:bg-gray-800 gap-1.5 shrink-0"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          Delete
+        </Button>
+      </div>
+
       <Button
         size="sm"
         variant="ghost"
-        className="text-gray-400 dark:text-gray-500 hover:text-white shrink-0"
+        className="text-gray-400 hover:text-white gap-1 ml-auto shrink-0"
         onClick={onClear}
       >
-        Clear selection
+        <X className="w-3.5 h-3.5" />
+        Clear
       </Button>
     </div>
   );

@@ -24,6 +24,7 @@ import {
   Trash2,
   Receipt,
   Zap,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ const navGroups: Array<{
   },
   {
     items: [
+      { href: "/cashflow", icon: CalendarDays, label: "Cash Flow" },
       { href: "/goals", icon: Target, label: "Goals" },
       { href: "/categories", icon: Tags, label: "Categories" },
       { href: "/accounts", icon: Wallet, label: "Accounts" },

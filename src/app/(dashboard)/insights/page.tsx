@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Repeat, TrendingUp, TrendingDown, ExternalLink, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { fetchJson, FetchError, formatCurrency, formatAxisCurrency } from "@/lib/fetcher";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PALETTE as CAT_COLORS } from "@/lib/palette";
@@ -74,6 +75,7 @@ interface InsightData {
     merchant: string;
     amount: number;
     cadence: "weekly" | "biweekly" | "monthly" | "quarterly" | "annual" | null;
+    type: "subscription" | "bill";
     monthlyEquivalent: number;
     categoryId: string | null;
     categoryName: string | null;
@@ -113,6 +115,26 @@ export default function InsightsPage() {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  const [dismissed, setDismissed] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const saved = JSON.parse(localStorage.getItem("insights:dismissed-recurring") ?? "[]");
+      return new Set(Array.isArray(saved) ? saved : []);
+    } catch { return new Set(); }
+  });
+
+  function dismissMerchant(merchant: string) {
+    setDismissed((prev) => {
+      const next = new Set(prev);
+      next.add(merchant);
+      try { localStorage.setItem("insights:dismissed-recurring", JSON.stringify(Array.from(next))); } catch {}
+      return next;
+    });
+  }
+  function restoreAll() {
+    setDismissed(new Set());
+    try { localStorage.removeItem("insights:dismissed-recurring"); } catch {}
+  }
 
   function setRangePersisted(next: RangeMonths) {
     setRange(next);
@@ -372,82 +394,127 @@ export default function InsightsPage() {
         </CardContent>
       </Card>
 
-      {/* Subscriptions & Recurring */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Repeat className="w-4 h-4" />
-            Subscriptions &amp; Recurring
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!insights.subscriptions || insights.subscriptions.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-gray-500">
-              Upload several months of statements to detect recurring patterns.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800">
-                <span>Merchant</span>
-                <span className="text-right">Cadence</span>
-                <span className="text-right">Next</span>
-                <span className="text-right">Est. monthly</span>
+      {/* Subscriptions & Recurring Bills — split by type */}
+      {(() => {
+        const all = (insights.subscriptions ?? []).filter((s) => !dismissed.has(s.merchant));
+        const subs = all.filter((s) => s.type === "subscription");
+        const bills = all.filter((s) => s.type === "bill");
+
+        function RecurringRow({ sub }: { sub: typeof all[0] }) {
+          const upcoming = sub.daysUntilNext >= 0 && sub.daysUntilNext <= 7;
+          const overdue = sub.daysUntilNext < 0 && sub.daysUntilNext > -14;
+          return (
+            <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 py-2.5 items-center text-sm">
+              <div className="min-w-0">
+                <Link
+                  href={`/transactions?search=${encodeURIComponent(sub.merchant)}`}
+                  className="font-medium text-gray-900 dark:text-gray-100 hover:text-blue-600 flex items-center gap-1 group truncate"
+                >
+                  {sub.merchant}
+                  <ExternalLink className="w-3 h-3 text-gray-300 dark:text-gray-600 group-hover:text-blue-400 shrink-0" />
+                </Link>
+                <p className="text-xs text-gray-400 dark:text-gray-500">
+                  {formatCurrency(sub.amount)} · {sub.categoryName ?? "Uncategorized"}
+                </p>
               </div>
-              <div className="divide-y divide-gray-50 dark:divide-gray-800">
-                {insights.subscriptions.map((sub) => {
-                  const upcoming = sub.daysUntilNext >= 0 && sub.daysUntilNext <= 7;
-                  const overdue = sub.daysUntilNext < 0 && sub.daysUntilNext > -14;
-                  return (
-                    <div key={sub.merchant} className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 py-3 items-center text-sm">
-                      <div className="min-w-0">
-                        <Link
-                          href={`/transactions?search=${encodeURIComponent(sub.merchant)}`}
-                          className="font-medium text-gray-900 dark:text-gray-100 hover:text-blue-600 flex items-center gap-1 group truncate"
-                        >
-                          {sub.merchant}
-                          <ExternalLink className="w-3 h-3 text-gray-300 dark:text-gray-600 group-hover:text-blue-400 shrink-0" />
-                        </Link>
-                        <p className="text-xs text-gray-400 dark:text-gray-500">
-                          {formatCurrency(sub.amount)} · {sub.categoryName ?? "Uncategorized"}
-                        </p>
-                      </div>
-                      <span className="text-right text-xs text-gray-500 dark:text-gray-400 capitalize whitespace-nowrap">
-                        {sub.cadence ?? "—"}
-                      </span>
-                      <span className={`text-right text-xs whitespace-nowrap font-medium ${
-                        upcoming ? "text-amber-600" : overdue ? "text-red-500" : "text-gray-400 dark:text-gray-500"
-                      }`}>
-                        {upcoming
-                          ? sub.daysUntilNext === 0 ? "Today" : `In ${sub.daysUntilNext}d`
-                          : overdue
-                          ? `${Math.abs(sub.daysUntilNext)}d ago`
-                          : format(new Date(sub.nextExpectedDate), "MMM d")}
-                      </span>
-                      <span className="text-right font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">
-                        {formatCurrency(sub.monthlyEquivalent)}<span className="font-normal text-gray-400 dark:text-gray-500">/mo</span>
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="pt-3 border-t border-gray-100 dark:border-gray-800 grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">Est. monthly total</p>
-                  <p className="font-bold text-gray-900 dark:text-gray-100">
-                    {formatCurrency(insights.subscriptions.reduce((s, sub) => s + sub.monthlyEquivalent, 0))}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-400 dark:text-gray-500">Est. annual total</p>
-                  <p className="font-bold text-gray-900 dark:text-gray-100">
-                    {formatCurrency(insights.subscriptions.reduce((s, sub) => s + sub.monthlyEquivalent * 12, 0))}
-                  </p>
-                </div>
-              </div>
+              <span className="text-right text-xs text-gray-500 dark:text-gray-400 capitalize whitespace-nowrap">
+                {sub.cadence ?? "—"}
+              </span>
+              <span className={`text-right text-xs whitespace-nowrap font-medium ${
+                upcoming ? "text-amber-600" : overdue ? "text-red-500" : "text-gray-400 dark:text-gray-500"
+              }`}>
+                {upcoming
+                  ? sub.daysUntilNext === 0 ? "Today" : `In ${sub.daysUntilNext}d`
+                  : overdue
+                  ? `${Math.abs(sub.daysUntilNext)}d ago`
+                  : format(new Date(sub.nextExpectedDate), "MMM d")}
+              </span>
+              <span className="text-right font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">
+                {formatCurrency(sub.monthlyEquivalent)}<span className="font-normal text-gray-400 dark:text-gray-500">/mo</span>
+              </span>
+              <button
+                onClick={() => dismissMerchant(sub.merchant)}
+                title="Remove from this list"
+                className="text-gray-300 dark:text-gray-600 hover:text-red-400 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          );
+        }
+
+        const totalMonthly = all.reduce((s, sub) => s + sub.monthlyEquivalent, 0);
+
+        if (!insights.subscriptions || insights.subscriptions.length === 0) {
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2"><Repeat className="w-4 h-4" />Subscriptions &amp; Recurring</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-400 dark:text-gray-500">Upload several months of statements to detect recurring patterns.</p>
+              </CardContent>
+            </Card>
+          );
+        }
+
+        return (
+          <div className="space-y-4">
+            {subs.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Repeat className="w-4 h-4" /> Subscriptions
+                      <span className="text-xs font-normal text-gray-400 dark:text-gray-500">fixed price</span>
+                    </CardTitle>
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                      {formatCurrency(subs.reduce((s, sub) => s + sub.monthlyEquivalent, 0))}/mo
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="divide-y divide-gray-50 dark:divide-gray-800">
+                    {subs.map((sub) => <RecurringRow key={sub.merchant} sub={sub} />)}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {bills.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Repeat className="w-4 h-4" /> Recurring Bills
+                      <span className="text-xs font-normal text-gray-400 dark:text-gray-500">variable amount</span>
+                    </CardTitle>
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                      {formatCurrency(bills.reduce((s, sub) => s + sub.monthlyEquivalent, 0))}/mo
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="divide-y divide-gray-50 dark:divide-gray-800">
+                    {bills.map((sub) => <RecurringRow key={sub.merchant} sub={sub} />)}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {totalMonthly > 0 && (
+              <div className="flex items-center justify-between text-sm px-1">
+                <span className="text-gray-500 dark:text-gray-400">Total recurring · <span className="font-semibold text-gray-900 dark:text-gray-100">{formatCurrency(totalMonthly)}/mo</span> · {formatCurrency(totalMonthly * 12)}/yr</span>
+                {dismissed.size > 0 && (
+                  <button onClick={restoreAll} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
+                    Restore {dismissed.size} hidden
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Top categories this month */}
       <Card>

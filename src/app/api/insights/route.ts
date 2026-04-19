@@ -167,6 +167,8 @@ export async function GET(request: Request) {
     }
     intervals.sort((a, b) => a - b);
     const median = intervals[Math.floor(intervals.length / 2)];
+    // Visited more than every 5 days → habit/daily spend, not a subscription
+    if (median < 5) return { cadence: null, intervalDays: median };
     if (median <= 10) return { cadence: "weekly", intervalDays: 7 };
     if (median <= 20) return { cadence: "biweekly", intervalDays: 14 };
     if (median <= 50) return { cadence: "monthly", intervalDays: 30 };
@@ -189,7 +191,8 @@ export async function GET(request: Request) {
     .filter(([, data]) => {
       if (data.dates.length < 2) return false;
       const avgAmount = data.amounts.reduce((a, b) => a + b, 0) / data.amounts.length;
-      const amountsConsistent = data.amounts.every((a) => Math.abs(a - avgAmount) / Math.max(avgAmount, 1) <= 0.15);
+      // Up to 20% variance qualifies as recurring; tighter 5% = true subscription
+      const amountsConsistent = data.amounts.every((a) => Math.abs(a - avgAmount) / Math.max(avgAmount, 1) <= 0.20);
       if (!amountsConsistent) return false;
       const { cadence } = detectCadence(data.dates);
       return cadence !== null;
@@ -202,10 +205,14 @@ export async function GET(request: Request) {
       const nextExpectedDate = new Date(lastDate.getTime() + intervalDays * 86_400_000);
       const daysUntilNext = Math.round((nextExpectedDate.getTime() - todayMs) / 86_400_000);
       const monthlyEquivalent = cadence ? avgAmount * MONTHLY_FACTOR[cadence] : avgAmount;
+      // Classify: variance ≤5% → fixed-price subscription; >5% → variable recurring bill
+      const variance = data.amounts.reduce((s, a) => s + Math.abs(a - avgAmount), 0) / data.amounts.length / Math.max(avgAmount, 1);
+      const type: "subscription" | "bill" = variance <= 0.05 ? "subscription" : "bill";
       return {
         merchant,
         amount: Math.round(avgAmount * 100) / 100,
         cadence,
+        type,
         monthlyEquivalent: Math.round(monthlyEquivalent * 100) / 100,
         categoryId: data.categoryId,
         categoryName: data.categoryName,

@@ -97,3 +97,30 @@ export async function PATCH(request: Request) {
 
   return NextResponse.json({ updated: result.count });
 }
+
+// Bulk field update: supports isExcluded, soft-delete
+export async function PUT(request: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { transactionIds, patch } = await request.json() as {
+    transactionIds: string[];
+    patch: { isExcluded?: boolean; deletedAt?: true };
+  };
+
+  if (!Array.isArray(transactionIds) || transactionIds.length === 0) {
+    return NextResponse.json({ error: "transactionIds required" }, { status: 400 });
+  }
+
+  const householdAccountIds = await getHouseholdAccountIds(session.user.id);
+  const data: Record<string, unknown> = {};
+  if (patch.isExcluded !== undefined) data.isExcluded = patch.isExcluded;
+  if (patch.deletedAt) data.deletedAt = new Date();
+
+  const result = await prisma.transaction.updateMany({
+    where: { id: { in: transactionIds }, accountId: { in: householdAccountIds } },
+    data,
+  });
+
+  return NextResponse.json({ updated: result.count });
+}

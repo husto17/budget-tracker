@@ -42,6 +42,7 @@ interface InsightData {
     merchant: string;
     amount: number;
     cadence: "weekly" | "biweekly" | "monthly" | "quarterly" | "annual" | null;
+    type: "subscription" | "bill";
     monthlyEquivalent: number;
     categoryId: string | null;
     categoryName: string | null;

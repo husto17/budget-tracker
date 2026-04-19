@@ -40,16 +40,19 @@ function TransactionsContent() {
 
   // ────── Filters ──────
   const initialStatus = searchParams.get("status");
+  const initialSearch = searchParams.get("search") ?? "";
+  const initialFrom = searchParams.get("from") ?? "";
+  const initialTo = searchParams.get("to") ?? "";
   const [filters, setFilters] = useState<FilterState>({
-    searchInput: "",
-    search: "",
+    searchInput: initialSearch,
+    search: initialSearch,
     filterAccount: "all",
     filterCategory: "all",
     filterUncategorized: false,
     statusFilter:
       initialStatus === "pending" ? "pending" : initialStatus === "posted" ? "posted" : "all",
-    from: "",
-    to: "",
+    from: initialFrom,
+    to: initialTo,
     sort: "desc",
   });
 
@@ -61,6 +64,7 @@ function TransactionsContent() {
   const [bulkCatId, setBulkCatId] = useState("");
   const [applyingBulk, setApplyingBulk] = useState(false);
   const [linkingBulk, setLinkingBulk] = useState(false);
+  const [bulkWorking, setBulkWorking] = useState(false);
 
   // ────── Dialogs + drawer ──────
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -333,6 +337,56 @@ function TransactionsContent() {
       toast.error(d.error ?? "Failed to link transfer");
     }
     setLinkingBulk(false);
+  }
+
+  async function handleBulkExclude() {
+    if (selected.size === 0) return;
+    setBulkWorking(true);
+    const ids = Array.from(selected);
+    const res = await fetch("/api/transactions/bulk", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transactionIds: ids, patch: { isExcluded: true } }),
+    });
+    if (res.ok) {
+      setSelected(new Set());
+      fetchTransactions();
+      toast.success(`Excluded ${ids.length} transaction${ids.length !== 1 ? "s" : ""} from totals`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            await fetch("/api/transactions/bulk", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ transactionIds: ids, patch: { isExcluded: false } }),
+            });
+            fetchTransactions();
+          },
+        },
+      });
+    } else {
+      toast.error("Failed to exclude transactions");
+    }
+    setBulkWorking(false);
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    setBulkWorking(true);
+    const ids = Array.from(selected);
+    const res = await fetch("/api/transactions/bulk", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transactionIds: ids, patch: { deletedAt: true } }),
+    });
+    if (res.ok) {
+      setSelected(new Set());
+      fetchTransactions();
+      toast.success(`Deleted ${ids.length} transaction${ids.length !== 1 ? "s" : ""}`);
+    } else {
+      toast.error("Failed to delete transactions");
+    }
+    setBulkWorking(false);
   }
 
   // ────── Delete ──────
@@ -624,6 +678,9 @@ function TransactionsContent() {
         bulkLinkEligible={bulkLinkEligible}
         linkingBulk={linkingBulk}
         onLink={handleBulkLink}
+        onExclude={handleBulkExclude}
+        onDelete={handleBulkDelete}
+        working={bulkWorking}
         onClear={() => {
           setSelected(new Set());
           setBulkCatId("");
