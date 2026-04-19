@@ -386,16 +386,30 @@ export async function GET(request: Request) {
     .slice(0, 12);
 
   // ── Payday pattern ───────────────────────────────────────────────────────
-  const dayOfMonthIncome: Record<number, number> = {};
+  // Group income by day-of-month, tracking which months it appeared in
+  const dayOfMonthIncome: Record<number, { total: number; months: Set<string>; amounts: number[] }> = {};
   for (const tx of incomeTransactions) {
     if (tx.amount <= 0.005) continue;
     const day = tx.date.getDate();
-    dayOfMonthIncome[day] = (dayOfMonthIncome[day] ?? 0) + tx.amount;
+    const monthKey = `${tx.date.getFullYear()}-${tx.date.getMonth()}`;
+    if (!dayOfMonthIncome[day]) dayOfMonthIncome[day] = { total: 0, months: new Set(), amounts: [] };
+    dayOfMonthIncome[day].total += tx.amount;
+    dayOfMonthIncome[day].months.add(monthKey);
+    dayOfMonthIncome[day].amounts.push(tx.amount);
   }
-  const totalIncomeAmount = Object.values(dayOfMonthIncome).reduce((a, b) => a + b, 0);
+  const totalIncomeAmount = Object.values(dayOfMonthIncome).reduce((a, b) => a + b.total, 0);
   const detectedPaydays = Object.entries(dayOfMonthIncome)
-    .filter(([, amt]) => totalIncomeAmount > 0 && amt > totalIncomeAmount * 0.08)
-    .sort(([, a], [, b]) => b - a)
+    .filter(([, d]) => {
+      if (totalIncomeAmount <= 0) return false;
+      // Must appear in at least 2 distinct months (rules out one-off transfers)
+      if (d.months.size < 2) return false;
+      // Each occurrence must average at least $100 (rules out small Venmo/Zelle)
+      const avgPerOccurrence = d.total / d.amounts.length;
+      if (avgPerOccurrence < 100) return false;
+      // Must be at least 10% of total income across the window
+      return d.total > totalIncomeAmount * 0.10;
+    })
+    .sort(([, a], [, b]) => b.total - a.total)
     .slice(0, 3)
     .map(([d]) => parseInt(d))
     .sort((a, b) => a - b);
