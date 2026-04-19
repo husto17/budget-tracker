@@ -805,26 +805,26 @@ export default function InsightsPage() {
           </CardHeader>
           <CardContent>
             <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Merchants you visit regularly — sorted by frequency. Trend shows if you&apos;re going more or less often.</p>
-            <div className="space-y-1">
-              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800">
-                <span>Merchant</span>
-                <span className="text-right">Visits</span>
-                <span className="text-right">Avg every</span>
-                <span className="text-right">Trend</span>
-              </div>
+            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4">
+              {/* Header */}
+              <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800">Merchant</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800 text-right">Visits</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800 text-right">Avg every</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800 text-right">Trend</span>
+              {/* Rows — each row is 4 consecutive grid children */}
               {insights.merchantLoyalty.map((m) => (
                 <Link
                   key={m.merchant}
                   href={`/transactions?search=${encodeURIComponent(m.merchant)}`}
-                  className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 py-2.5 items-center text-sm hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg px-1 -mx-1 transition-colors"
+                  className="contents group"
                 >
-                  <div className="min-w-0">
-                    <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{m.merchant}</p>
+                  <div className="min-w-0 py-2.5 group-hover:bg-gray-50 dark:group-hover:bg-gray-800 rounded-l-lg pl-1 -ml-1">
+                    <p className="font-medium text-gray-900 dark:text-gray-100 truncate text-sm">{m.merchant}</p>
                     <p className="text-xs text-gray-400 dark:text-gray-500">{formatCurrency(m.totalSpent)} total · last {m.lastVisit}</p>
                   </div>
-                  <span className="text-right text-gray-500 dark:text-gray-400">{m.visitCount}×</span>
-                  <span className="text-right text-gray-500 dark:text-gray-400 whitespace-nowrap">{m.avgDaysBetween}d</span>
-                  <span className={`text-right text-xs font-semibold whitespace-nowrap ${
+                  <span className="py-2.5 text-right text-sm text-gray-500 dark:text-gray-400 group-hover:bg-gray-50 dark:group-hover:bg-gray-800">{m.visitCount}×</span>
+                  <span className="py-2.5 text-right text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap group-hover:bg-gray-50 dark:group-hover:bg-gray-800">{m.avgDaysBetween}d</span>
+                  <span className={`py-2.5 text-right text-xs font-semibold whitespace-nowrap rounded-r-lg pr-1 -mr-1 group-hover:bg-gray-50 dark:group-hover:bg-gray-800 ${
                     m.trend === "increasing" ? "text-green-600" :
                     m.trend === "decreasing" ? "text-red-500" :
                     "text-gray-400 dark:text-gray-500"
