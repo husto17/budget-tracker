@@ -432,8 +432,8 @@ function TransactionsContent() {
           toast.success(
             `Cleaned up ${data.updated} transaction${data.updated !== 1 ? "s" : ""} (${parts.join(", ")})`,
           );
-          fetchTransactions();
         }
+        fetchTransactions();
       } catch (e) {
         if (!silent) toast.error(e instanceof FetchError ? e.message : "Failed to refresh");
       } finally {
