@@ -33,16 +33,16 @@ export const DEFAULT_CATEGORIES = [
 // user rather than shipping with a wall of defaults.
 export const DEFAULT_RULES: Record<string, string[]> = {
   Groceries: [
-    "TRADER JOE", "WHOLE FOODS", "ALDI", "KROGER", "SAFEWAY",
+    "TRADER JOE", "WHOLE FOODS", "WHOLEFDS", "ALDI", "KROGER", "SAFEWAY",
     "JEWEL OSCO", "INSTACART", "COSTCO", "WALMART GROCERY",
   ],
   "Dining Out": [
-    "STARBUCKS", "CHIPOTLE", "DOORDASH", "GRUBHUB", "UBER EATS", "UBEREATS",
-    "PIZZERIA", "RESTAURANT", "COFFEE", "CAFE",
+    "STARBUCKS", "CHIPOTLE", "DOORDASH", "GRUBHUB", "SEAMLESS",
+    "UBER EATS", "UBEREATS", "PIZZERIA", "RESTAURANT", "COFFEE", "CAFE",
   ],
   Transport: [
     "UBER *TRIP", "UBER* TRIP", "LYFT", "CURB", "PARKING", "TOLL", "METRA", "CTA",
-    "EXXON", "BP ", "SUNOCO", "SHELL ", "CHEVRON", "MOBIL",
+    "EXXON", "BP", "SUNOCO", "SHELL", "CHEVRON", "MOBIL",
   ],
   Travel: [
     "AIRLINES", "AIR CANADA", "BRITISH AIR", "DELTA AIR", "UNITED AIR",
@@ -63,7 +63,7 @@ export const DEFAULT_RULES: Record<string, string[]> = {
   ],
   Shopping: [
     "AMAZON", "TARGET", "WAL-MART", "USPS", "FEDEX", "UPS ",
-    "BEST BUY", "ETSY",
+    "BEST BUY", "ETSY", "EBAY",
   ],
   Clothing: [
     "LULULEMON", "VUORI", "ALO YOGA", "NIKE", "ADIDAS", "PATAGONIA",
@@ -84,7 +84,9 @@ export const DEFAULT_RULES: Record<string, string[]> = {
   ],
   Subscriptions: [
     "SPOTIFY", "APPLE.COM/BILL", "OPENAI", "NYTIMES", "DROPBOX",
-    "GOOGLE ONE", "ICLOUD",
+    "GOOGLE ONE", "ICLOUD", "AMAZON PRIME", "PRIME VIDEO",
+    "DISNEY PLUS", "DISNEY+", "HBO MAX", "PEACOCK", "PARAMOUNT",
+    "YOUTUBE PREMIUM",
   ],
   Gifts: [],
   "Family Support": [],
