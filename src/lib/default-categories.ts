@@ -37,12 +37,12 @@ export const DEFAULT_RULES: Record<string, string[]> = {
     "JEWEL OSCO", "INSTACART", "COSTCO", "WALMART GROCERY",
   ],
   "Dining Out": [
-    "STARBUCKS", "CHIPOTLE", "DOORDASH", "GRUBHUB", "UBER EATS",
+    "STARBUCKS", "CHIPOTLE", "DOORDASH", "GRUBHUB", "UBER EATS", "UBEREATS",
     "PIZZERIA", "RESTAURANT", "COFFEE", "CAFE",
   ],
   Transport: [
-    "UBER", "LYFT", "CURB", "PARKING", "TOLL", "METRA", "CTA",
-    "EXXON", "BP", "SUNOCO", "SHELL", "CHEVRON", "MOBIL",
+    "UBER *TRIP", "UBER* TRIP", "LYFT", "CURB", "PARKING", "TOLL", "METRA", "CTA",
+    "EXXON", "BP ", "SUNOCO", "SHELL ", "CHEVRON", "MOBIL",
   ],
   Travel: [
     "AIRLINES", "AIR CANADA", "BRITISH AIR", "DELTA AIR", "UNITED AIR",
@@ -62,7 +62,7 @@ export const DEFAULT_RULES: Record<string, string[]> = {
     "NETFLIX", "HULU", "STUBHUB", "TICKETMASTER", "THEATRE", "CINEMA",
   ],
   Shopping: [
-    "AMAZON", "TARGET", "WALMART", "USPS", "FEDEX", "UPS ",
+    "AMAZON", "TARGET", "WAL-MART", "USPS", "FEDEX", "UPS ",
     "BEST BUY", "ETSY",
   ],
   Clothing: [
