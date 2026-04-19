@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds, getPartnerUserId, mergeHouseholdCategories, getHouseholdCategoryOwnerId } from "@/lib/household";
-import { ensureDefaultCategories, CATEGORY_RENAMES } from "@/lib/default-categories";
+import { getHouseholdAccountIds, getPartnerUserId } from "@/lib/household";
+import { CATEGORY_RENAMES } from "@/lib/default-categories";
 import { parseSearch } from "@/lib/search-parser";
 
 export async function GET(request: Request) {
@@ -22,17 +22,6 @@ export async function GET(request: Request) {
   const uncategorized = searchParams.get("uncategorized") === "true";
   const status = searchParams.get("status"); // "pending" | "posted" | "all"
   const sort = searchParams.get("sort") === "asc" ? "asc" : "desc";
-
-  // Run the category merge + rename eagerly so that by the time we query
-  // transactions the categoryId pointers already reflect the canonical owner's
-  // categories (e.g. partner's "Transportation" → owner's "Transport").
-  try {
-    await mergeHouseholdCategories(session.user.id);
-    const ownerId = await getHouseholdCategoryOwnerId(session.user.id);
-    await ensureDefaultCategories(ownerId);
-  } catch {
-    // never block a transactions fetch due to a migration error
-  }
 
   const householdAccountIds = await getHouseholdAccountIds(session.user.id);
 

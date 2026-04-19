@@ -445,7 +445,7 @@ function TransactionsContent() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const REPROCESS_VERSION = "2026-04-18-v3";
+    const REPROCESS_VERSION = "2026-04-19-v1";
     if (sessionStorage.getItem("transactionsReprocessedVersion") === REPROCESS_VERSION) return;
     sessionStorage.setItem("transactionsReprocessedVersion", REPROCESS_VERSION);
     reprocessNames(true);
