@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds, getHouseholdCategoryOwnerId, getPartnerUserId } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdId } from "@/lib/household";
 import { normalizeMerchantHardcoded } from "@/lib/auto-categorize";
-import { ensureDefaultCategories, CATEGORY_RENAMES } from "@/lib/default-categories";
+import { ensureDefaultCategories } from "@/lib/default-categories";
 
 /**
  * Re-run merchant-name normalization on every transaction in the household,
@@ -17,42 +17,19 @@ export async function POST() {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = session.user.id;
-  const [ownerId, partnerUserId] = await Promise.all([
-    getHouseholdCategoryOwnerId(userId),
-    getPartnerUserId(userId),
+  const [householdId, accountIds] = await Promise.all([
+    getHouseholdId(userId),
+    getHouseholdAccountIds(userId),
   ]);
-  // All household user IDs — used for category-rename sweep below.
-  const allUserIds = partnerUserId ? [userId, partnerUserId] : [userId];
 
-  // Seed/rename default categories for the canonical owner only.
-  // Running ensureDefaultCategories for the partner risks recreating their
-  // categories if the household merge has already emptied their namespace.
-  try { await ensureDefaultCategories(ownerId); } catch (e) {
+  // Seed/rename default categories for the household.
+  try { await ensureDefaultCategories(userId); } catch (e) {
     console.error("ensureDefaultCategories failed", e);
   }
 
-  // Apply all CATEGORY_RENAMES for every household user — safe because it
-  // only acts when the old-name category actually exists.
-  for (const rename of CATEGORY_RENAMES) {
-    for (const uid of allUserIds) {
-      try {
-        const fromCat = await prisma.category.findFirst({ where: { userId: uid, name: rename.from }, select: { id: true } });
-        if (!fromCat) continue;
-        const toCat = await prisma.category.findFirst({ where: { userId: uid, name: rename.to }, select: { id: true } });
-        if (toCat) {
-          await prisma.transaction.updateMany({ where: { categoryId: fromCat.id }, data: { categoryId: toCat.id } });
-          await prisma.categoryRule.updateMany({ where: { categoryId: fromCat.id }, data: { categoryId: toCat.id } });
-          await prisma.category.delete({ where: { id: fromCat.id } });
-        } else {
-          await prisma.category.update({ where: { id: fromCat.id }, data: { name: rename.to } });
-        }
-      } catch (e) {
-        console.error(`Category rename ${rename.from}→${rename.to} failed for ${uid}`, e);
-      }
-    }
-  }
-
-  const accountIds = await getHouseholdAccountIds(userId);
+  const categoryWhere = householdId ? { householdId } : { userId };
+  const aliasWhere = householdId ? { householdId } : { userId };
+  const ruleWhere = householdId ? { householdId } : { userId };
 
   const [transactions, aliases, rules] = await Promise.all([
     prisma.transaction.findMany({
@@ -60,21 +37,27 @@ export async function POST() {
       select: { id: true, description: true, merchant: true, categoryId: true },
     }),
     prisma.merchantAlias.findMany({
-      where: { userId: ownerId },
+      where: aliasWhere,
       select: { fromName: true, toName: true },
     }),
     prisma.categoryRule.findMany({
-      where: { userId: ownerId },
+      where: ruleWhere,
       orderBy: { priority: "desc" },
       select: { categoryId: true, pattern: true, isRegex: true },
     }),
   ]);
 
+  // Ensure rules reference categories that actually exist in the household.
+  const householdCategoryIds = new Set(
+    (await prisma.category.findMany({ where: categoryWhere, select: { id: true } })).map((c) => c.id)
+  );
+  const validRules = rules.filter((r) => householdCategoryIds.has(r.categoryId));
+
   const aliasMap = new Map(aliases.map((a) => [a.fromName, a.toName]));
 
   function matchRule(description: string): string | null {
     const upper = description.toUpperCase();
-    for (const r of rules) {
+    for (const r of validRules) {
       if (r.isRegex) {
         try {
           if (new RegExp(r.pattern, "i").test(description)) return r.categoryId;

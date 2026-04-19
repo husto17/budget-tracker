@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdCategoryOwnerId } from "@/lib/household";
+import { getHouseholdId } from "@/lib/household";
 
 export async function POST(
   request: Request,
@@ -14,9 +14,13 @@ export async function POST(
   const { id } = await params;
   const { pattern, isRegex } = await request.json();
 
-  const ownerId = await getHouseholdCategoryOwnerId(session.user.id);
+  const householdId = await getHouseholdId(session.user.id);
   const category = await prisma.category.findUnique({ where: { id } });
-  if (!category || category.userId !== ownerId) {
+  const accessible = category && (
+    (householdId && category.householdId === householdId) ||
+    category.userId === session.user.id
+  );
+  if (!accessible) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -32,13 +36,23 @@ export async function POST(
   }
 
   const trimmed = pattern.trim();
-  const existing = await prisma.categoryRule.findFirst({
-    where: { userId: ownerId, categoryId: id, pattern: { equals: trimmed, mode: "insensitive" }, isRegex: isRegex ?? false },
-  });
+
+  // Check for existing rule by householdId if available, else by userId.
+  const ruleWhere = householdId
+    ? { householdId, categoryId: id, pattern: { equals: trimmed, mode: "insensitive" as const }, isRegex: isRegex ?? false }
+    : { userId: session.user.id, categoryId: id, pattern: { equals: trimmed, mode: "insensitive" as const }, isRegex: isRegex ?? false };
+
+  const existing = await prisma.categoryRule.findFirst({ where: ruleWhere });
   if (existing) return NextResponse.json(existing);
 
   const rule = await prisma.categoryRule.create({
-    data: { userId: ownerId, categoryId: id, pattern: trimmed, isRegex: isRegex ?? false },
+    data: {
+      userId: session.user.id,
+      categoryId: id,
+      pattern: trimmed,
+      isRegex: isRegex ?? false,
+      ...(householdId ? { householdId } : {}),
+    },
   });
 
   return NextResponse.json(rule);
@@ -69,13 +83,21 @@ export async function DELETE(
     return NextResponse.json({ error: "ruleId required" }, { status: 400 });
   }
 
-  const ownerId2 = await getHouseholdCategoryOwnerId(session.user.id);
+  const householdId = await getHouseholdId(session.user.id);
   // Verify rule belongs to this household's category.
-  const rule = await prisma.categoryRule.findFirst({
-    where: { id: ruleId, categoryId, userId: ownerId2 },
-  });
+  const ruleWhere = householdId
+    ? { id: ruleId, categoryId, householdId }
+    : { id: ruleId, categoryId, userId: session.user.id };
+
+  const rule = await prisma.categoryRule.findFirst({ where: ruleWhere });
   if (!rule) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    // Fall back to userId check in case rule predates householdId migration.
+    const fallback = await prisma.categoryRule.findFirst({
+      where: { id: ruleId, categoryId, userId: session.user.id },
+    });
+    if (!fallback) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
   }
 
   await prisma.categoryRule.delete({ where: { id: ruleId } });

@@ -12,6 +12,9 @@ model Household {
   createdAt DateTime          @default(now())
   members   User[]
   invites   HouseholdInvite[]
+  categories      Category[]      @relation("HouseholdCategories")
+  categoryRules   CategoryRule[]  @relation("HouseholdCategoryRules")
+  merchantAliases MerchantAlias[] @relation("HouseholdMerchantAliases")
 }
 
 model HouseholdInvite {
@@ -99,26 +102,32 @@ model Category {
   budgetRollover Boolean         @default(false)
   isDefault      Boolean         @default(false)
   createdAt     DateTime        @default(now())
+  householdId   String?
+  household     Household?      @relation("HouseholdCategories", fields: [householdId], references: [id])
   transactions  Transaction[]
   rules         CategoryRule[]
   splits        TransactionSplit[]
 
   @@unique([userId, name])
   @@index([userId])
+  @@index([householdId])
 }
 
 model CategoryRule {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  categoryId String
-  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  pattern    String
-  isRegex    Boolean  @default(false)
-  priority   Int      @default(0)
-  createdAt  DateTime @default(now())
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id])
+  categoryId  String
+  category    Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  pattern     String
+  isRegex     Boolean    @default(false)
+  priority    Int        @default(0)
+  createdAt   DateTime   @default(now())
+  householdId String?
+  household   Household? @relation("HouseholdCategoryRules", fields: [householdId], references: [id])
 
   @@index([userId])
+  @@index([householdId])
 }
 
 model Transaction {
@@ -223,15 +232,18 @@ model TransactionSplit {
 }
 
 model MerchantAlias {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fromName  String   // what hardcoded normalization produces
-  toName    String   // what user wants it to be
-  createdAt DateTime @default(now())
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromName    String     // what hardcoded normalization produces
+  toName      String     // what user wants it to be
+  createdAt   DateTime   @default(now())
+  householdId String?
+  household   Household? @relation("HouseholdMerchantAliases", fields: [householdId], references: [id])
 
   @@unique([userId, fromName])
   @@index([userId])
+  @@index([householdId])
 }
 
 model Upload {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds, getHouseholdCategoryOwnerId } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdId } from "@/lib/household";
 
 export async function POST(
   _request: Request,
@@ -13,12 +13,16 @@ export async function POST(
 
   const { id } = await params;
 
-  const ownerId = await getHouseholdCategoryOwnerId(session.user.id);
+  const householdId = await getHouseholdId(session.user.id);
   const category = await prisma.category.findUnique({
     where: { id },
     include: { rules: true },
   });
-  if (!category || category.userId !== ownerId) {
+  const accessible = category && (
+    (householdId && category.householdId === householdId) ||
+    category.userId === session.user.id
+  );
+  if (!accessible) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

@@ -2,21 +2,25 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds, getHouseholdCategoryOwnerId } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdId } from "@/lib/household";
 
 export async function POST(_request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = session.user.id;
-  const [accountIds, ownerId] = await Promise.all([
+  const [accountIds, householdId] = await Promise.all([
     getHouseholdAccountIds(userId),
-    getHouseholdCategoryOwnerId(userId),
+    getHouseholdId(userId),
   ]);
+
+  const categoryWhere = householdId
+    ? { householdId }
+    : { userId };
 
   // Get all categories with rules, ordered by priority (higher first)
   const categories = await prisma.category.findMany({
-    where: { userId: ownerId },
+    where: categoryWhere,
     include: {
       rules: {
         orderBy: { priority: "desc" },

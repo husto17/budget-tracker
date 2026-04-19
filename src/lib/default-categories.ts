@@ -113,8 +113,8 @@ export const DEFAULT_RULES: Record<string, string[]> = {
   ],
 };
 
-// Renames of default categories over time — older installs get migrated
-// transparently on the next GET /api/categories.
+// Renames of default categories over time — kept for reference / documentation.
+// The rename sweep is no longer applied at runtime; clean data reset handles it.
 export const CATEGORY_RENAMES: Array<{ from: string; to: string }> = [
   { from: "Rent / Mortgage", to: "Rent" },
   { from: "Transportation", to: "Transport" },
@@ -122,53 +122,35 @@ export const CATEGORY_RENAMES: Array<{ from: string; to: string }> = [
   { from: "Grocery & Dining", to: "Groceries" },
 ];
 
-// Creates any default categories the user is missing, and seeds starter rules
-// for newly-created categories. Safe to call repeatedly — e.g. on every
+// Creates any default categories the household is missing, and seeds starter
+// rules for newly-created categories. Safe to call repeatedly — e.g. on every
 // GET /api/categories — so existing users pick up newly-added defaults without
 // a migration.
+//
+// When the user belongs to a household, categories are owned by the household
+// (householdId set). The userId is always stored for audit / solo fallback.
 export async function ensureDefaultCategories(userId: string): Promise<void> {
-  // Apply any pending renames first so we don't end up with duplicates when
-  // the new name tries to get inserted below.
-  for (const r of CATEGORY_RENAMES) {
-    const fromCat = await prisma.category.findFirst({
-      where: { userId, name: r.from },
-      select: { id: true },
-    });
-    if (!fromCat) continue;
-    const toCat = await prisma.category.findFirst({
-      where: { userId, name: r.to },
-      select: { id: true },
-    });
-    if (toCat) {
-      // Target already exists — move transactions/rules then drop the old row.
-      // Sequential because the Neon HTTP adapter doesn't support interactive txns.
-      await prisma.transaction.updateMany({
-        where: { categoryId: fromCat.id },
-        data: { categoryId: toCat.id },
-      });
-      await prisma.categoryRule.updateMany({
-        where: { categoryId: fromCat.id },
-        data: { categoryId: toCat.id },
-      });
-      await prisma.category.delete({ where: { id: fromCat.id } });
-    } else {
-      await prisma.category.update({
-        where: { id: fromCat.id },
-        data: { name: r.to },
-      });
-    }
-  }
+  // Look up the household so we can scope categories to it.
+  const userRecord = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { householdId: true },
+  });
+  const householdId = userRecord?.householdId ?? null;
+
+  // Build the "where" clause for querying existing categories.
+  const categoryWhere = householdId
+    ? { householdId }
+    : { userId };
 
   const existing = await prisma.category.findMany({
-    where: { userId, name: { in: DEFAULT_CATEGORIES.map((c) => c.name) } },
+    where: { ...categoryWhere, name: { in: DEFAULT_CATEGORIES.map((c) => c.name) } },
     select: { id: true, name: true, color: true, icon: true, isDefault: true },
   });
   const have = new Set(existing.map((c) => c.name));
   const missing = DEFAULT_CATEGORIES.filter((c) => !have.has(c.name));
 
-  // Sync colors + icons on isDefault categories so palette updates (e.g. fixing
-  // the Income/Health and Fees&Interest/Rent overlaps) reach existing users.
-  // We only touch isDefault:true rows to preserve any user-customised ones.
+  // Sync colors + icons on isDefault categories so palette updates reach
+  // existing users. Only touches isDefault:true rows to preserve custom ones.
   for (const cat of existing) {
     if (!cat.isDefault) continue;
     const target = DEFAULT_CATEGORIES.find((d) => d.name === cat.name);
@@ -187,19 +169,28 @@ export async function ensureDefaultCategories(userId: string): Promise<void> {
     // error that Prisma's createMany triggers against the Neon HTTP adapter.
     for (const c of missing) {
       await prisma.category.create({
-        data: { ...c, userId, isDefault: true },
+        data: {
+          ...c,
+          userId,
+          ...(householdId ? { householdId } : {}),
+          isDefault: true,
+        },
       });
     }
     newCategories = await prisma.category.findMany({
-      where: { userId, name: { in: DEFAULT_CATEGORIES.map((c) => c.name) } },
+      where: { ...categoryWhere, name: { in: DEFAULT_CATEGORIES.map((c) => c.name) } },
       select: { id: true, name: true },
     });
   }
 
+  // Build the "where" clause for querying existing rules.
+  const ruleWhere = householdId
+    ? { householdId, categoryId: { in: newCategories.map((c) => c.id) } }
+    : { userId, categoryId: { in: newCategories.map((c) => c.id) } };
+
   // Seed starter rules for any default category that has no rules yet.
-  // Users who already have custom rules aren't touched; missing rules get added.
   const existingRules = await prisma.categoryRule.findMany({
-    where: { userId, categoryId: { in: newCategories.map((c) => c.id) } },
+    where: ruleWhere,
     select: { categoryId: true, pattern: true },
   });
   const rulesByCategory = new Map<string, Set<string>>();
@@ -208,18 +199,21 @@ export async function ensureDefaultCategories(userId: string): Promise<void> {
     rulesByCategory.get(r.categoryId)!.add(r.pattern.toUpperCase());
   }
 
-  const ruleRows: Array<{ userId: string; categoryId: string; pattern: string }> = [];
   for (const cat of newCategories) {
     const patterns = DEFAULT_RULES[cat.name];
     if (!patterns) continue;
     const already = rulesByCategory.get(cat.id) ?? new Set();
     for (const p of patterns) {
       if (!already.has(p.toUpperCase())) {
-        ruleRows.push({ userId, categoryId: cat.id, pattern: p });
+        await prisma.categoryRule.create({
+          data: {
+            userId,
+            categoryId: cat.id,
+            pattern: p,
+            ...(householdId ? { householdId } : {}),
+          },
+        });
       }
     }
-  }
-  for (const r of ruleRows) {
-    await prisma.categoryRule.create({ data: r });
   }
 }

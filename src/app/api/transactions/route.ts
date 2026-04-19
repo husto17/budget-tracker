@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds, getPartnerUserId } from "@/lib/household";
-import { CATEGORY_RENAMES } from "@/lib/default-categories";
+import { getHouseholdAccountIds, getHouseholdId } from "@/lib/household";
 import { parseSearch } from "@/lib/search-parser";
 
 export async function GET(request: Request) {
@@ -23,56 +22,27 @@ export async function GET(request: Request) {
   const status = searchParams.get("status"); // "pending" | "posted" | "all"
   const sort = searchParams.get("sort") === "asc" ? "asc" : "desc";
 
-  const householdAccountIds = await getHouseholdAccountIds(session.user.id);
-
-  // Always include the logged-in user plus their partner (if any) — don't
-  // derive this from accounts, which would miss the logged-in user if they
-  // have no accounts of their own.
-  const partnerUserId = await getPartnerUserId(session.user.id);
-  const householdUserIds = partnerUserId
-    ? [session.user.id, partnerUserId]
-    : [session.user.id];
+  const [householdAccountIds, householdId] = await Promise.all([
+    getHouseholdAccountIds(session.user.id),
+    getHouseholdId(session.user.id),
+  ]);
 
   // Parse the search string for operators (amount:>100, category:dining, …).
   // The text remainder still goes through the normal fulltext description/
   // merchant match.
   const parsed = parseSearch(search ?? "");
 
-  // When a categoryId is supplied via the dropdown, resolve it to ALL same-named
-  // categories across the household. Without this, transactions on a partner's
-  // account (categorized with the partner's category UUID) are invisible when
-  // the logged-in user filters by their own UUID for the same category name.
-  let resolvedCategoryIds: string[] | null = null;
-  if (categoryId) {
-    const cat = await prisma.category.findUnique({ where: { id: categoryId }, select: { name: true } });
-    if (cat) {
-      // Also include any historical names that rename to this category — handles
-      // the case where a household partner's categories haven't been migrated yet
-      // (e.g. partner still has "Transportation" while current user has "Transport").
-      const historicalNames = CATEGORY_RENAMES
-        .filter((r) => r.to.toLowerCase() === cat.name.toLowerCase())
-        .map((r) => r.from);
-      const allNames = [cat.name, ...historicalNames];
-      const matching = await prisma.category.findMany({
-        where: {
-          userId: { in: householdUserIds },
-          OR: allNames.map((n) => ({ name: { equals: n, mode: "insensitive" as const } })),
-        },
-        select: { id: true },
-      });
-      resolvedCategoryIds = matching.length > 0 ? matching.map((c) => c.id) : [categoryId];
-    } else {
-      resolvedCategoryIds = [categoryId];
-    }
-  }
-
   // Resolve category/account operators to concrete IDs via case-insensitive
-  // contains match against the user's own data.
+  // contains match against the household's categories.
+  const categoryOwnerWhere = householdId
+    ? { householdId }
+    : { userId: session.user.id };
+
   let operatorCategoryIds: string[] | null = null;
   if (parsed.categoryLike) {
     const cats = await prisma.category.findMany({
       where: {
-        userId: { in: householdUserIds },
+        ...categoryOwnerWhere,
         name: { contains: parsed.categoryLike, mode: "insensitive" },
       },
       select: { id: true },
@@ -121,8 +91,10 @@ export async function GET(request: Request) {
   const where = {
     accountId: accountIdFilter,
     deletedAt: null,
-    ...(resolvedCategoryIds
-      ? { categoryId: { in: resolvedCategoryIds } }
+    // Since categories are now household-owned, a categoryId from the dropdown
+    // already IS the household's category — use it directly.
+    ...(categoryId
+      ? { categoryId }
       : operatorCategoryIds
       ? { categoryId: { in: operatorCategoryIds } }
       : {}),

@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { ensureDefaultCategories, CATEGORY_RENAMES } from "@/lib/default-categories";
-import { getHouseholdCategoryOwnerId, mergeHouseholdCategories, getPartnerUserId } from "@/lib/household";
+import { ensureDefaultCategories } from "@/lib/default-categories";
+import { getHouseholdId } from "@/lib/household";
 import { PALETTE } from "@/lib/palette";
 
-async function pickLeastUsedColor(userId: string): Promise<string> {
+async function pickLeastUsedColor(householdId: string | null, userId: string): Promise<string> {
+  const where = householdId ? { householdId } : { userId };
   const existing = await prisma.category.findMany({
-    where: { userId },
+    where,
     select: { color: true },
   });
   const counts = new Map<string, number>();
@@ -33,42 +34,18 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Merge any partner categories into the canonical owner first, then seed
-  // defaults for the owner only. This keeps both household members in sync.
-  const [ownerId, partnerUserId] = await Promise.all([
-    getHouseholdCategoryOwnerId(session.user.id),
-    getPartnerUserId(session.user.id),
-  ]);
-  try { await mergeHouseholdCategories(session.user.id); } catch (e) {
-    console.error("Failed to merge household categories", e);
-  }
-  try { await ensureDefaultCategories(ownerId); } catch (e) {
+  const householdId = await getHouseholdId(session.user.id);
+
+  try { await ensureDefaultCategories(session.user.id); } catch (e) {
     console.error("Failed to sync default categories", e);
   }
-  // Force-apply category renames (e.g. Transportation→Transport) for every
-  // household user on every categories load — no-op once data is clean.
-  const allUserIds = partnerUserId ? [session.user.id, partnerUserId] : [session.user.id];
-  for (const rename of CATEGORY_RENAMES) {
-    for (const uid of allUserIds) {
-      try {
-        const fromCat = await prisma.category.findFirst({ where: { userId: uid, name: rename.from }, select: { id: true } });
-        if (!fromCat) continue;
-        const toCat = await prisma.category.findFirst({ where: { userId: uid, name: rename.to }, select: { id: true } });
-        if (toCat) {
-          await prisma.transaction.updateMany({ where: { categoryId: fromCat.id }, data: { categoryId: toCat.id } });
-          await prisma.categoryRule.updateMany({ where: { categoryId: fromCat.id }, data: { categoryId: toCat.id } });
-          await prisma.category.delete({ where: { id: fromCat.id } });
-        } else {
-          await prisma.category.update({ where: { id: fromCat.id }, data: { name: rename.to } });
-        }
-      } catch (e) {
-        console.error(`Rename ${rename.from}→${rename.to} failed for ${uid}`, e);
-      }
-    }
-  }
+
+  const where = householdId
+    ? { householdId }
+    : { userId: session.user.id };
 
   const categories = await prisma.category.findMany({
-    where: { userId: ownerId },
+    where,
     include: {
       rules: true,
       _count: { select: { transactions: true } },
@@ -98,14 +75,15 @@ export async function POST(request: Request) {
     budgetValue = parsed;
   }
 
-  const ownerId = await getHouseholdCategoryOwnerId(session.user.id);
+  const householdId = await getHouseholdId(session.user.id);
   // Auto-pick the least-used palette colour when one isn't provided, so new
   // categories land on visually distinct colours without the user picking.
-  const finalColor = (typeof color === "string" && color.trim()) || (await pickLeastUsedColor(ownerId));
+  const finalColor = (typeof color === "string" && color.trim()) || (await pickLeastUsedColor(householdId, session.user.id));
 
   const category = await prisma.category.create({
     data: {
-      userId: ownerId,
+      userId: session.user.id,
+      ...(householdId ? { householdId } : {}),
       name,
       color: finalColor,
       icon,

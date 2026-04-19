@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds, getHouseholdCategoryOwnerId } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdId } from "@/lib/household";
 
 // Bulk categorize transactions (legacy POST)
 export async function POST(request: Request) {
@@ -38,9 +38,9 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "transactionIds array required" }, { status: 400 });
   }
 
-  const [householdAccountIds, ownerId] = await Promise.all([
+  const [householdAccountIds, householdId] = await Promise.all([
     getHouseholdAccountIds(session.user.id),
-    getHouseholdCategoryOwnerId(session.user.id),
+    getHouseholdId(session.user.id),
   ]);
 
   // Grab merchant names before we update so we can learn rules from this action.
@@ -76,21 +76,29 @@ export async function PATCH(request: Request) {
       ),
     );
     if (uniqueMerchants.length > 0) {
+      const ruleWhere = householdId
+        ? { householdId, isRegex: false, pattern: { in: uniqueMerchants } }
+        : { userId: session.user.id, isRegex: false, pattern: { in: uniqueMerchants } };
+
       const existing = await prisma.categoryRule.findMany({
-        where: {
-          userId: ownerId,
-          isRegex: false,
-          pattern: { in: uniqueMerchants },
-        },
+        where: ruleWhere,
         select: { id: true, pattern: true, categoryId: true },
       });
       const byPattern = new Map(existing.map((r) => [r.pattern, r]));
-      const toCreate: Array<{ userId: string; categoryId: string; pattern: string }> = [];
+      const toCreate: Array<{ userId: string; categoryId: string; pattern: string; householdId?: string }> = [];
       const toMove: string[] = [];
       for (const m of uniqueMerchants) {
         const r = byPattern.get(m);
-        if (!r) toCreate.push({ userId: ownerId, categoryId, pattern: m });
-        else if (r.categoryId !== categoryId) toMove.push(r.id);
+        if (!r) {
+          toCreate.push({
+            userId: session.user.id,
+            categoryId,
+            pattern: m,
+            ...(householdId ? { householdId } : {}),
+          });
+        } else if (r.categoryId !== categoryId) {
+          toMove.push(r.id);
+        }
       }
       for (const r of toCreate) {
         await prisma.categoryRule.create({ data: r });

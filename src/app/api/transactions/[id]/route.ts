@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds, getHouseholdCategoryOwnerId } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdId } from "@/lib/household";
 
 export async function PATCH(
   request: Request,
@@ -19,9 +19,9 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const [householdAccountIds, ownerId] = await Promise.all([
+  const [householdAccountIds, householdId] = await Promise.all([
     getHouseholdAccountIds(session.user.id),
-    getHouseholdCategoryOwnerId(session.user.id),
+    getHouseholdId(session.user.id),
   ]);
   const tx = await prisma.transaction.findFirst({ where: { id, deletedAt: null } });
   if (!tx || !householdAccountIds.includes(tx.accountId)) {
@@ -37,18 +37,41 @@ export async function PATCH(
     tx.merchant
   ) {
     try {
-      const existingAlias = await prisma.merchantAlias.findUnique({
-        where: { userId_fromName: { userId: ownerId, fromName: tx.merchant } },
-      });
-      if (existingAlias) {
-        await prisma.merchantAlias.update({
-          where: { id: existingAlias.id },
-          data: { toName: data.merchant },
+      if (householdId) {
+        // Household-scoped alias lookup: use householdId + fromName partial unique index.
+        const existingAlias = await prisma.merchantAlias.findFirst({
+          where: { householdId, fromName: tx.merchant },
         });
+        if (existingAlias) {
+          await prisma.merchantAlias.update({
+            where: { id: existingAlias.id },
+            data: { toName: data.merchant },
+          });
+        } else {
+          await prisma.merchantAlias.create({
+            data: {
+              userId: session.user.id,
+              householdId,
+              fromName: tx.merchant,
+              toName: data.merchant,
+            },
+          });
+        }
       } else {
-        await prisma.merchantAlias.create({
-          data: { userId: ownerId, fromName: tx.merchant, toName: data.merchant },
+        // Solo fallback: use userId_fromName unique index.
+        const existingAlias = await prisma.merchantAlias.findUnique({
+          where: { userId_fromName: { userId: session.user.id, fromName: tx.merchant } },
         });
+        if (existingAlias) {
+          await prisma.merchantAlias.update({
+            where: { id: existingAlias.id },
+            data: { toName: data.merchant },
+          });
+        } else {
+          await prisma.merchantAlias.create({
+            data: { userId: session.user.id, fromName: tx.merchant, toName: data.merchant },
+          });
+        }
       }
     } catch (err) {
       console.error("Failed to save merchant alias", err);
@@ -115,16 +138,19 @@ export async function PATCH(
   ) {
     try {
       const pattern = updated.merchant.trim();
-      const existing = await prisma.categoryRule.findFirst({
-        where: { userId: ownerId, pattern: { equals: pattern, mode: "insensitive" }, isRegex: false },
-      });
+      const ruleWhere = householdId
+        ? { householdId, pattern: { equals: pattern, mode: "insensitive" as const }, isRegex: false }
+        : { userId: session.user.id, pattern: { equals: pattern, mode: "insensitive" as const }, isRegex: false };
+
+      const existing = await prisma.categoryRule.findFirst({ where: ruleWhere });
       if (!existing) {
         const rule = await prisma.categoryRule.create({
           data: {
-            userId: ownerId,
+            userId: session.user.id,
             categoryId,
             pattern,
             isRegex: false,
+            ...(householdId ? { householdId } : {}),
           },
         });
         learnedRuleId = rule.id;

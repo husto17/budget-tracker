@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdCategoryOwnerId } from "@/lib/household";
+import { getHouseholdId } from "@/lib/household";
 
 export async function PATCH(
   request: Request,
@@ -14,9 +14,13 @@ export async function PATCH(
   const { id } = await params;
   const data = await request.json();
 
-  const ownerId = await getHouseholdCategoryOwnerId(session.user.id);
+  const householdId = await getHouseholdId(session.user.id);
   const category = await prisma.category.findUnique({ where: { id } });
-  if (!category || category.userId !== ownerId) {
+  const accessible = category && (
+    (householdId && category.householdId === householdId) ||
+    category.userId === session.user.id
+  );
+  if (!accessible) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -52,9 +56,13 @@ export async function DELETE(
 
   const { id } = await params;
 
-  const ownerId = await getHouseholdCategoryOwnerId(session.user.id);
+  const householdId = await getHouseholdId(session.user.id);
   const category = await prisma.category.findUnique({ where: { id } });
-  if (!category || category.userId !== ownerId) {
+  const accessible = category && (
+    (householdId && category.householdId === householdId) ||
+    category.userId === session.user.id
+  );
+  if (!accessible) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (category.isDefault) {
