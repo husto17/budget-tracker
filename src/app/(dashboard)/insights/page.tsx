@@ -342,6 +342,39 @@ export default function InsightsPage() {
         </Card>
       )}
 
+      {/* Surprise Expenses — near anomalies since both are alerts */}
+      {insights.surpriseExpenses && insights.surpriseExpenses.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-orange-500" />
+              Surprise Expenses (last 90 days)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">One-off charges more than 2× your usual category average — not part of a recurring pattern.</p>
+            <div className="space-y-2">
+              {insights.surpriseExpenses.map((e) => (
+                <Link
+                  key={`${e.merchant}-${e.date}`}
+                  href={`/transactions?search=${encodeURIComponent(e.merchant)}`}
+                  className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 border border-gray-100 dark:border-gray-800 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{e.merchant}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">{e.categoryName ?? "Uncategorized"} · avg {formatCurrency(e.categoryAvg)}/mo</p>
+                  </div>
+                  <div className="text-right shrink-0 ml-4">
+                    <p className="font-semibold text-orange-600">{formatCurrency(e.amount)}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">{e.date}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Spending by category stacked bars */}
       <Card>
         <CardHeader>
@@ -393,6 +426,228 @@ export default function InsightsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Savings rate — derived from income vs spending, keep adjacent */}
+      {(() => {
+        const rateData = insights.incomeVsSpending
+          .slice(rangeSlice)
+          .filter((d) => d.income > 0)
+          .map((d) => ({
+            month: formatMonth(d.month),
+            rate: Math.round(((d.income - d.spending) / d.income) * 100),
+          }));
+        if (rateData.length < 2) return null;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Savings Rate
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={rateData}>
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} domain={["auto", "auto"]} />
+                  <Tooltip formatter={(v) => [`${v}%`, "Savings rate"]} />
+                  <Line type="monotone" dataKey="rate" stroke="#6366f1" strokeWidth={2} dot name="Savings rate %" />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Year-over-year — big-picture trend, near income charts */}
+      {(() => {
+        const byYear: Record<number, Record<number, number>> = {};
+        Object.entries(insights.monthlyTotals).forEach(([key, total]) => {
+          const [y, m] = key.split("-").map(Number);
+          if (!byYear[y]) byYear[y] = {};
+          byYear[y][m] = total;
+        });
+        const years = Object.keys(byYear).map(Number).sort();
+        if (years.length < 2) return null;
+        const [prevYear, thisYear] = years.slice(-2);
+        const yoyData = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+          .filter((m) => byYear[thisYear]?.[m] != null || byYear[prevYear]?.[m] != null)
+          .map((m) => ({
+            month: format(new Date(thisYear, m - 1, 1), "MMM"),
+            [String(thisYear)]: byYear[thisYear]?.[m] ?? 0,
+            [String(prevYear)]: byYear[prevYear]?.[m] ?? 0,
+          }));
+        if (yoyData.length === 0) return null;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Year-over-Year: {prevYear} vs {thisYear}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={yoyData}>
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatAxisCurrency(Number(v))} />
+                  <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} />
+                  <Legend />
+                  <Bar dataKey={String(prevYear)} fill="#d1d5db" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey={String(thisYear)} fill="#6366f1" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Top categories this month */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Top Spending Categories This Month</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {insights.topCategories.length === 0 ? (
+            <p className="text-sm text-gray-400 dark:text-gray-500">No data this month</p>
+          ) : (
+            <div className="space-y-3">
+              {insights.topCategories.map(([cat, amount], i) => {
+                const maxAmount = insights.topCategories[0]?.[1] ?? 1;
+                const pct = maxAmount > 0 ? (amount / maxAmount) * 100 : 0;
+                return (
+                  <Link
+                    key={cat}
+                    href={`/transactions?categoryName=${encodeURIComponent(cat)}`}
+                    className="flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg px-1 -mx-1 transition-colors"
+                  >
+                    <span className="w-5 text-xs text-gray-400 dark:text-gray-500 font-medium text-right shrink-0">{i + 1}</span>
+                    <div className="flex-1 min-w-0 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${pct}%`,
+                          backgroundColor: insights.categoryColors?.[cat] ?? CAT_COLORS[i % CAT_COLORS.length],
+                        }}
+                      />
+                    </div>
+                    <span className="text-sm font-medium w-28 text-right shrink-0">{formatCurrency(amount)}</span>
+                    <span className="text-sm text-blue-600 hover:underline w-28 truncate shrink-0">{cat}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Category trends: MoM % change */}
+      {(() => {
+        const now = new Date();
+        const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        const thisMonthCats = insights.monthlyByCategory[thisMonthKey] ?? {};
+        const prevCats = insights.categorySpendingPrevMonth ?? {};
+        const allCats = Array.from(new Set([...Object.keys(thisMonthCats), ...Object.keys(prevCats)]));
+        const rows = allCats
+          .map((cat) => {
+            const cur = thisMonthCats[cat] ?? 0;
+            const prev = prevCats[cat] ?? 0;
+            const change = prev > 0 ? ((cur - prev) / prev) * 100 : null;
+            return { cat, cur, prev, change };
+          })
+          .filter((r) => r.cur > 0 || r.prev > 0)
+          .sort((a, b) => (b.cur || 0) - (a.cur || 0))
+          .slice(0, 10);
+
+        if (rows.length === 0) return null;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <ArrowRight className="w-4 h-4" />
+                Category Trends: Month-over-Month
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1">
+                <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800">
+                  <span>Category</span>
+                  <span className="text-right">Last month</span>
+                  <span className="text-right">This month</span>
+                  <span className="text-right">Change</span>
+                </div>
+                {rows.map(({ cat, cur, prev, change }) => (
+                  <Link
+                    key={cat}
+                    href={`/transactions?categoryName=${encodeURIComponent(cat)}`}
+                    className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 py-2.5 items-center text-sm hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg px-1 -mx-1 transition-colors"
+                  >
+                    <span className="font-medium text-gray-900 dark:text-gray-100 truncate">{cat}</span>
+                    <span className="text-right text-gray-400 dark:text-gray-500">{prev > 0 ? formatCurrency(prev) : "—"}</span>
+                    <span className="text-right font-medium">{cur > 0 ? formatCurrency(cur) : "—"}</span>
+                    <span className={`text-right text-xs font-semibold flex items-center justify-end gap-0.5 ${
+                      change === null ? "text-gray-400 dark:text-gray-500" :
+                      change > 0 ? "text-red-500" : "text-green-600"
+                    }`}>
+                      {change === null ? "New" : (
+                        <>
+                          {change > 0
+                            ? <TrendingUp className="w-3 h-3" />
+                            : <TrendingDown className="w-3 h-3" />}
+                          {Math.abs(change).toFixed(0)}%
+                        </>
+                      )}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Category budget efficiency */}
+      {insights.categoryBudgetHistory && insights.categoryBudgetHistory.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Budget vs Actual (per category)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {insights.categoryBudgetHistory.map((cat) => {
+              const lastN = cat.history.slice(-6);
+              return (
+                <div key={cat.category}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-sm font-medium text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+                      <span
+                        className="inline-block w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: cat.color }}
+                      />
+                      {cat.category}
+                    </span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">Budget: {formatCurrency(cat.budget)}/mo</span>
+                  </div>
+                  <div className="flex gap-1 items-end h-14">
+                    {lastN.map((h) => {
+                      const pct = Math.min((h.spent / h.budget) * 100, 120);
+                      const over = h.spent > h.budget;
+                      return (
+                        <div key={h.month} className="flex-1 flex flex-col items-center gap-0.5">
+                          <div className="w-full flex flex-col justify-end" style={{ height: 44 }}>
+                            <div
+                              title={`${formatMonth(h.month)}: ${formatCurrency(h.spent)} / ${formatCurrency(h.budget)}`}
+                              className={`w-full rounded-sm ${over ? "bg-red-400" : "bg-indigo-400"}`}
+                              style={{ height: `${Math.max(pct, 4)}%` }}
+                            />
+                          </div>
+                          <span className="text-[9px] text-gray-400 dark:text-gray-500">{formatMonth(h.month)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Subscriptions & Recurring Bills — split by type */}
       {(() => {
@@ -516,182 +771,72 @@ export default function InsightsPage() {
         );
       })()}
 
-      {/* Top categories this month */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Top Spending Categories This Month</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {insights.topCategories.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-gray-500">No data this month</p>
-          ) : (
-            <div className="space-y-3">
-              {insights.topCategories.map(([cat, amount], i) => {
-                const maxAmount = insights.topCategories[0]?.[1] ?? 1;
-                const pct = maxAmount > 0 ? (amount / maxAmount) * 100 : 0;
-                return (
-                  <Link
-                    key={cat}
-                    href={`/transactions?categoryName=${encodeURIComponent(cat)}`}
-                    className="flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg px-1 -mx-1 transition-colors"
-                  >
-                    <span className="w-5 text-xs text-gray-400 dark:text-gray-500 font-medium text-right shrink-0">{i + 1}</span>
-                    <div className="flex-1 min-w-0 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${pct}%`,
-                          backgroundColor: insights.categoryColors?.[cat] ?? CAT_COLORS[i % CAT_COLORS.length],
-                        }}
-                      />
-                    </div>
-                    <span className="text-sm font-medium w-28 text-right shrink-0">{formatCurrency(amount)}</span>
-                    <span className="text-sm text-blue-600 hover:underline w-28 truncate shrink-0">{cat}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Category trends: MoM % change */}
-      {(() => {
-        const now = new Date();
-        const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-        const thisMonthCats = insights.monthlyByCategory[thisMonthKey] ?? {};
-        const prevCats = insights.categorySpendingPrevMonth ?? {};
-        const allCats = Array.from(new Set([...Object.keys(thisMonthCats), ...Object.keys(prevCats)]));
-        const rows = allCats
-          .map((cat) => {
-            const cur = thisMonthCats[cat] ?? 0;
-            const prev = prevCats[cat] ?? 0;
-            const change = prev > 0 ? ((cur - prev) / prev) * 100 : null;
-            return { cat, cur, prev, change };
-          })
-          .filter((r) => r.cur > 0 || r.prev > 0)
-          .sort((a, b) => (b.cur || 0) - (a.cur || 0))
-          .slice(0, 10);
-
-        if (rows.length === 0) return null;
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <ArrowRight className="w-4 h-4" />
-                Category Trends: Month-over-Month
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-1">
-                <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800">
-                  <span>Category</span>
-                  <span className="text-right">Last month</span>
-                  <span className="text-right">This month</span>
-                  <span className="text-right">Change</span>
+      {/* Bill timing risk */}
+      {insights.billTimingRisk && insights.billTimingRisk.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="w-4 h-4" />
+              Bill Timing Risk
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {insights.billTimingRisk.map((b) => (
+              <div key={b.merchant} className="flex items-start justify-between bg-white dark:bg-gray-900 rounded-lg p-3 border border-amber-100 dark:border-amber-800">
+                <div>
+                  <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{b.merchant}</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">{b.riskReason}</p>
                 </div>
-                {rows.map(({ cat, cur, prev, change }) => (
-                  <Link
-                    key={cat}
-                    href={`/transactions?categoryName=${encodeURIComponent(cat)}`}
-                    className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 py-2.5 items-center text-sm hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg px-1 -mx-1 transition-colors"
-                  >
-                    <span className="font-medium text-gray-900 dark:text-gray-100 truncate">{cat}</span>
-                    <span className="text-right text-gray-400 dark:text-gray-500">{prev > 0 ? formatCurrency(prev) : "—"}</span>
-                    <span className="text-right font-medium">{cur > 0 ? formatCurrency(cur) : "—"}</span>
-                    <span className={`text-right text-xs font-semibold flex items-center justify-end gap-0.5 ${
-                      change === null ? "text-gray-400 dark:text-gray-500" :
-                      change > 0 ? "text-red-500" : "text-green-600"
-                    }`}>
-                      {change === null ? "New" : (
-                        <>
-                          {change > 0
-                            ? <TrendingUp className="w-3 h-3" />
-                            : <TrendingDown className="w-3 h-3" />}
-                          {Math.abs(change).toFixed(0)}%
-                        </>
-                      )}
-                    </span>
-                  </Link>
-                ))}
+                <div className="text-right shrink-0 ml-4">
+                  <p className="font-semibold text-sm">{formatCurrency(b.amount)}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">in {b.daysUntilNext}d</p>
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        );
-      })()}
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Savings rate */}
-      {(() => {
-        const rateData = insights.incomeVsSpending
-          .slice(rangeSlice)
-          .filter((d) => d.income > 0)
-          .map((d) => ({
-            month: formatMonth(d.month),
-            rate: Math.round(((d.income - d.spending) / d.income) * 100),
-          }));
-        if (rateData.length < 2) return null;
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="w-4 h-4" />
-                Savings Rate
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={rateData}>
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} domain={["auto", "auto"]} />
-                  <Tooltip formatter={(v) => [`${v}%`, "Savings rate"]} />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="rate"
-                    stroke="#6366f1"
-                    strokeWidth={2}
-                    dot
-                    name="Savings rate %"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        );
-      })()}
-
-      {/* Uncategorized % trend */}
-      {(() => {
-        const uncatData = Object.entries(insights.monthlyTotals)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .slice(rangeSlice)
-          .map(([month, total]) => {
-            const uncat = insights.monthlyByCategory[month]?.["Uncategorized"] ?? 0;
-            return {
-              month: formatMonth(month),
-              pct: total > 0 ? Math.round((uncat / total) * 100) : 0,
-            };
-          });
-        if (uncatData.length < 2 || uncatData.every((d) => d.pct === 0)) return null;
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Uncategorized Spending %</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Lower is better — a declining trend means you&apos;re keeping up with categorization.</p>
-              <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={uncatData}>
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} domain={[0, "auto"]} />
-                  <Tooltip formatter={(v) => [`${v}%`, "Uncategorized"]} />
-                  <Line type="monotone" dataKey="pct" stroke="#f59e0b" strokeWidth={2} dot name="Uncategorized %" />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        );
-      })()}
+      {/* Merchant loyalty */}
+      {insights.merchantLoyalty && insights.merchantLoyalty.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Merchant Loyalty</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Merchants you visit regularly — sorted by frequency. Trend shows if you&apos;re going more or less often.</p>
+            <div className="space-y-1">
+              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800">
+                <span>Merchant</span>
+                <span className="text-right">Visits</span>
+                <span className="text-right">Avg every</span>
+                <span className="text-right">Trend</span>
+              </div>
+              {insights.merchantLoyalty.map((m) => (
+                <Link
+                  key={m.merchant}
+                  href={`/transactions?search=${encodeURIComponent(m.merchant)}`}
+                  className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 py-2.5 items-center text-sm hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg px-1 -mx-1 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{m.merchant}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">{formatCurrency(m.totalSpent)} total · last {m.lastVisit}</p>
+                  </div>
+                  <span className="text-right text-gray-500 dark:text-gray-400">{m.visitCount}×</span>
+                  <span className="text-right text-gray-500 dark:text-gray-400 whitespace-nowrap">{m.avgDaysBetween}d</span>
+                  <span className={`text-right text-xs font-semibold whitespace-nowrap ${
+                    m.trend === "increasing" ? "text-green-600" :
+                    m.trend === "decreasing" ? "text-red-500" :
+                    "text-gray-400 dark:text-gray-500"
+                  }`}>
+                    {m.trend === "increasing" ? "↑ more often" : m.trend === "decreasing" ? "↓ less often" : "→ stable"}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Spending by day of week */}
       {insights.dayOfWeekSpending && insights.dayOfWeekSpending.some((d) => d.count > 0) && (
@@ -715,48 +860,65 @@ export default function InsightsPage() {
         </Card>
       )}
 
-      {/* Category budget efficiency */}
-      {insights.categoryBudgetHistory && insights.categoryBudgetHistory.length > 0 && (
+      {/* Payday pattern */}
+      {insights.paydayPattern && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Budget vs Actual (per category)</CardTitle>
+            <CardTitle className="text-base">Spending by Day of Month</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
-            {insights.categoryBudgetHistory.map((cat) => {
-              const lastN = cat.history.slice(-6);
-              return (
-                <div key={cat.category}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm font-medium text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
-                      <span
-                        className="inline-block w-2.5 h-2.5 rounded-full"
-                        style={{ backgroundColor: cat.color }}
+          <CardContent>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+              Detected payday{insights.paydayPattern.detectedPaydays.length > 1 ? "s" : ""}: day{" "}
+              {insights.paydayPattern.detectedPaydays.join(" & ")} of the month.
+              Look for spending spikes right after payday.
+            </p>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={insights.paydayPattern.spendingByDayOfMonth.filter((d) => d.count > 0)}>
+                <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatAxisCurrency(Number(v))} />
+                <Tooltip formatter={(v) => formatCurrency(Number(v))} labelFormatter={(d) => `Day ${d}`} />
+                {insights.paydayPattern.spendingByDayOfMonth
+                  .filter((d) => d.count > 0)
+                  .map((d) => null) /* just for reference */}
+                <Bar dataKey="amount" radius={[3, 3, 0, 0]} name="Spending">
+                  {insights.paydayPattern.spendingByDayOfMonth
+                    .filter((d) => d.count > 0)
+                    .map((d) => (
+                      <Cell
+                        key={d.day}
+                        fill={insights.paydayPattern!.detectedPaydays.includes(d.day) ? "#22c55e" : "#6366f1"}
                       />
-                      {cat.category}
-                    </span>
-                    <span className="text-xs text-gray-400 dark:text-gray-500">Budget: {formatCurrency(cat.budget)}/mo</span>
-                  </div>
-                  <div className="flex gap-1 items-end h-14">
-                    {lastN.map((h) => {
-                      const pct = Math.min((h.spent / h.budget) * 100, 120);
-                      const over = h.spent > h.budget;
-                      return (
-                        <div key={h.month} className="flex-1 flex flex-col items-center gap-0.5">
-                          <div className="w-full flex flex-col justify-end" style={{ height: 44 }}>
-                            <div
-                              title={`${formatMonth(h.month)}: ${formatCurrency(h.spent)} / ${formatCurrency(h.budget)}`}
-                              className={`w-full rounded-sm ${over ? "bg-red-400" : "bg-indigo-400"}`}
-                              style={{ height: `${Math.max(pct, 4)}%` }}
-                            />
-                          </div>
-                          <span className="text-[9px] text-gray-400 dark:text-gray-500">{formatMonth(h.month)}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+                    ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">Green bars = detected payday</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Transaction size distribution */}
+      {insights.txSizeDistribution && insights.txSizeDistribution.some((b) => b.count > 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Transaction Size Distribution</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">How your spending is spread across transaction sizes.</p>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={insights.txSizeDistribution}>
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip
+                  formatter={(v, name) => [
+                    name === "count" ? `${v} transactions` : formatCurrency(Number(v)),
+                    name === "count" ? "Count" : "Total spent",
+                  ]}
+                />
+                <Legend />
+                <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} name="count" />
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       )}
@@ -812,209 +974,6 @@ export default function InsightsPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* Bill timing risk */}
-      {insights.billTimingRisk && insights.billTimingRisk.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2 text-amber-800 dark:text-amber-300">
-              <AlertTriangle className="w-4 h-4" />
-              Bill Timing Risk
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {insights.billTimingRisk.map((b) => (
-              <div key={b.merchant} className="flex items-start justify-between bg-white dark:bg-gray-900 rounded-lg p-3 border border-amber-100 dark:border-amber-800">
-                <div>
-                  <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{b.merchant}</p>
-                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">{b.riskReason}</p>
-                </div>
-                <div className="text-right shrink-0 ml-4">
-                  <p className="font-semibold text-sm">{formatCurrency(b.amount)}</p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">in {b.daysUntilNext}d</p>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Surprise expenses */}
-      {insights.surpriseExpenses && insights.surpriseExpenses.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-orange-500" />
-              Surprise Expenses (last 90 days)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">One-off charges more than 2× your usual category average — not part of a recurring pattern.</p>
-            <div className="space-y-2">
-              {insights.surpriseExpenses.map((e) => (
-                <Link
-                  key={`${e.merchant}-${e.date}`}
-                  href={`/transactions?search=${encodeURIComponent(e.merchant)}`}
-                  className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 border border-gray-100 dark:border-gray-800 transition-colors"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{e.merchant}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">{e.categoryName ?? "Uncategorized"} · avg {formatCurrency(e.categoryAvg)}/mo</p>
-                  </div>
-                  <div className="text-right shrink-0 ml-4">
-                    <p className="font-semibold text-orange-600">{formatCurrency(e.amount)}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">{e.date}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Transaction size distribution */}
-      {insights.txSizeDistribution && insights.txSizeDistribution.some((b) => b.count > 0) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Transaction Size Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">How your spending is spread across transaction sizes.</p>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={insights.txSizeDistribution}>
-                <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip
-                  formatter={(v, name) => [
-                    name === "count" ? `${v} transactions` : formatCurrency(Number(v)),
-                    name === "count" ? "Count" : "Total spent",
-                  ]}
-                />
-                <Legend />
-                <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} name="count" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Merchant loyalty */}
-      {insights.merchantLoyalty && insights.merchantLoyalty.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Merchant Loyalty</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Merchants you visit regularly — sorted by frequency. Trend shows if you&apos;re going more or less often.</p>
-            <div className="space-y-1">
-              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-2 border-b border-gray-100 dark:border-gray-800">
-                <span>Merchant</span>
-                <span className="text-right">Visits</span>
-                <span className="text-right">Avg every</span>
-                <span className="text-right">Trend</span>
-              </div>
-              {insights.merchantLoyalty.map((m) => (
-                <Link
-                  key={m.merchant}
-                  href={`/transactions?search=${encodeURIComponent(m.merchant)}`}
-                  className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 py-2.5 items-center text-sm hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg px-1 -mx-1 transition-colors"
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{m.merchant}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">{formatCurrency(m.totalSpent)} total · last {m.lastVisit}</p>
-                  </div>
-                  <span className="text-right text-gray-500 dark:text-gray-400">{m.visitCount}×</span>
-                  <span className="text-right text-gray-500 dark:text-gray-400 whitespace-nowrap">{m.avgDaysBetween}d</span>
-                  <span className={`text-right text-xs font-semibold whitespace-nowrap ${
-                    m.trend === "increasing" ? "text-green-600" :
-                    m.trend === "decreasing" ? "text-red-500" :
-                    "text-gray-400 dark:text-gray-500"
-                  }`}>
-                    {m.trend === "increasing" ? "↑ more often" : m.trend === "decreasing" ? "↓ less often" : "→ stable"}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Payday pattern */}
-      {insights.paydayPattern && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Spending by Day of Month</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
-              Detected payday{insights.paydayPattern.detectedPaydays.length > 1 ? "s" : ""}: day{" "}
-              {insights.paydayPattern.detectedPaydays.join(" & ")} of the month.
-              Look for spending spikes right after payday.
-            </p>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={insights.paydayPattern.spendingByDayOfMonth.filter((d) => d.count > 0)}>
-                <XAxis dataKey="day" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatAxisCurrency(Number(v))} />
-                <Tooltip formatter={(v) => formatCurrency(Number(v))} labelFormatter={(d) => `Day ${d}`} />
-                {insights.paydayPattern.spendingByDayOfMonth
-                  .filter((d) => d.count > 0)
-                  .map((d) => null) /* just for reference */}
-                <Bar dataKey="amount" radius={[3, 3, 0, 0]} name="Spending">
-                  {insights.paydayPattern.spendingByDayOfMonth
-                    .filter((d) => d.count > 0)
-                    .map((d) => (
-                      <Cell
-                        key={d.day}
-                        fill={insights.paydayPattern!.detectedPaydays.includes(d.day) ? "#22c55e" : "#6366f1"}
-                      />
-                    ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">Green bars = detected payday</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Year-over-year comparison */}
-      {(() => {
-        const byYear: Record<number, Record<number, number>> = {};
-        Object.entries(insights.monthlyTotals).forEach(([key, total]) => {
-          const [y, m] = key.split("-").map(Number);
-          if (!byYear[y]) byYear[y] = {};
-          byYear[y][m] = total;
-        });
-        const years = Object.keys(byYear).map(Number).sort();
-        if (years.length < 2) return null;
-        const [prevYear, thisYear] = years.slice(-2);
-        const yoyData = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-          .filter((m) => byYear[thisYear]?.[m] != null || byYear[prevYear]?.[m] != null)
-          .map((m) => ({
-            month: format(new Date(thisYear, m - 1, 1), "MMM"),
-            [String(thisYear)]: byYear[thisYear]?.[m] ?? 0,
-            [String(prevYear)]: byYear[prevYear]?.[m] ?? 0,
-          }));
-        if (yoyData.length === 0) return null;
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Year-over-Year: {prevYear} vs {thisYear}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={yoyData}>
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatAxisCurrency(Number(v))} />
-                  <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} />
-                  <Legend />
-                  <Bar dataKey={String(prevYear)} fill="#d1d5db" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey={String(thisYear)} fill="#6366f1" radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        );
-      })()}
     </div>
   );
 }

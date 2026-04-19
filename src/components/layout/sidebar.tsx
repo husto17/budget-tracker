@@ -46,6 +46,7 @@ const navGroups: Array<{
   {
     items: [
       { href: "/transactions", icon: ArrowUpDown, label: "Transactions" },
+      { href: "/reimbursements", icon: Receipt, label: "Reimbursements" },
       { href: "/upload", icon: Upload, label: "Upload Statement" },
       { href: "/quick-entry", icon: Camera, label: "Snap" },
     ],
@@ -61,7 +62,6 @@ const navGroups: Array<{
   {
     items: [
       { href: "/ask", icon: Sparkles, label: "Ask" },
-      { href: "/reimbursements", icon: Receipt, label: "Reimbursements" },
       { href: "/rules", icon: Zap, label: "Rules" },
       { href: "/help", icon: HelpCircle, label: "Help" },
       { href: "/trash", icon: Trash2, label: "Trash" },
