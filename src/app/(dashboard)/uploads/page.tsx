@@ -3,7 +3,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Upload, Trash2, FileText, FileSpreadsheet, Search } from "lucide-react";
+import { Upload, Trash2, FileText, FileSpreadsheet, Search, ArrowRight } from "lucide-react";
+import { formatCurrency } from "@/lib/fetcher";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +26,10 @@ interface UploadRecord {
   fileType: string;
   rowCount: number;
   createdAt: string;
+  openingBalance: number | null;
+  closingBalance: number | null;
+  statementStart: string | null;
+  statementEnd: string | null;
   account: {
     id: string;
     name: string;
@@ -221,53 +227,74 @@ export default function UploadsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100 dark:border-gray-800 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-                  <th className="px-4 py-3 text-left">File Name</th>
+                  <th className="px-4 py-3 text-left">File</th>
                   <th className="px-4 py-3 text-left">Account</th>
-                  <th className="px-4 py-3 text-left">Date Uploaded</th>
-                  <th className="px-4 py-3 text-left">Type</th>
-                  <th className="px-4 py-3 text-right"># Transactions</th>
+                  <th className="px-4 py-3 text-left">Period</th>
+                  <th className="px-4 py-3 text-left">Balances</th>
+                  <th className="px-4 py-3 text-right">Txns</th>
                   <th className="px-4 py-3 text-right w-16"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                {filtered.map((u) => (
-                  <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {u.fileType === "pdf" ? (
-                          <FileText className="w-4 h-4 text-red-400 shrink-0" />
+                {filtered.map((u) => {
+                  const periodStart = u.statementStart ? new Date(u.statementStart) : null;
+                  const periodEnd = u.statementEnd ? new Date(u.statementEnd) : null;
+                  return (
+                    <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <td className="px-4 py-3">
+                        <Link href={`/uploads/${u.id}`} className="flex items-center gap-2 group">
+                          {u.fileType === "pdf" ? (
+                            <FileText className="w-4 h-4 text-red-400 shrink-0" />
+                          ) : (
+                            <FileSpreadsheet className="w-4 h-4 text-green-500 shrink-0" />
+                          )}
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[220px] group-hover:text-blue-600">
+                            {u.fileName}
+                          </span>
+                          <span className="text-[10px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                            {format(new Date(u.createdAt), "dd MMM")}
+                          </span>
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{u.account.name}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        {periodStart && periodEnd ? (
+                          <>
+                            {format(periodStart, "dd MMM")} – {format(periodEnd, "dd MMM yyyy")}
+                          </>
+                        ) : periodEnd ? (
+                          <>through {format(periodEnd, "dd MMM yyyy")}</>
                         ) : (
-                          <FileSpreadsheet className="w-4 h-4 text-green-500 shrink-0" />
+                          <span className="text-gray-300 dark:text-gray-600">—</span>
                         )}
-                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[240px]">
-                          {u.fileName}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{u.account.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                      {format(new Date(u.createdAt), "dd MMM yyyy, HH:mm")}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant="outline" className="text-xs uppercase">
-                        {u.fileType}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-right text-sm text-gray-700 dark:text-gray-200 font-medium">
-                      {u._count.transactions.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-gray-300 dark:text-gray-600 hover:text-red-500"
-                        onClick={() => setDeleteTarget(u)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
+                        {u.openingBalance != null || u.closingBalance != null ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 tabular-nums">
+                            {u.openingBalance != null ? formatCurrency(u.openingBalance) : "?"}
+                            <ArrowRight className="w-3 h-3 text-gray-400 dark:text-gray-500" />
+                            {u.closingBalance != null ? formatCurrency(u.closingBalance) : "?"}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 dark:text-gray-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm text-gray-700 dark:text-gray-200 font-medium tabular-nums">
+                        {u._count.transactions.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-gray-300 dark:text-gray-600 hover:text-red-500"
+                          onClick={() => setDeleteTarget(u)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -275,7 +302,11 @@ export default function UploadsPage() {
           {/* Mobile list */}
           <div className="md:hidden divide-y divide-gray-50 dark:divide-gray-800">
             {filtered.map((u) => (
-              <div key={u.id} className="px-4 py-3 flex items-center gap-3">
+              <Link
+                key={u.id}
+                href={`/uploads/${u.id}`}
+                className="px-4 py-3 flex items-center gap-3 active:bg-gray-50 dark:active:bg-gray-800"
+              >
                 {u.fileType === "pdf" ? (
                   <FileText className="w-8 h-8 text-red-400 shrink-0" />
                 ) : (
@@ -289,16 +320,26 @@ export default function UploadsPage() {
                   <p className="text-xs text-gray-400 dark:text-gray-500">
                     {u._count.transactions} transaction{u._count.transactions !== 1 ? "s" : ""}
                   </p>
+                  {(u.openingBalance != null || u.closingBalance != null) && (
+                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5 tabular-nums">
+                      {u.openingBalance != null ? formatCurrency(u.openingBalance) : "?"} →{" "}
+                      {u.closingBalance != null ? formatCurrency(u.closingBalance) : "?"}
+                    </p>
+                  )}
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 text-gray-300 dark:text-gray-600 hover:text-red-500 shrink-0"
-                  onClick={() => setDeleteTarget(u)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDeleteTarget(u);
+                  }}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

@@ -88,11 +88,17 @@ interface GoalLite {
   color: string;
 }
 
+interface BalancePoint {
+  date: string;
+  balance: number;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [insights, setInsights] = useState<InsightData | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [goals, setGoals] = useState<GoalLite[]>([]);
+  const [balanceHistory, setBalanceHistory] = useState<BalancePoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
@@ -129,11 +135,13 @@ export default function DashboardPage() {
         return r.json();
       }),
       fetch("/api/goals").then((r) => (r.ok ? r.json() : [])).catch(() => []),
+      fetch("/api/balance-history?days=180").then((r) => (r.ok ? r.json() : [])).catch(() => []),
     ])
-      .then(([ins, accs, gls]) => {
+      .then(([ins, accs, gls, bh]) => {
         setInsights(ins);
         setAccounts(accs);
         setGoals(gls ?? []);
+        setBalanceHistory(bh ?? []);
       })
       .catch((e: Error) => {
         setLoadError(e.message);
@@ -410,6 +418,74 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Net worth over time — replays tx forward from opening-balance anchors */}
+      {balanceHistory.length > 14 && (
+        <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
+          <CardHeader className="pb-2 flex-row items-center justify-between gap-2 space-y-0">
+            <div>
+              <CardTitle className="text-base">Net worth over time</CardTitle>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                Last {balanceHistory.length - 1} days
+              </p>
+            </div>
+            {(() => {
+              const first = balanceHistory[0]?.balance ?? 0;
+              const last = balanceHistory[balanceHistory.length - 1]?.balance ?? 0;
+              const delta = last - first;
+              const pct = first !== 0 ? (delta / Math.abs(first)) * 100 : 0;
+              const up = delta > 0;
+              return (
+                <div className="text-right">
+                  <p className="text-sm font-bold tabular-nums">{formatCurrency(last)}</p>
+                  <p className={`text-xs ${up ? "text-emerald-600" : "text-rose-600"}`}>
+                    {up ? "+" : "−"}{formatCurrency(Math.abs(delta))}
+                    {first !== 0 && (
+                      <span className="text-gray-400 dark:text-gray-500 font-normal"> ({pct > 0 ? "+" : ""}{pct.toFixed(1)}%)</span>
+                    )}
+                  </p>
+                </div>
+              );
+            })()}
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={balanceHistory} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="netWorthFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(d) => format(parseISO(d as string), "MMM")}
+                    tick={{ fontSize: 10, fill: "#9ca3af" }}
+                    axisLine={false}
+                    tickLine={false}
+                    minTickGap={40}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "#9ca3af" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => formatCurrency(Number(v))}
+                    width={60}
+                  />
+                  <Tooltip
+                    contentStyle={{ background: "rgba(15,23,42,0.9)", border: "none", borderRadius: 6, fontSize: 11, color: "#fff" }}
+                    labelStyle={{ color: "#c7d2fe" }}
+                    formatter={(v) => [formatCurrency(Number(v ?? 0)), "Net worth"]}
+                    labelFormatter={(d) => format(parseISO(d as string), "d MMM yyyy")}
+                  />
+                  <Area type="monotone" dataKey="balance" stroke="#6366f1" strokeWidth={2} fill="url(#netWorthFill)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Forecast strip — only meaningful when viewing the current in-progress month */}
       {isCurrentMonth && insights.thisMonthTotal > 0 && dayOfMonth < daysInMonth && (

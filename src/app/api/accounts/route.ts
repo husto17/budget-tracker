@@ -74,6 +74,73 @@ export async function GET() {
     reconciledByAccount.set(s.accountId, s.closingBalance + delta);
   }
 
+  // All uploads with parsed periods — used to detect gaps (missing
+  // statements) and overlaps (likely duplicate uploads).
+  const periodUploads = await prisma.upload.findMany({
+    where: {
+      accountId: { in: accounts.map((a) => a.id) },
+      statementStart: { not: null },
+      statementEnd: { not: null },
+    },
+    orderBy: { statementStart: "asc" },
+    select: {
+      id: true,
+      accountId: true,
+      fileName: true,
+      statementStart: true,
+      statementEnd: true,
+    },
+  });
+
+  // Half-linked transfers — transactions whose transferPairId points to
+  // a tx that either doesn't exist or doesn't link back.
+  const allTransfers = await prisma.transaction.findMany({
+    where: { transferPairId: { not: null }, accountId: { in: accounts.map((a) => a.id) } },
+    select: { id: true, accountId: true, transferPairId: true, date: true },
+  });
+  const transferById = new Map(allTransfers.map((t) => [t.id, t]));
+  const halfLinkedByAccount = new Map<string, number>();
+  for (const t of allTransfers) {
+    const pair = t.transferPairId ? transferById.get(t.transferPairId) : null;
+    const isHalf = !pair || pair.transferPairId !== t.id;
+    if (isHalf) {
+      halfLinkedByAccount.set(t.accountId, (halfLinkedByAccount.get(t.accountId) ?? 0) + 1);
+    }
+  }
+
+  type Warning =
+    | { type: "missing_statement"; afterDate: Date; gapDays: number; afterFile: string }
+    | { type: "overlap_statement"; fileA: string; fileB: string }
+    | { type: "half_linked_transfers"; count: number };
+
+  function diagnose(accountId: string): Warning[] {
+    const out: Warning[] = [];
+    const list = periodUploads.filter((u) => u.accountId === accountId);
+    for (let i = 1; i < list.length; i++) {
+      const prev = list[i - 1];
+      const curr = list[i];
+      // Statements typically span 28-31 days; flag gaps > 35d as suspicious.
+      const gapDays = Math.round(
+        (curr.statementStart!.getTime() - prev.statementEnd!.getTime()) / 86_400_000,
+      );
+      if (gapDays > 35) {
+        out.push({
+          type: "missing_statement",
+          afterDate: prev.statementEnd!,
+          gapDays,
+          afterFile: prev.fileName,
+        });
+      }
+      // Overlap: curr starts before prev ended → two uploads cover same window.
+      if (curr.statementStart! < prev.statementEnd!) {
+        out.push({ type: "overlap_statement", fileA: prev.fileName, fileB: curr.fileName });
+      }
+    }
+    const halfCount = halfLinkedByAccount.get(accountId) ?? 0;
+    if (halfCount > 0) out.push({ type: "half_linked_transfers", count: halfCount });
+    return out;
+  }
+
   const accountsWithBalance = accounts.map((account: typeof accounts[0]) => {
     const rawBalance = balanceByAccount.get(account.id) ?? 0;
     // Apply manual opening-balance anchor if set. Only transactions on or
@@ -100,6 +167,7 @@ export async function GET() {
             statementEnd: latest.statementEnd,
           }
         : null,
+      warnings: diagnose(account.id),
       owner,
     };
   });

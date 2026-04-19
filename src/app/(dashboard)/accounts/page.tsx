@@ -42,6 +42,11 @@ function AccountIcon({ type }: { type: string }) {
   return <Icon className="w-5 h-5" />;
 }
 
+type Warning =
+  | { type: "missing_statement"; afterDate: string; gapDays: number; afterFile: string }
+  | { type: "overlap_statement"; fileA: string; fileB: string }
+  | { type: "half_linked_transfers"; count: number };
+
 interface Account {
   id: string;
   name: string;
@@ -58,6 +63,7 @@ interface Account {
     closingBalance: number;
     statementEnd: string;
   } | null;
+  warnings: Warning[];
   owner: "me" | "partner";
   _count: { transactions: number };
 }
@@ -309,6 +315,44 @@ export default function AccountsPage() {
                     <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-400 dark:text-gray-500">
                       Anchor: {formatCurrency(account.openingBalance)} on{" "}
                       {new Date(account.openingBalanceDate).toLocaleDateString()}
+                    </div>
+                  )}
+                  {/* Warnings — shown regardless of reconciliation state */}
+                  {account.warnings && account.warnings.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 space-y-1.5">
+                      {account.warnings.map((w, i) => (
+                        <div key={i} className="text-xs text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
+                          <span className="leading-4">•</span>
+                          <span className="leading-4">
+                            {w.type === "missing_statement" && (
+                              <>
+                                <span className="font-medium">Missing statement</span>{" "}
+                                after {new Date(w.afterDate).toLocaleDateString()}{" "}
+                                <span className="text-gray-400 dark:text-gray-500">({w.gapDays}d gap)</span>
+                              </>
+                            )}
+                            {w.type === "overlap_statement" && (
+                              <>
+                                <span className="font-medium">Overlapping uploads:</span>{" "}
+                                <span className="text-gray-500 dark:text-gray-400 truncate">{w.fileA}</span>{" "}
+                                <span className="text-gray-400 dark:text-gray-500">vs</span>{" "}
+                                <span className="text-gray-500 dark:text-gray-400 truncate">{w.fileB}</span>
+                              </>
+                            )}
+                            {w.type === "half_linked_transfers" && (
+                              <>
+                                <Link
+                                  href={`/transactions?accountId=${account.id}`}
+                                  className="underline decoration-dotted hover:decoration-solid"
+                                >
+                                  <span className="font-medium">{w.count} half-linked transfer{w.count !== 1 ? "s" : ""}</span>
+                                </Link>{" "}
+                                — the other side is missing
+                              </>
+                            )}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </CardContent>
