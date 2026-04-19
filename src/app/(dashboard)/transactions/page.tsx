@@ -145,6 +145,12 @@ function TransactionsContent() {
     fetchTransactions();
   }, [fetchTransactions]);
 
+  // Auto-correct page when results shrink (e.g. applied filter reduces 3 pages → 1).
+  useEffect(() => {
+    const totalPages = Math.ceil(total / LIMIT);
+    if (total > 0 && page > totalPages) setPage(1);
+  }, [total, page]);
+
   // ────── Initial category/account fetch + URL pre-filter ──────
   useEffect(() => {
     const catName = searchParams.get("categoryName");
@@ -543,7 +549,7 @@ function TransactionsContent() {
         categories={categories}
         filters={filters}
         onFilterChange={(next) => setFilters((f) => ({ ...f, ...next }))}
-        onResetPage={() => setPage(1)}
+        onResetPage={() => { setPage(1); setSelected(new Set()); }}
         onExport={exportCsv}
         exporting={exporting}
         disableExport={total === 0}

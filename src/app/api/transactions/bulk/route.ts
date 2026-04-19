@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdCategoryOwnerId } from "@/lib/household";
 
 // Bulk categorize transactions (legacy POST)
 export async function POST(request: Request) {
@@ -38,7 +38,10 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "transactionIds array required" }, { status: 400 });
   }
 
-  const householdAccountIds = await getHouseholdAccountIds(session.user.id);
+  const [householdAccountIds, ownerId] = await Promise.all([
+    getHouseholdAccountIds(session.user.id),
+    getHouseholdCategoryOwnerId(session.user.id),
+  ]);
 
   // Grab merchant names before we update so we can learn rules from this action.
   const toUpdate = await prisma.transaction.findMany({
@@ -57,8 +60,14 @@ export async function PATCH(request: Request) {
     data: { categoryId: categoryId ?? null },
   });
 
+  const NO_LEARN_CATEGORIES = new Set(["Gifts", "Other", "Transfers"]);
+  const cat = categoryId
+    ? await prisma.category.findUnique({ where: { id: categoryId }, select: { name: true } })
+    : null;
+  const shouldLearn = !!categoryId && !NO_LEARN_CATEGORIES.has(cat?.name ?? "");
+
   // Learn a rule per unique merchant when assigning (not clearing) a category.
-  if (categoryId) {
+  if (shouldLearn) {
     const uniqueMerchants = Array.from(
       new Set(
         toUpdate
@@ -69,7 +78,7 @@ export async function PATCH(request: Request) {
     if (uniqueMerchants.length > 0) {
       const existing = await prisma.categoryRule.findMany({
         where: {
-          userId: session.user.id,
+          userId: ownerId,
           isRegex: false,
           pattern: { in: uniqueMerchants },
         },
@@ -80,7 +89,7 @@ export async function PATCH(request: Request) {
       const toMove: string[] = [];
       for (const m of uniqueMerchants) {
         const r = byPattern.get(m);
-        if (!r) toCreate.push({ userId: session.user.id, categoryId, pattern: m });
+        if (!r) toCreate.push({ userId: ownerId, categoryId, pattern: m });
         else if (r.categoryId !== categoryId) toMove.push(r.id);
       }
       for (const r of toCreate) {

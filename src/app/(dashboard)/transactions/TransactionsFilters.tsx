@@ -141,7 +141,7 @@ export function TransactionsFilters({
         <Select
           value={filters.filterCategory}
           onValueChange={(v) => {
-            onFilterChange({ filterCategory: v ?? "all" });
+            onFilterChange({ filterCategory: v ?? "all", filterUncategorized: false });
             onResetPage();
           }}
         >
@@ -165,7 +165,10 @@ export function TransactionsFilters({
           variant={filters.filterUncategorized ? "default" : "outline"}
           size="sm"
           onClick={() => {
-            onFilterChange({ filterUncategorized: !filters.filterUncategorized });
+            onFilterChange({
+              filterUncategorized: !filters.filterUncategorized,
+              filterCategory: "all",
+            });
             onResetPage();
           }}
           className="h-10"
