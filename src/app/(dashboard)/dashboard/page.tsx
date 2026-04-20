@@ -1253,60 +1253,6 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* Net worth milestones */}
-      {(() => {
-        const MILESTONES = [1_000, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000];
-        const crossed: Array<{ amount: number; date: string }> = [];
-        for (const threshold of MILESTONES) {
-          // Find first day balance crossed this threshold from below
-          for (let i = 1; i < balanceHistory.length; i++) {
-            const prev = balanceHistory[i - 1].balance;
-            const cur = balanceHistory[i].balance;
-            if (prev < threshold && cur >= threshold) {
-              crossed.push({ amount: threshold, date: balanceHistory[i].date });
-              break;
-            }
-          }
-        }
-        const currentBalance = balanceHistory[balanceHistory.length - 1]?.balance ?? 0;
-        const nextMilestone = MILESTONES.find((m) => m > currentBalance);
-        if (crossed.length === 0 && !nextMilestone) return null;
-        return (
-          <Card className="border-0 ring-1 ring-gray-200 dark:ring-gray-800/80">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Target className="w-4 h-4 text-indigo-500" /> Net Worth Milestones
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {crossed.map((m) => (
-                  <div key={m.amount} className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2">
-                      <span className="text-green-500 font-bold">✓</span>
-                      <span className="font-medium text-gray-900 dark:text-gray-100">{formatCurrency(m.amount)}</span>
-                    </span>
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                      {format(parseISO(m.date), "MMM d, yyyy")}
-                    </span>
-                  </div>
-                ))}
-                {nextMilestone && (
-                  <div className="flex items-center justify-between text-sm pt-1 border-t border-gray-100 dark:border-gray-800 mt-1">
-                    <span className="flex items-center gap-2">
-                      <span className="text-gray-300 dark:text-gray-600 font-bold">○</span>
-                      <span className="text-gray-500 dark:text-gray-400">{formatCurrency(nextMilestone)}</span>
-                    </span>
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                      {formatCurrency(nextMilestone - currentBalance)} away
-                    </span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })()}
     </div>
   );
 }
