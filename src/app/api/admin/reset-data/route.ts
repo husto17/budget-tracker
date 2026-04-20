@@ -31,10 +31,14 @@ export async function POST() {
     await prisma.categoryRule.deleteMany({ where: { householdId } });
     await prisma.category.deleteMany({ where: { householdId } });
     await prisma.merchantAlias.deleteMany({ where: { householdId } });
+    await prisma.goal.deleteMany({ where: { householdId } });
+    await prisma.tag.deleteMany({ where: { householdId } });
   } else {
     await prisma.categoryRule.deleteMany({ where: { userId: { in: userIds } } });
     await prisma.category.deleteMany({ where: { userId: { in: userIds } } });
     await prisma.merchantAlias.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.goal.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.tag.deleteMany({ where: { userId: { in: userIds } } });
   }
   await prisma.upload.deleteMany({ where: { userId: { in: userIds } } });
 

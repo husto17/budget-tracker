@@ -15,6 +15,8 @@ model Household {
   categories      Category[]      @relation("HouseholdCategories")
   categoryRules   CategoryRule[]  @relation("HouseholdCategoryRules")
   merchantAliases MerchantAlias[] @relation("HouseholdMerchantAliases")
+  goals           Goal[]          @relation("HouseholdGoals")
+  tags            Tag[]           @relation("HouseholdTags")
 }
 
 model HouseholdInvite {
@@ -53,20 +55,20 @@ model Goal {
   id            String    @id @default(cuid())
   userId        String
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  householdId   String?
+  household     Household? @relation("HouseholdGoals", fields: [householdId], references: [id])
   name          String
   targetAmount  Float
   currentAmount Float     @default(0)
   targetDate    DateTime?
   color         String    @default("#6366F1")
   icon          String?
-  // Optional: link to an account whose current balance becomes the goal's
-  // progress. When set, currentAmount is ignored at read time and replaced
-  // with the account's computed balance.
   linkedAccountId String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@index([userId])
+  @@index([householdId])
   @@index([linkedAccountId])
 }
 
@@ -274,6 +276,8 @@ model Tag {
   id           String           @id @default(cuid())
   userId       String
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  householdId  String?
+  household    Household?       @relation("HouseholdTags", fields: [householdId], references: [id])
   name         String
   color        String           @default("#6366f1")
   createdAt    DateTime         @default(now())
@@ -281,6 +285,7 @@ model Tag {
 
   @@unique([userId, name])
   @@index([userId])
+  @@index([householdId])
 }
 
 model TransactionTag {

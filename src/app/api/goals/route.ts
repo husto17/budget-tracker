@@ -3,11 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PALETTE } from "@/lib/palette";
-import { getHouseholdAccountIds } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdId } from "@/lib/household";
 
-// Replaces goal.currentAmount with the linked account's computed balance when
-// linkedAccountId is set. Shared between GET and POST so both return the
-// effective progress.
 async function applyLinkedBalances<T extends { id: string; linkedAccountId: string | null; currentAmount: number }>(
   goals: T[],
 ): Promise<T[]> {
@@ -31,7 +28,6 @@ async function applyLinkedBalances<T extends { id: string; linkedAccountId: stri
   for (const a of anchors) {
     const rolled = balances.get(a.id) ?? 0;
     const anchored = a.openingBalance != null ? rolled + a.openingBalance : rolled;
-    // For a credit card, progress would be "debt reduction" — flip sign.
     balances.set(a.id, a.type === "CREDIT_CARD" ? -anchored : anchored);
   }
   return goals.map((g) =>
@@ -41,11 +37,8 @@ async function applyLinkedBalances<T extends { id: string; linkedAccountId: stri
   );
 }
 
-async function pickLeastUsedColor(userId: string): Promise<string> {
-  const existing = await prisma.goal.findMany({
-    where: { userId },
-    select: { color: true },
-  });
+async function pickLeastUsedColor(where: { householdId: string } | { userId: string }): Promise<string> {
+  const existing = await prisma.goal.findMany({ where, select: { color: true } });
   const counts = new Map<string, number>();
   for (const c of PALETTE) counts.set(c.toUpperCase(), 0);
   for (const g of existing) {
@@ -56,10 +49,7 @@ async function pickLeastUsedColor(userId: string): Promise<string> {
   let bestCount = Infinity;
   for (const c of PALETTE) {
     const n = counts.get(c.toUpperCase()) ?? 0;
-    if (n < bestCount) {
-      bestCount = n;
-      best = c;
-    }
+    if (n < bestCount) { bestCount = n; best = c; }
   }
   return best;
 }
@@ -68,10 +58,10 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const goals = await prisma.goal.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "asc" },
-  });
+  const householdId = await getHouseholdId(session.user.id);
+  const where = householdId ? { householdId } : { userId: session.user.id };
+
+  const goals = await prisma.goal.findMany({ where, orderBy: { createdAt: "asc" } });
   const withBalances = await applyLinkedBalances(goals);
   return NextResponse.json(withBalances);
 }
@@ -95,29 +85,26 @@ export async function POST(request: Request) {
   let targetDate: Date | null = null;
   if (body.targetDate) {
     const d = new Date(String(body.targetDate));
-    if (isNaN(d.getTime())) {
-      return NextResponse.json({ error: "Invalid target date" }, { status: 400 });
-    }
+    if (isNaN(d.getTime())) return NextResponse.json({ error: "Invalid target date" }, { status: 400 });
     targetDate = d;
   }
 
-  const color =
-    typeof body.color === "string" && body.color.trim()
-      ? body.color
-      : await pickLeastUsedColor(session.user.id);
+  const householdId = await getHouseholdId(session.user.id);
+  const ownerWhere = householdId ? { householdId } : { userId: session.user.id };
+  const color = typeof body.color === "string" && body.color.trim()
+    ? body.color
+    : await pickLeastUsedColor(ownerWhere);
 
-  // Validate linkedAccountId against the user's household-visible accounts.
   let linkedAccountId: string | null = null;
   if (typeof body.linkedAccountId === "string" && body.linkedAccountId.trim()) {
-    const householdIds = await getHouseholdAccountIds(session.user.id);
-    if (householdIds.includes(body.linkedAccountId)) {
-      linkedAccountId = body.linkedAccountId;
-    }
+    const householdAccountIds = await getHouseholdAccountIds(session.user.id);
+    if (householdAccountIds.includes(body.linkedAccountId)) linkedAccountId = body.linkedAccountId;
   }
 
   const goal = await prisma.goal.create({
     data: {
       userId: session.user.id,
+      ...(householdId ? { householdId } : {}),
       name: body.name.trim(),
       targetAmount: target,
       currentAmount: current,
