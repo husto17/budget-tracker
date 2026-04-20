@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
-  const { originalTxId, note } = body as { originalTxId?: string; note?: string };
+  const { originalTxId, note, personName } = body as { originalTxId?: string; note?: string; personName?: string };
   if (!originalTxId) return NextResponse.json({ error: "originalTxId is required" }, { status: 400 });
 
   const amount = parseFloat(String(body.amount));
@@ -72,6 +72,7 @@ export async function POST(request: Request) {
       householdId: householdId ?? null,
       originalTxId,
       amount,
+      personName: personName || null,
       note: note || null,
     },
   });

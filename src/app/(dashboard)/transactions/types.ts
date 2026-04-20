@@ -23,6 +23,7 @@ export interface TransactionSplit {
 export interface ReimbursementLink {
   id: string;
   amount: number;
+  personName: string | null;
   note: string | null;
   settled: boolean;
   reimbursementTx?: {

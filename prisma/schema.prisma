@@ -213,7 +213,8 @@ model Reimbursement {
   reimbursementTx   Transaction? @relation("ReimbursementCredit", fields: [reimbursementTxId], references: [id], onDelete: SetNull)
 
   amount            Float        // how much is owed back
-  note              String?      // e.g. "dinner with Josh & Sara"
+  personName        String?      // who owes you, e.g. "Josh"
+  note              String?      // e.g. "dinner"
   settled           Boolean      @default(false)
   settledAt         DateTime?
   createdAt         DateTime     @default(now())

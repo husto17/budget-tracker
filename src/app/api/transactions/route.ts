@@ -136,7 +136,7 @@ export async function GET(request: Request) {
         },
         reimbursementsReceived: {
           select: {
-            id: true, amount: true, note: true, settled: true,
+            id: true, amount: true, personName: true, note: true, settled: true,
           },
         },
         reimbursementsApplied: {

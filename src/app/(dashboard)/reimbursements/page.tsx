@@ -23,6 +23,7 @@ interface TxRef {
 interface SharedExpense {
   id: string;
   amount: number;
+  personName: string | null;
   note: string | null;
   settled: boolean;
   settledAt: string | null;
@@ -195,8 +196,12 @@ function ExpenseRow({
               {format(new Date(r.originalTx.date), "d MMM yyyy")} · {r.originalTx.account.name}
               {" "}· paid {formatCurrency(r.originalTx.amount)}
             </p>
-            {r.note && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">{r.note}</p>
+            {(r.personName || r.note) && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
+                {r.personName && <span className="not-italic font-medium text-gray-700 dark:text-gray-300">{r.personName}</span>}
+                {r.personName && r.note ? " · " : ""}
+                {r.note}
+              </p>
             )}
           </div>
 

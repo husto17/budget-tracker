@@ -36,6 +36,7 @@ interface Category {
 interface ReimbursementLink {
   id: string;
   amount: number;
+  personName: string | null;
   note: string | null;
   settled: boolean;
   reimbursementTx?: { id: string; date: string | Date; merchant: string | null; description: string; amount: number };
@@ -103,8 +104,6 @@ export function TransactionDrawer({
 }: TransactionDrawerProps) {
   const [form, setForm] = useState({
     merchant: "",
-    amount: "",
-    date: "",
     notes: "",
     categoryId: "",
     payerUserId: "",
@@ -112,9 +111,6 @@ export function TransactionDrawer({
   const [learn, setLearn] = useState(true);
   const [saving, setSaving] = useState(false);
   const [members, setMembers] = useState<HouseholdMember[]>(cachedMembers ?? []);
-  const [allTags, setAllTags] = useState<Tag[]>([]);
-  const [txTags, setTxTags] = useState<Tag[]>([]);
-  const [tagInput, setTagInput] = useState("");
   const [isExcluded, setIsExcluded] = useState(false);
   const [recurringType, setRecurringType] = useState<string | null>(null);
 
@@ -131,15 +127,9 @@ export function TransactionDrawer({
   }, []);
 
   useEffect(() => {
-    fetchJson<Tag[]>("/api/tags").then(setAllTags).catch(() => {});
-  }, []);
-
-  useEffect(() => {
     if (!tx) return;
     setForm({
       merchant: tx.merchant ?? tx.description,
-      amount: tx.amount.toFixed(2),
-      date: format(parseISO(tx.date), "yyyy-MM-dd"),
       notes: tx.notes ?? "",
       categoryId: tx.category?.id ?? "none",
       payerUserId: tx.payerUserId ?? "",
@@ -147,8 +137,6 @@ export function TransactionDrawer({
     setLearn(true);
     setIsExcluded(tx.isExcluded ?? false);
     setRecurringType(tx.recurringType ?? null);
-    setTxTags((tx.tags ?? []).map((t) => t.tag));
-    setTagInput("");
   }, [tx?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function toggleExclude() {
@@ -185,36 +173,6 @@ export function TransactionDrawer({
     }
   }
 
-  async function addTag(name: string, color?: string) {
-    if (!tx || !name.trim()) return;
-    try {
-      const tag = await fetchJson<Tag>(`/api/transactions/${tx.id}/tags`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), color }),
-      });
-      setTxTags((prev) => prev.find((t) => t.id === tag.id) ? prev : [...prev, tag]);
-      if (!allTags.find((t) => t.id === tag.id)) setAllTags((prev) => [...prev, tag]);
-      setTagInput("");
-    } catch {
-      toast.error("Failed to add tag");
-    }
-  }
-
-  async function removeTag(tagId: string) {
-    if (!tx) return;
-    setTxTags((prev) => prev.filter((t) => t.id !== tagId));
-    try {
-      await fetchJson(`/api/transactions/${tx.id}/tags`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tagId }),
-      });
-    } catch {
-      toast.error("Failed to remove tag");
-    }
-  }
-
   if (!tx) return null;
 
   const isOpen = !!tx;
@@ -237,8 +195,6 @@ export function TransactionDrawer({
         body: JSON.stringify({
           merchant: form.merchant,
           description: form.merchant,
-          amount: parseFloat(form.amount),
-          date: form.date,
           notes: form.notes || null,
           categoryId: form.categoryId === "none" ? null : form.categoryId,
           payerUserId: form.payerUserId || null,
@@ -350,26 +306,6 @@ export function TransactionDrawer({
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Amount</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={form.amount}
-                  onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Date</Label>
-                <Input
-                  type="date"
-                  value={form.date}
-                  onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                />
-              </div>
-            </div>
-
             <div className="space-y-1.5">
               <Label className="text-xs">Category</Label>
               <select
@@ -418,58 +354,6 @@ export function TransactionDrawer({
                       </>
                     )}
                   </label>
-                </div>
-              )}
-            </div>
-
-            {/* Tags */}
-            <div className="space-y-1.5">
-              <Label className="text-xs">Tags</Label>
-              <div className="flex flex-wrap gap-1.5 mb-1.5">
-                {txTags.map((tag) => (
-                  <span
-                    key={tag.id}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: tag.color }}
-                  >
-                    {tag.name}
-                    <button type="button" onClick={() => removeTag(tag.id)} className="ml-0.5 opacity-70 hover:opacity-100">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-1.5">
-                <Input
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(tagInput); } }}
-                  placeholder="Add tag…"
-                  className="h-8 text-xs flex-1"
-                  list={`tag-suggestions-${tx.id}`}
-                />
-                <datalist id={`tag-suggestions-${tx.id}`}>
-                  {allTags.filter((t) => !txTags.find((tt) => tt.id === t.id)).map((t) => (
-                    <option key={t.id} value={t.name} />
-                  ))}
-                </datalist>
-                <Button type="button" size="sm" variant="outline" className="h-8 px-2" onClick={() => addTag(tagInput)}>
-                  <Plus className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-              {allTags.filter((t) => !txTags.find((tt) => tt.id === t.id)).length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {allTags.filter((t) => !txTags.find((tt) => tt.id === t.id)).map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => addTag(t.name, t.color)}
-                      className="px-2 py-0.5 rounded-full text-[11px] border border-dashed text-gray-500 dark:text-gray-400 hover:opacity-80"
-                      style={{ borderColor: t.color, color: t.color }}
-                    >
-                      + {t.name}
-                    </button>
-                  ))}
                 </div>
               )}
             </div>
@@ -575,7 +459,7 @@ export function TransactionDrawer({
           {/* Actions */}
           <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100 dark:border-gray-800">
             <Button size="sm" variant="outline" onClick={() => onSplit(tx)}>
-              <Scissors className="w-3.5 h-3.5 mr-1.5" /> {hasSplits ? "Edit split" : "Split"}
+              <Scissors className="w-3.5 h-3.5 mr-1.5" /> {hasSplits ? "Edit split" : "Split category"}
             </Button>
             {tx.transferPairId ? (
               <Button size="sm" variant="outline" onClick={() => onUnlinkTransfer(tx.id)}>
@@ -616,6 +500,7 @@ export function TransactionDrawer({
 function ReimbursementSection({ tx, onChanged }: { tx: Transaction; onChanged: () => void }) {
   const [adding, setAdding] = useState(false);
   const [amount, setAmount] = useState("");
+  const [personName, setPersonName] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [settling, setSettling] = useState<string | null>(null);
@@ -636,11 +521,12 @@ function ReimbursementSection({ tx, onChanged }: { tx: Transaction; onChanged: (
       await fetchJson("/api/reimbursements", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ originalTxId: tx.id, amount: amt, note: note || undefined }),
+        body: JSON.stringify({ originalTxId: tx.id, amount: amt, personName: personName || undefined, note: note || undefined }),
       });
       toast.success("Saved");
       setAdding(false);
       setAmount("");
+      setPersonName("");
       setNote("");
       onChanged();
     } catch (e) {
@@ -684,7 +570,7 @@ function ReimbursementSection({ tx, onChanged }: { tx: Transaction; onChanged: (
         </p>
         {!fullyOffset && !adding && (
           <Button size="sm" variant="outline" className="h-7 text-xs"
-            onClick={() => { setAdding(true); setAmount(""); setNote(""); }}>
+            onClick={() => { setAdding(true); setAmount(""); setPersonName(""); setNote(""); }}>
             <Plus className="w-3 h-3 mr-1" /> Add
           </Button>
         )}
@@ -713,7 +599,11 @@ function ReimbursementSection({ tx, onChanged }: { tx: Transaction; onChanged: (
                 {r.settled ? "Settled" : "Outstanding"}
               </span>
             </p>
-            {r.note && <p className="text-gray-500 dark:text-gray-400 truncate">{r.note}</p>}
+            {(r.personName || r.note) && (
+              <p className="text-gray-500 dark:text-gray-400 truncate">
+                {r.personName}{r.personName && r.note ? " · " : ""}{r.note}
+              </p>
+            )}
           </div>
           <button
             onClick={() => handleSettle(r.id, !r.settled)}
@@ -747,10 +637,15 @@ function ReimbursementSection({ tx, onChanged }: { tx: Transaction; onChanged: (
               className="h-8 flex-1"
               autoFocus
             />
+            <Input
+              value={personName} onChange={(e) => setPersonName(e.target.value)}
+              placeholder="Who? e.g. Josh"
+              className="h-8 flex-1"
+            />
           </div>
           <Input
             value={note} onChange={(e) => setNote(e.target.value)}
-            placeholder="Who owes you? (optional, e.g. Josh & Sara)"
+            placeholder="Note (optional, e.g. dinner)"
             className="h-8"
           />
           <div className="flex gap-2">
