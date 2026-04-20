@@ -62,8 +62,9 @@ const CANONICALS: Array<[RegExp, string]> = [
   [/\bPERPLEXITY\b/i, "Perplexity"],
   [/\bGYMPASS\b/i, "Gympass"],
   [/T-MOBILE|TMOBILE/i, "T-Mobile"],
-  [/\bUBER\s*EATS\b/i, "Uber Eats"],
+  [/\bUBER[\s*_-]*EATS\b/i, "Uber Eats"],
   [/\bUBER\b/i, "Uber"],
+  [/\bCHEGG\b/i, "Chegg"],
   [/\bLYFT\b/i, "Lyft"],
   [/\bCURB\b/i, "Curb"],
   [/\bDOORDASH\b/i, "DoorDash"],
@@ -196,6 +197,8 @@ export function normalizeMerchantHardcoded(description: string): string {
   // 4. Strip trailing noise
   // Phone numbers: "312-555-1234", "(312) 555-1234", "312.555.1234", "855 977 1676"
   d = d.replace(/\s+\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b.*$/, "");
+  // Phone glued to text without space: "TRIAL855-477-0177", "STORE8005551234"
+  d = d.replace(/\d{3}[-.\s]\d{3}[-.\s]\d{4}\b.*$/, "");
   // Long digit runs anywhere (6+ digits) — reservation/ref/order numbers
   d = d.replace(/\b\d{6,}[\w-]*\b/g, "");
   // URL-ish suffixes like "UNITED.COM", "AMAZON.COM WW"
