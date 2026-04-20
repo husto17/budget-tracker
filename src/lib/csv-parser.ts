@@ -98,19 +98,18 @@ function detectColumns(headers: string[]): {
 export function parseCsv(csvText: string): CsvParseResult {
   const errors: string[] = [];
 
-  // Some banks (e.g. BofA activity export) prepend metadata lines before the real header.
-  // Skip lines until we find one that looks like a header row (contains at least one
-  // recognised column name). Cap the scan at 15 lines to avoid eating real data.
+  // Some banks prepend metadata lines before the real header (e.g. Chase summary block,
+  // BofA activity export). Skip until we find a line whose columns include at least a
+  // date-like field AND one of description/amount/debit/credit.
   let cleanedText = csvText;
   const rawLines = csvText.split(/\r?\n/);
   for (let skip = 0; skip < Math.min(15, rawLines.length - 1); skip++) {
-    const headerLine = rawLines[skip].toLowerCase();
+    const line = rawLines[skip];
+    const headers = line.split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
+    const candidate = detectColumns(headers);
     if (
-      DATE_PATTERNS.test(headerLine.split(",")[0]?.trim().replace(/"/g, "")) ||
-      headerLine.includes("date") ||
-      headerLine.includes("description") ||
-      headerLine.includes("payee") ||
-      headerLine.includes("amount")
+      candidate.dateCol &&
+      (candidate.descCol || candidate.amountCol || candidate.debitCol || candidate.creditCol)
     ) {
       cleanedText = rawLines.slice(skip).join("\n");
       break;
@@ -165,6 +164,7 @@ export function parseCsv(csvText: string): CsvParseResult {
     if (cols.amountCol) {
       const raw = row[cols.amountCol]?.trim();
       amount = parseAmount(raw);
+      if (amount === 0) continue; // balance rows, headers, empty lines
       // Negative = debit, positive = credit for single-amount columns
       isCredit = amount > 0;
       amount = Math.abs(amount);
