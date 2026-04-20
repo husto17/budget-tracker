@@ -27,6 +27,7 @@ export interface FilterState {
   from: string;
   to: string;
   sort: "asc" | "desc";
+  sortBy: "date" | "amount";
 }
 
 interface Props {
@@ -299,6 +300,7 @@ export function TransactionsFilters({
                 from: "",
                 to: "",
                 sort: "desc",
+                sortBy: "date",
               });
               onResetPage();
             }}
@@ -307,18 +309,20 @@ export function TransactionsFilters({
           </Button>
         )}
         <div className="flex items-center gap-2 ml-auto">
-          <button
-            type="button"
-            onClick={() => {
-              onFilterChange({ sort: filters.sort === "desc" ? "asc" : "desc" });
+          <select
+            value={`${filters.sortBy ?? "date"}-${filters.sort}`}
+            onChange={(e) => {
+              const [field, dir] = e.target.value.split("-") as ["date" | "amount", "asc" | "desc"];
+              onFilterChange({ sortBy: field, sort: dir });
               onResetPage();
             }}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-            title="Toggle sort order"
+            className="text-xs h-8 px-2 pr-6 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 focus:outline-none cursor-pointer"
           >
-            <ArrowUpDown className="w-3 h-3" />
-            {filters.sort === "desc" ? "Newest first" : "Oldest first"}
-          </button>
+            <option value="date-desc">Newest first</option>
+            <option value="date-asc">Oldest first</option>
+            <option value="amount-desc">Highest amount</option>
+            <option value="amount-asc">Lowest amount</option>
+          </select>
           <Button
             variant="outline"
             size="sm"

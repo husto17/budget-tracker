@@ -58,6 +58,7 @@ function TransactionsContent() {
     from: defaultFrom,
     to: defaultTo,
     sort: "desc",
+    sortBy: "date",
   });
 
   // ────── Selection + expanded pairs ──────
@@ -114,6 +115,7 @@ function TransactionsContent() {
       ...(filters.to ? { to: filters.to } : {}),
       ...(filters.statusFilter !== "all" ? { status: filters.statusFilter } : {}),
       ...(filters.sort !== "desc" ? { sort: filters.sort } : {}),
+      ...(filters.sortBy && filters.sortBy !== "date" ? { sortBy: filters.sortBy } : {}),
     });
     try {
       const data = await fetchJson<{ transactions: Transaction[]; total: number }>(
@@ -139,6 +141,7 @@ function TransactionsContent() {
     filters.to,
     filters.statusFilter,
     filters.sort,
+    filters.sortBy,
   ]);
 
   useEffect(() => {

@@ -21,6 +21,7 @@ export async function GET(request: Request) {
   const uncategorized = searchParams.get("uncategorized") === "true";
   const status = searchParams.get("status"); // "pending" | "posted" | "all"
   const sort = searchParams.get("sort") === "asc" ? "asc" : "desc";
+  const sortBy = searchParams.get("sortBy") === "amount" ? "amount" : "date";
 
   const [householdAccountIds, householdId] = await Promise.all([
     getHouseholdAccountIds(session.user.id),
@@ -148,7 +149,7 @@ export async function GET(request: Request) {
         },
         tags: { include: { tag: true } },
       },
-      orderBy: { date: sort },
+      orderBy: sortBy === "amount" ? { amount: sort } : { date: sort },
       skip: (page - 1) * limit,
       take: limit,
     }),
