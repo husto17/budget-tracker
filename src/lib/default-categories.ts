@@ -50,7 +50,7 @@ export const DEFAULT_RULES: Record<string, string[]> = {
   ],
   Transport: [
     "UBER *TRIP", "UBER* TRIP", "LYFT", "CURB", "PARKING", "TOLL", "METRA", "CTA",
-    "EXXON", "BP ", "SUNOCO", "SHELL", "CHEVRON", "MOBIL",
+    "EXXON", "BP ", "SUNOCO", "SHELL", "CHEVRON", "EXXON MOBIL", "MOBIL GAS",
     "SPOTHERO", "PARKWHIZ", "DIVVY", "BIRD RIDE", "LIME RIDE",
     "NATIONAL RAILROAD", "AMTRAK", "TRANSIT", "METRO ", "SUBWAY FARE",
     "SPEEDWAY", "CASEY", "CIRCLE K", "WAWA ", "SHEETZ",
@@ -83,13 +83,13 @@ export const DEFAULT_RULES: Record<string, string[]> = {
   ],
   Shopping: [
     "BEST BUY", "ETSY", "EBAY", "USPS", "FEDEX", "UPS ",
-    "AMAZON", "WALMART", "TARGET", "APPLE STORE", "APPLE.COM",
+    "AMAZON.COM", "WALMART", "TARGET", "APPLE STORE",
     "CHEWY", "PETCO", "PETSMART", "OFFICEDEPOT", "STAPLES",
-    "COSTCO", "SAMS CLUB", "BJ'S WHOLESALE",
+    "SAMS CLUB", "BJ'S WHOLESALE",
   ],
   Clothing: [
     "LULULEMON", "VUORI", "ALO YOGA", "NIKE", "ADIDAS", "PATAGONIA",
-    "ARC'TERYX", "RAG & BONE", "THEORY", "EVERLANE", "APC ", "ACNE",
+    "ARC'TERYX", "RAG & BONE", "THEORY ", "EVERLANE", "APC ", "ACNE",
     "COS ", "UNIQLO", "ZARA", "NORDSTROM", "SSENSE", "MR PORTER",
     "H&M", "GAP ", "OLD NAVY", "BANANA REPUBLIC", "J.CREW", "JCREW",
     "MACY'S", "MACYS", "BLOOMINGDALE", "SAKS", "NEIMAN MARCUS",
