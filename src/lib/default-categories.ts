@@ -49,11 +49,10 @@ export const DEFAULT_RULES: Record<string, string[]> = {
     "TST*", "TOAST*", "OPENTABLE",
   ],
   Transport: [
-    "UBER *TRIP", "UBER* TRIP", "LYFT", "CURB", "PARKING", "TOLL", "METRA", "CTA",
-    "EXXON", "BP ", "SUNOCO", "SHELL", "CHEVRON",
-    "SPOTHERO", "PARKWHIZ", "DIVVY", "BIRD RIDE", "LIME RIDE",
-    "NATIONAL RAILROAD", "AMTRAK", "TRANSIT", "METRO ", "SUBWAY FARE",
-    "SPEEDWAY", "CASEY", "CIRCLE K", "WAWA ", "SHEETZ",
+    "UBER *TRIP", "UBER* TRIP", "LYFT", "CURB",
+    "METRA", "CTA", "TRANSIT", "METRO ", "SUBWAY FARE",
+    "NATIONAL RAILROAD", "AMTRAK",
+    "DIVVY", "BIRD RIDE", "LIME RIDE",
   ],
   Travel: [
     "AIRLINES", "AIR CANADA", "BRITISH AIR", "DELTA AIR", "UNITED AIR",
