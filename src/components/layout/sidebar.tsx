@@ -22,7 +22,6 @@ import {
   HelpCircle,
   ArrowLeftRight,
   Trash2,
-  Receipt,
   CalendarDays,
   PiggyBank,
 } from "lucide-react";
@@ -48,7 +47,6 @@ const navGroups: Array<{
   {
     items: [
       { href: "/transactions", icon: ArrowUpDown, label: "Transactions" },
-      { href: "/reimbursements", icon: Receipt, label: "Reimbursements" },
       { href: "/upload", icon: Upload, label: "Upload Statement" },
       { href: "/quick-entry", icon: Camera, label: "Snap" },
     ],
