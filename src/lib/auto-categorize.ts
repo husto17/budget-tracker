@@ -42,6 +42,10 @@ const CANONICALS: Array<[RegExp, string | ((raw: string) => string)]> = [
     if (bnf) return titleCaseIfAllCaps(bnf[1].trim());
     return "Wire Transfer";
   }],
+  // Bank fees
+  [/OVERDRAFT\s+ITEM\s+FEE/i, "Overdraft Fee"],
+  [/NSF\s+(?:ITEM\s+)?FEE/i, "NSF Fee"],
+  [/MONTHLY\s+(?:SERVICE\s+)?FEE/i, "Bank Fee"],
   // Mobile banking internal transfers
   [/MOBILE\s+BANKING\s+PAYMENT\s+TO\s+CRD/i, "Credit Card Payment"],
   // Common services that appear with messy ACH / passthrough suffixes
