@@ -677,6 +677,7 @@ export async function GET(request: Request) {
     previousMonthSpending: lastMonthTotal,
     categorySpendingPrevMonth,
     topCategories,
+    thisMonthCategorySpend: thisMonthCats,
     recurring,
     anomalies,
     budgetUtilization,
