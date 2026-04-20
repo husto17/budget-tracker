@@ -72,7 +72,7 @@ export default function ReimbursementsPage() {
             <Receipt className="w-5 h-5 text-indigo-500" /> Reimbursements
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Credits linked to debits they offset.
+            Expenses you paid and got money back for — refunds, work expenses, shared costs.
           </p>
         </div>
         {rows.length > 0 && (
@@ -102,8 +102,9 @@ export default function ReimbursementsPage() {
             <Receipt className="w-10 h-10 mx-auto mb-3 text-gray-200 dark:text-gray-700" />
             <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">No reimbursements yet</p>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              Link a credit transaction to a debit from the{" "}
-              <Link href="/transactions" className="text-indigo-600 hover:underline">transactions page</Link>.
+              When you get money back for an expense, open the refund on the{" "}
+              <Link href="/transactions" className="text-indigo-600 hover:underline">transactions page</Link>{" "}
+              and link it to the original purchase.
             </p>
           </CardContent>
         </Card>
