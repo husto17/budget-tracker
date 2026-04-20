@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdId } from "@/lib/household";
 
 async function getAuthorizedLink(id: string, userId: string) {
   const link = await prisma.reimbursement.findUnique({
@@ -25,14 +25,38 @@ export async function PATCH(
   const link = await getAuthorizedLink(id, session.user.id);
   if (!link) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const body = await request.json().catch(() => ({})) as { settled?: boolean };
-  const settled = Boolean(body.settled);
+  const body = await request.json().catch(() => ({})) as {
+    settled?: boolean;
+    reimbursementTxId?: string | null;
+  };
 
-  const updated = await prisma.reimbursement.update({
-    where: { id },
-    data: { settled, settledAt: settled ? new Date() : null },
-  });
+  const data: Record<string, unknown> = {};
 
+  if ("reimbursementTxId" in body) {
+    if (body.reimbursementTxId) {
+      // Verify credit tx belongs to household
+      const householdAccountIds = await getHouseholdAccountIds(session.user.id);
+      const creditTx = await prisma.transaction.findUnique({
+        where: { id: body.reimbursementTxId },
+        select: { accountId: true },
+      });
+      if (!creditTx || !householdAccountIds.includes(creditTx.accountId)) {
+        return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
+      }
+      data.reimbursementTxId = body.reimbursementTxId;
+      data.settled = true;
+      data.settledAt = new Date();
+    } else {
+      data.reimbursementTxId = null;
+      data.settled = false;
+      data.settledAt = null;
+    }
+  } else if (body.settled !== undefined) {
+    data.settled = Boolean(body.settled);
+    data.settledAt = body.settled ? new Date() : null;
+  }
+
+  const updated = await prisma.reimbursement.update({ where: { id }, data });
   return NextResponse.json(updated);
 }
 

@@ -454,6 +454,7 @@ export function TransactionDrawer({
 
           {/* Reimbursements */}
           <ReimbursementSection tx={tx} onChanged={onChanged} />
+          <SettlementSection tx={tx} onChanged={onChanged} />
 
 
           {/* Actions */}
@@ -492,6 +493,163 @@ export function TransactionDrawer({
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+// ─── Settlement linking (credit side) ────────────────────────────────────────
+
+interface OutstandingEntry {
+  id: string;
+  amount: number;
+  personName: string | null;
+  note: string | null;
+  originalTx: { id: string; date: string; merchant: string | null; description: string; amount: number };
+}
+
+function SettlementSection({ tx, onChanged }: { tx: Transaction; onChanged: () => void }) {
+  const [outstanding, setOutstanding] = useState<OutstandingEntry[]>([]);
+  const [picking, setPicking] = useState(false);
+  const [linking, setLinking] = useState<string | null>(null);
+
+  // Only relevant on credits
+  if (!tx.isCredit) return null;
+
+  const linked = tx.reimbursementsApplied ?? [];
+
+  useEffect(() => {
+    if (!picking) return;
+    fetchJson<OutstandingEntry[]>("/api/reimbursements?settled=false")
+      .then(setOutstanding)
+      .catch(() => {});
+  }, [picking]);
+
+  async function handleLink(reimbId: string) {
+    setLinking(reimbId);
+    try {
+      await fetchJson(`/api/reimbursements/${reimbId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reimbursementTxId: tx.id }),
+      });
+      toast.success("Linked — marked as settled");
+      setPicking(false);
+      onChanged();
+    } catch {
+      toast.error("Failed to link");
+    } finally {
+      setLinking(null);
+    }
+  }
+
+  async function handleUnlink(reimbId: string) {
+    setLinking(reimbId);
+    try {
+      await fetchJson(`/api/reimbursements/${reimbId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reimbursementTxId: null }),
+      });
+      toast.success("Unlinked");
+      onChanged();
+    } catch {
+      toast.error("Failed to unlink");
+    } finally {
+      setLinking(null);
+    }
+  }
+
+  if (linked.length === 0 && !picking) {
+    return (
+      <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
+        <button
+          type="button"
+          onClick={() => setPicking(true)}
+          className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+        >
+          <Link2 className="w-3 h-3" /> Link to outstanding debt
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pt-3 border-t border-gray-100 dark:border-gray-800 space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-1.5">
+          <Link2 className="w-3.5 h-3.5" /> Settles a debt
+        </p>
+        {!picking && (
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
+            + Link another
+          </button>
+        )}
+      </div>
+
+      {linked.map((r) => {
+        const label = r.originalTx?.merchant ?? r.originalTx?.description ?? "expense";
+        const date = r.originalTx?.date ? format(new Date(r.originalTx.date), "d MMM") : "";
+        return (
+          <div key={r.id} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-md border bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/60">
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gray-900 dark:text-gray-100">
+                {formatCurrency(r.amount)}
+                {r.personName && <span className="ml-1.5 font-normal text-gray-500 dark:text-gray-400">{r.personName}</span>}
+              </p>
+              <p className="text-gray-500 dark:text-gray-400 truncate">{label}{date ? ` · ${date}` : ""}</p>
+            </div>
+            <button
+              onClick={() => handleUnlink(r.id)}
+              disabled={linking === r.id}
+              className="text-xs text-gray-400 hover:text-red-500 shrink-0 underline underline-offset-2"
+            >
+              Unlink
+            </button>
+          </div>
+        );
+      })}
+
+      {picking && (
+        <div className="space-y-1.5 bg-gray-50 dark:bg-gray-800/60 p-2 rounded-md">
+          <p className="text-[11px] text-gray-500 dark:text-gray-400">Pick which debt this payment settles:</p>
+          {outstanding.length === 0 && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 italic">No outstanding debts found.</p>
+          )}
+          {outstanding.map((r) => {
+            const label = r.originalTx?.merchant ?? r.originalTx?.description ?? "expense";
+            const date = r.originalTx?.date ? format(new Date(r.originalTx.date), "d MMM") : "";
+            return (
+              <button
+                key={r.id}
+                type="button"
+                disabled={linking === r.id}
+                onClick={() => handleLink(r.id)}
+                className="w-full text-left flex items-center justify-between px-2 py-1.5 rounded border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+              >
+                <span className="text-xs">
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">{formatCurrency(r.amount)}</span>
+                  {r.personName && <span className="ml-1.5 text-gray-600 dark:text-gray-300">{r.personName}</span>}
+                  <span className="ml-1.5 text-gray-400 dark:text-gray-500">{label}{date ? ` · ${date}` : ""}</span>
+                </span>
+                <span className="text-xs text-indigo-600 dark:text-indigo-400 shrink-0 ml-2">
+                  {linking === r.id ? "Linking…" : "Select"}
+                </span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setPicking(false)}
+            className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
