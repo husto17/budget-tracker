@@ -17,6 +17,7 @@ model Household {
   merchantAliases MerchantAlias[] @relation("HouseholdMerchantAliases")
   goals           Goal[]          @relation("HouseholdGoals")
   tags            Tag[]           @relation("HouseholdTags")
+  reimbursements  Reimbursement[] @relation("HouseholdReimbursements")
 }
 
 model HouseholdInvite {
@@ -195,27 +196,30 @@ model Transaction {
   @@index([recurringGroupId])
 }
 
-// A user paid something that was partly someone else's — a friend Venmos them
-// back, a roommate covers utilities, etc. The link captures how much of the
-// inbound credit (reimbursementTx) offsets the original spend (originalTx).
-// Many-to-many: one original can be offset by multiple credits, and one credit
-// can offset multiple originals (e.g. a lump-sum Venmo for dinner + drinks).
+// Tracks shared expenses — you paid for something and others owe you back.
+// reimbursementTxId is optional: set if/when the money comes back through the bank,
+// otherwise mark settled manually. settled=true means you've been paid back.
 model Reimbursement {
-  id                String      @id @default(cuid())
+  id                String       @id @default(cuid())
   userId            String
-  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  householdId       String?
+  household         Household?   @relation("HouseholdReimbursements", fields: [householdId], references: [id], onDelete: SetNull)
 
-  originalTxId     String
-  originalTx       Transaction @relation("ReimbursementOriginal", fields: [originalTxId], references: [id], onDelete: Cascade)
+  originalTxId      String
+  originalTx        Transaction  @relation("ReimbursementOriginal", fields: [originalTxId], references: [id], onDelete: Cascade)
 
-  reimbursementTxId String
-  reimbursementTx   Transaction @relation("ReimbursementCredit", fields: [reimbursementTxId], references: [id], onDelete: Cascade)
+  reimbursementTxId String?
+  reimbursementTx   Transaction? @relation("ReimbursementCredit", fields: [reimbursementTxId], references: [id], onDelete: SetNull)
 
-  amount            Float       // portion of reimbursementTx that applies to originalTx
-  note              String?
-  createdAt         DateTime    @default(now())
+  amount            Float        // how much is owed back
+  note              String?      // e.g. "dinner with Josh & Sara"
+  settled           Boolean      @default(false)
+  settledAt         DateTime?
+  createdAt         DateTime     @default(now())
 
   @@index([userId])
+  @@index([householdId])
   @@index([originalTxId])
   @@index([reimbursementTxId])
 }

@@ -24,6 +24,7 @@ export interface ReimbursementLink {
   id: string;
   amount: number;
   note: string | null;
+  settled: boolean;
   reimbursementTx?: {
     id: string;
     date: string | Date;

@@ -23,6 +23,7 @@ import {
   ArrowLeftRight,
   Trash2,
   CalendarDays,
+  HandCoins,
   PiggyBank,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,7 @@ const navGroups: Array<{
   {
     items: [
       { href: "/transactions", icon: ArrowUpDown, label: "Transactions" },
+      { href: "/reimbursements", icon: HandCoins, label: "Shared Expenses" },
       { href: "/upload", icon: Upload, label: "Upload Statement" },
       { href: "/quick-entry", icon: Camera, label: "Snap" },
     ],

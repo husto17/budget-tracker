@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getHouseholdAccountIds } from "@/lib/household";
+import { getHouseholdAccountIds, getHouseholdId } from "@/lib/household";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -11,30 +11,17 @@ export async function GET() {
   const accountIds = await getHouseholdAccountIds(session.user.id);
 
   const reimbursements = await prisma.reimbursement.findMany({
-    where: {
-      originalTx: { accountId: { in: accountIds } },
-    },
+    where: { originalTx: { accountId: { in: accountIds } } },
     include: {
       originalTx: {
         select: {
-          id: true,
-          date: true,
-          description: true,
-          merchant: true,
-          amount: true,
+          id: true, date: true, description: true, merchant: true, amount: true,
           account: { select: { id: true, name: true } },
           category: { select: { name: true, color: true } },
         },
       },
       reimbursementTx: {
-        select: {
-          id: true,
-          date: true,
-          description: true,
-          merchant: true,
-          amount: true,
-          account: { select: { id: true, name: true } },
-        },
+        select: { id: true, date: true, description: true, merchant: true, amount: true },
       },
     },
     orderBy: { createdAt: "desc" },
@@ -49,52 +36,44 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
-  const { originalTxId, reimbursementTxId, note } = body as {
-    originalTxId?: string;
-    reimbursementTxId?: string;
-    amount?: number | string;
-    note?: string;
-  };
-  if (!originalTxId || !reimbursementTxId) {
-    return NextResponse.json({ error: "originalTxId and reimbursementTxId are required" }, { status: 400 });
-  }
+
+  const { originalTxId, note } = body as { originalTxId?: string; note?: string };
+  if (!originalTxId) return NextResponse.json({ error: "originalTxId is required" }, { status: 400 });
+
   const amount = parseFloat(String(body.amount));
   if (!isFinite(amount) || amount <= 0) {
     return NextResponse.json({ error: "amount must be a positive number" }, { status: 400 });
   }
 
-  const householdAccountIds = await getHouseholdAccountIds(session.user.id);
-
-  const [original, reimbursement] = await Promise.all([
-    prisma.transaction.findUnique({ where: { id: originalTxId }, include: { reimbursementsReceived: true } }),
-    prisma.transaction.findUnique({ where: { id: reimbursementTxId }, include: { reimbursementsApplied: true } }),
+  const [householdId, householdAccountIds] = await Promise.all([
+    getHouseholdId(session.user.id),
+    getHouseholdAccountIds(session.user.id),
   ]);
 
+  const original = await prisma.transaction.findUnique({
+    where: { id: originalTxId },
+    include: { reimbursementsReceived: { select: { amount: true } } },
+  });
   if (!original || !householdAccountIds.includes(original.accountId)) {
-    return NextResponse.json({ error: "Original transaction not found" }, { status: 404 });
-  }
-  if (!reimbursement || !householdAccountIds.includes(reimbursement.accountId)) {
-    return NextResponse.json({ error: "Reimbursement transaction not found" }, { status: 404 });
+    return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
   }
   if (original.isCredit) {
-    return NextResponse.json({ error: "originalTxId must be a debit" }, { status: 400 });
-  }
-  if (!reimbursement.isCredit) {
-    return NextResponse.json({ error: "reimbursementTxId must be a credit" }, { status: 400 });
+    return NextResponse.json({ error: "Can only track owed amounts on expenses (debits)" }, { status: 400 });
   }
 
-  const alreadyApplied = reimbursement.reimbursementsApplied.reduce((s, r) => s + r.amount, 0);
-  if (alreadyApplied + amount > reimbursement.amount + 0.01) {
-    return NextResponse.json({ error: `Only ${(reimbursement.amount - alreadyApplied).toFixed(2)} still unapplied.` }, { status: 400 });
-  }
-
-  const alreadyReceived = original.reimbursementsReceived.reduce((s, r) => s + r.amount, 0);
-  if (alreadyReceived + amount > original.amount + 0.01) {
-    return NextResponse.json({ error: `Would exceed original amount.` }, { status: 400 });
+  const alreadyTracked = original.reimbursementsReceived.reduce((s, r) => s + r.amount, 0);
+  if (alreadyTracked + amount > original.amount + 0.01) {
+    return NextResponse.json({ error: "Amount exceeds the original transaction." }, { status: 400 });
   }
 
   const created = await prisma.reimbursement.create({
-    data: { userId: session.user.id, originalTxId, reimbursementTxId, amount, note: note || null },
+    data: {
+      userId: session.user.id,
+      householdId: householdId ?? null,
+      originalTxId,
+      amount,
+      note: note || null,
+    },
   });
 
   return NextResponse.json(created);

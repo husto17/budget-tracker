@@ -135,10 +135,8 @@ export async function GET(request: Request) {
           orderBy: { createdAt: "asc" },
         },
         reimbursementsReceived: {
-          include: {
-            reimbursementTx: {
-              select: { id: true, date: true, merchant: true, description: true, amount: true },
-            },
+          select: {
+            id: true, amount: true, note: true, settled: true,
           },
         },
         reimbursementsApplied: {

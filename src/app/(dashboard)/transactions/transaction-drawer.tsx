@@ -37,6 +37,7 @@ interface ReimbursementLink {
   id: string;
   amount: number;
   note: string | null;
+  settled: boolean;
   reimbursementTx?: { id: string; date: string | Date; merchant: string | null; description: string; amount: number };
   originalTx?: { id: string; date: string | Date; merchant: string | null; description: string; amount: number };
 }
@@ -610,208 +611,149 @@ export function TransactionDrawer({
   );
 }
 
-// ─── Reimbursement UI ────────────────────────────────────────────────────────
-
-interface CandidateTx {
-  id: string;
-  date: string;
-  merchant: string | null;
-  description: string;
-  amount: number;
-  isCredit: boolean;
-}
+// ─── Shared Expense UI ───────────────────────────────────────────────────────
 
 function ReimbursementSection({ tx, onChanged }: { tx: Transaction; onChanged: () => void }) {
   const [adding, setAdding] = useState(false);
-  const [candidates, setCandidates] = useState<CandidateTx[]>([]);
-  const [loadingCands, setLoadingCands] = useState(false);
   const [amount, setAmount] = useState("");
-  const [pickedId, setPickedId] = useState("");
+  const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [settling, setSettling] = useState<string | null>(null);
 
-  // For a debit we're looking for credit txns to link; for a credit we're
-  // looking for debits to offset. Pull the last 60 days of the opposite-
-  // direction transactions from the same household.
-  const lookingFor: "credit" | "debit" = tx.isCredit ? "debit" : "credit";
+  // Only relevant on debits (expenses you paid)
+  if (tx.isCredit) return null;
 
-  async function loadCandidates() {
-    setLoadingCands(true);
-    try {
-      const params = new URLSearchParams({
-        limit: "30",
-        from: format(new Date(Date.now() - 60 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"),
-      });
-      const data = await fetchJson<{ transactions: CandidateTx[] }>(
-        `/api/transactions?${params}`,
-      );
-      const filtered = data.transactions.filter(
-        (t) => t.id !== tx.id && (lookingFor === "credit" ? t.isCredit : !t.isCredit),
-      );
-      setCandidates(filtered);
-    } catch {
-      toast.error("Couldn't load candidate transactions");
-    } finally {
-      setLoadingCands(false);
-    }
-  }
+  const existing = tx.reimbursementsReceived ?? [];
+  const totalOwed = existing.reduce((s, r) => s + r.amount, 0);
+  const net = Math.max(tx.amount - totalOwed, 0);
+  const fullyOffset = tx.amount - totalOwed <= 0.01;
 
-  function openPicker() {
-    setAdding(true);
-    setAmount("");
-    setPickedId("");
-    if (candidates.length === 0) loadCandidates();
-  }
-
-  async function handleSaveLink() {
-    if (!pickedId) return;
+  async function handleAdd() {
     const amt = parseFloat(amount);
-    if (!isFinite(amt) || amt <= 0) {
-      toast.error("Enter a positive amount");
-      return;
-    }
+    if (!isFinite(amt) || amt <= 0) { toast.error("Enter a positive amount"); return; }
     setSaving(true);
     try {
-      const body = tx.isCredit
-        ? { originalTxId: pickedId, reimbursementTxId: tx.id, amount: amt }
-        : { originalTxId: tx.id, reimbursementTxId: pickedId, amount: amt };
       await fetchJson("/api/reimbursements", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ originalTxId: tx.id, amount: amt, note: note || undefined }),
       });
-      toast.success("Linked");
+      toast.success("Saved");
       setAdding(false);
+      setAmount("");
+      setNote("");
       onChanged();
     } catch (e) {
-      toast.error(e instanceof FetchError ? e.message : "Failed to link");
+      toast.error(e instanceof FetchError ? e.message : "Failed to save");
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleUnlink(linkId: string) {
+  async function handleSettle(id: string, settled: boolean) {
+    setSettling(id);
     try {
-      await fetchJson(`/api/reimbursements/${linkId}`, { method: "DELETE" });
-      toast.success("Unlinked");
+      await fetchJson(`/api/reimbursements/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settled }),
+      });
       onChanged();
     } catch {
-      toast.error("Failed to unlink");
+      toast.error("Failed to update");
+    } finally {
+      setSettling(null);
     }
   }
 
-  const existing = tx.isCredit ? tx.reimbursementsApplied ?? [] : tx.reimbursementsReceived ?? [];
-  const totalLinked = existing.reduce((s, r) => s + r.amount, 0);
-  const net = Math.max(tx.amount - totalLinked, 0);
-  const fullyOffset = tx.amount - totalLinked <= 0.01;
-
-  const pickedTx = candidates.find((c) => c.id === pickedId);
+  async function handleDelete(id: string) {
+    try {
+      await fetchJson(`/api/reimbursements/${id}`, { method: "DELETE" });
+      toast.success("Removed");
+      onChanged();
+    } catch {
+      toast.error("Failed to remove");
+    }
+  }
 
   return (
     <div className="pt-3 border-t border-gray-100 dark:border-gray-800 space-y-2">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-1.5">
-          <HandCoins className="w-3.5 h-3.5" />
-          {tx.isCredit ? "Applied as reimbursement for" : "Reimbursed by others"}
+          <HandCoins className="w-3.5 h-3.5" /> Owed to me
         </p>
-        {!fullyOffset && (
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={openPicker}>
-            <Plus className="w-3 h-3 mr-1" /> Link
+        {!fullyOffset && !adding && (
+          <Button size="sm" variant="outline" className="h-7 text-xs"
+            onClick={() => { setAdding(true); setAmount(""); setNote(""); }}>
+            <Plus className="w-3 h-3 mr-1" /> Add
           </Button>
         )}
       </div>
 
       {existing.length === 0 && !adding && (
         <p className="text-xs text-gray-400 dark:text-gray-500">
-          {tx.isCredit
-            ? "Not linked to any spending. Use this to mark a friend's Venmo/Zelle as offsetting something you paid."
-            : "Was this partly for others? Link the Venmo/Zelle credits they sent you to show your true cost."}
+          Paid for others? Add how much they owe you — counts against your net cost.
         </p>
       )}
 
-      {existing.map((r) => {
-        const other = tx.isCredit ? r.originalTx : r.reimbursementTx;
-        if (!other) return null;
-        return (
-          <div
-            key={r.id}
-            className="flex items-center justify-between text-xs bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/60 px-2 py-1.5 rounded-md"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                {other.merchant ?? other.description}
-              </p>
-              <p className="text-gray-500 dark:text-gray-400 text-[11px]">
-                {format(new Date(other.date), "d MMM")} · {formatCurrency(other.amount)}
-              </p>
-            </div>
-            <span className="font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums mx-2">
+      {existing.map((r) => (
+        <div key={r.id} className={`flex items-center gap-2 text-xs px-2 py-1.5 rounded-md border ${
+          r.settled
+            ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/60"
+            : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/60"
+        }`}>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold tabular-nums text-gray-900 dark:text-gray-100">
               {formatCurrency(r.amount)}
-            </span>
-            <button
-              onClick={() => handleUnlink(r.id)}
-              className="text-gray-400 hover:text-red-500 shrink-0"
-              title="Unlink"
-              aria-label="Unlink reimbursement"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+              <span className={`ml-1.5 text-[10px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded ${
+                r.settled
+                  ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300"
+                  : "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300"
+              }`}>
+                {r.settled ? "Settled" : "Outstanding"}
+              </span>
+            </p>
+            {r.note && <p className="text-gray-500 dark:text-gray-400 truncate">{r.note}</p>}
           </div>
-        );
-      })}
+          <button
+            onClick={() => handleSettle(r.id, !r.settled)}
+            disabled={settling === r.id}
+            className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 shrink-0 underline underline-offset-2"
+          >
+            {r.settled ? "Unsettle" : "Mark settled"}
+          </button>
+          <button onClick={() => handleDelete(r.id)} className="text-gray-400 hover:text-red-500 shrink-0" aria-label="Remove">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ))}
 
-      {existing.length > 0 && (
+      {totalOwed > 0 && (
         <p className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-          Linked total: <strong>{formatCurrency(totalLinked)}</strong>
-          {!tx.isCredit && (
-            <>
-              {" "}· Your net cost: <strong className="text-gray-900 dark:text-gray-100">{formatCurrency(net)}</strong>
-            </>
-          )}
+          Your net cost: <strong className="text-gray-900 dark:text-gray-100">{formatCurrency(net)}</strong>
+          {" "}· {formatCurrency(totalOwed)} owed back
         </p>
       )}
 
       {adding && (
         <div className="space-y-2 bg-gray-50 dark:bg-gray-800/60 p-2 rounded-md">
-          <Label className="text-xs">{tx.isCredit ? "Which spending does this offset?" : "Which credit reimburses this?"}</Label>
-          {loadingCands ? (
-            <p className="text-xs text-gray-400 py-2 text-center">Loading…</p>
-          ) : candidates.length === 0 ? (
-            <p className="text-xs text-gray-400 py-2 text-center">No matching {lookingFor}s in the last 60 days.</p>
-          ) : (
-            <Select value={pickedId} onValueChange={(v) => {
-              setPickedId(v ?? "");
-              const match = candidates.find((c) => c.id === v);
-              if (match && !amount) setAmount(Math.min(match.amount, tx.amount).toFixed(2));
-            }}>
-              <SelectTrigger>
-                <SelectValue>
-                  {pickedTx ? `${pickedTx.merchant ?? pickedTx.description} · ${formatCurrency(pickedTx.amount)}` : "Pick a transaction…"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {candidates.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    <div className="flex items-center justify-between gap-3 w-full">
-                      <span className="truncate">{c.merchant ?? c.description}</span>
-                      <span className="text-xs text-gray-500 tabular-nums">{formatCurrency(c.amount)}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
           <div className="flex gap-2">
             <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="Amount"
-              className="h-8"
+              type="number" step="0.01" min="0"
+              value={amount} onChange={(e) => setAmount(e.target.value)}
+              placeholder="Amount owed"
+              className="h-8 flex-1"
+              autoFocus
             />
-            <Button size="sm" onClick={handleSaveLink} disabled={saving || !pickedId}>
-              {saving ? "Linking…" : "Link"}
+          </div>
+          <Input
+            value={note} onChange={(e) => setNote(e.target.value)}
+            placeholder="Who owes you? (optional, e.g. Josh & Sara)"
+            className="h-8"
+          />
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleAdd} disabled={saving}>
+              {saving ? "Saving…" : "Save"}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setAdding(false)} disabled={saving}>
               Cancel
