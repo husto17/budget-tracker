@@ -24,6 +24,7 @@ import {
   Trash2,
   Receipt,
   CalendarDays,
+  PiggyBank,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ const navGroups: Array<{
     items: [
       { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
       { href: "/insights", icon: TrendingUp, label: "Insights" },
+      { href: "/budget", icon: PiggyBank, label: "Budget" },
       { href: "/compare", icon: ArrowLeftRight, label: "Compare" },
       { href: "/cashflow", icon: CalendarDays, label: "Cash Flow" },
     ],
