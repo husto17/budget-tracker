@@ -730,10 +730,12 @@ function ReimbursementSection({ tx, onChanged }: { tx: Transaction; onChanged: (
 
       {totalOwed > 0 && (
         <p className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-          Your net cost: <strong className="text-gray-900 dark:text-gray-100">{formatCurrency(net)}</strong>
+          Your share: <strong className="text-gray-900 dark:text-gray-100">{formatCurrency(net)}</strong>
           {" "}· {formatCurrency(totalOwed)} owed back
+          {fullyOffset && <span className="ml-1 text-emerald-600 dark:text-emerald-400">(fully covered)</span>}
         </p>
       )}
+
 
       {adding && (
         <div className="space-y-2 bg-gray-50 dark:bg-gray-800/60 p-2 rounded-md">
