@@ -27,19 +27,12 @@ export async function POST() {
   await prisma.transaction.deleteMany({ where: { accountId: { in: accountIds } } });
   // Delete by householdId when set — covers records owned by either partner.
   const householdId = user?.householdId;
-  if (householdId) {
-    await prisma.categoryRule.deleteMany({ where: { householdId } });
-    await prisma.category.deleteMany({ where: { householdId } });
-    await prisma.merchantAlias.deleteMany({ where: { householdId } });
-    await prisma.goal.deleteMany({ where: { householdId } });
-    await prisma.tag.deleteMany({ where: { householdId } });
-  } else {
-    await prisma.categoryRule.deleteMany({ where: { userId: { in: userIds } } });
-    await prisma.category.deleteMany({ where: { userId: { in: userIds } } });
-    await prisma.merchantAlias.deleteMany({ where: { userId: { in: userIds } } });
-    await prisma.goal.deleteMany({ where: { userId: { in: userIds } } });
-    await prisma.tag.deleteMany({ where: { userId: { in: userIds } } });
-  }
+  // Delete by userId — covers both old (householdId=null) and new household-scoped records.
+  await prisma.categoryRule.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.category.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.merchantAlias.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.goal.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.tag.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.upload.deleteMany({ where: { userId: { in: userIds } } });
 
   return NextResponse.json({ success: true });

@@ -142,10 +142,25 @@ export async function ensureDefaultCategories(userId: string): Promise<void> {
     ? { householdId }
     : { userId };
 
+  // Query by householdId when set, but also pick up any stale userId-only rows
+  // so we can migrate them rather than failing on the unique constraint.
+  const existingQuery = householdId
+    ? { OR: [{ householdId }, { userId, householdId: null }] }
+    : { userId };
   const existing = await prisma.category.findMany({
-    where: { ...categoryWhere, name: { in: DEFAULT_CATEGORIES.map((c) => c.name) } },
-    select: { id: true, name: true, color: true, icon: true, isDefault: true },
+    where: { name: { in: DEFAULT_CATEGORIES.map((c) => c.name) }, ...existingQuery },
+    select: { id: true, name: true, color: true, icon: true, isDefault: true, householdId: true },
   });
+
+  // Migrate stale userId-only categories to household scope.
+  if (householdId) {
+    for (const cat of existing) {
+      if (!cat.householdId) {
+        await prisma.category.update({ where: { id: cat.id }, data: { householdId } });
+      }
+    }
+  }
+
   const have = new Set(existing.map((c) => c.name));
   const missing = DEFAULT_CATEGORIES.filter((c) => !have.has(c.name));
 
