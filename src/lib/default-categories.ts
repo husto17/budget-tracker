@@ -137,7 +137,7 @@ export const DEFAULT_RULES: Record<string, string[]> = {
     "H&R BLOCK", "TAXACT", "TAXSLAYER",
   ],
   Income: [
-    "DIRECT DEPOSIT", "PAYROLL", "SALARY",
+    "DIRECT DEPOSIT", "PAYROLL", "SALARY", "PEPSICO",
   ],
   Transfers: [
     "ZELLE", "VENMO", "CASH APP", "PAYMENT FROM CHK", "PAYMENT TO CHK",

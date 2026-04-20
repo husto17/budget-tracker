@@ -36,6 +36,18 @@ export async function autoCategorize(
 // ── Canonical well-known merchants ─────────────────────────────────────────
 // Check before stripping so we match the full raw string.
 const CANONICALS: Array<[RegExp, string]> = [
+  // Wire transfers — match before any other stripping
+  [/WIRE\s+TYPE:\s*(?:FX|BOOK|INTL)?\s*(?:OUT|IN|CREDIT|DEBIT)/i, "Wire Transfer"],
+  // Mobile banking internal transfers
+  [/MOBILE\s+BANKING\s+PAYMENT\s+TO\s+CRD/i, "Credit Card Payment"],
+  // Common services that appear with messy ACH / passthrough suffixes
+  [/\bREVOLUT\b/i, "Revolut"],
+  [/\bXOOM\b/i, "Xoom"],
+  [/TRANSACT\s+CAMPUS\s+DES:UCHICAGO/i, "UChicago"],
+  [/\bPEPSICO\b/i, "Pepsico"],
+  [/\bCOMED\b/i, "ComEd"],
+  [/PEOPLES\s+GAS/i, "Peoples Gas"],
+  [/\bSOFI\b/i, "SoFi"],
   [/NETFLIX/i, "Netflix"],
   [/SPOTIFY/i, "Spotify"],
   [/APPLE\.COM[/ ]?BILL/i, "Apple"],
@@ -174,6 +186,12 @@ export function normalizeMerchantHardcoded(description: string): string {
   // 3. Card-network / bank-channel / ACH prefixes
   d = d.replace(/^(VISA\s*(PURCH|DEBIT)?|MASTERCARD|AMEX|DEBIT\s*CARD\s*PURCHASE|DEBIT\s*PURCHASE)\s*/i, "");
   d = d.replace(/^(TSF\s|DDA\s|ACH\s|POS\s|TFL\s|CID\*|WWW\.|CHECKCARD\s*|PURCHASE\s*)/i, "");
+
+  // 3b. Chase/NACHA ACH format: "COMPANY DES:TYPE ID:XXX INDN:NAME CO ID:XXX PPD"
+  // Strip from " INDN:" onwards (always the account holder's name, never the merchant)
+  d = d.replace(/\s+INDN:.*$/i, "");
+  // Strip " DES:{PAYMENT_CODE} ID:{REF}" suffix (e.g. DES:ACH ID:71513307, DES:PAYMENTS ID:XXX)
+  d = d.replace(/\s+DES:[A-Z]{2,20}(?:\s+ID:[\w\s%.-]*)?$/i, "");
 
   // 4. Strip trailing noise
   // Phone numbers: "312-555-1234", "(312) 555-1234", "312.555.1234", "855 977 1676"
