@@ -35,9 +35,13 @@ export async function autoCategorize(
 
 // ── Canonical well-known merchants ─────────────────────────────────────────
 // Check before stripping so we match the full raw string.
-const CANONICALS: Array<[RegExp, string]> = [
-  // Wire transfers — match before any other stripping
-  [/WIRE\s+TYPE:\s*(?:FX|BOOK|INTL)?\s*(?:OUT|IN|CREDIT|DEBIT)/i, "Wire Transfer"],
+const CANONICALS: Array<[RegExp, string | ((raw: string) => string)]> = [
+  // Wire transfers — extract BNF (beneficiary) name if present, else generic label
+  [/WIRE\s+TYPE:/i, (raw: string) => {
+    const bnf = raw.match(/\bBNF:\s*([A-Z][A-Z\s&'.,-]{1,40})(?=\s+(?:ID:|BNF\s+BK:|TRN:|REF:))/i);
+    if (bnf) return titleCaseIfAllCaps(bnf[1].trim());
+    return "Wire Transfer";
+  }],
   // Mobile banking internal transfers
   [/MOBILE\s+BANKING\s+PAYMENT\s+TO\s+CRD/i, "Credit Card Payment"],
   // Common services that appear with messy ACH / passthrough suffixes
@@ -169,8 +173,8 @@ export function normalizeMerchantHardcoded(description: string): string {
   if (!original) return original;
 
   // 1. Canonical brand match on the raw string
-  for (const [re, name] of CANONICALS) {
-    if (re.test(original)) return name;
+  for (const [re, resolver] of CANONICALS) {
+    if (re.test(original)) return typeof resolver === "function" ? resolver(original) : resolver;
   }
 
   let d = original;
@@ -179,8 +183,8 @@ export function normalizeMerchantHardcoded(description: string): string {
   const pass = d.match(PASSTHROUGH_RE);
   if (pass) {
     d = pass[1].trim();
-    for (const [re, name] of CANONICALS) {
-      if (re.test(d)) return name;
+    for (const [re, resolver] of CANONICALS) {
+      if (re.test(d)) return typeof resolver === "function" ? resolver(d) : resolver;
     }
   }
 
