@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getHouseholdAccountIds } from "@/lib/household";
+
+async function getAuthorizedTx(id: string, userId: string) {
+  const householdAccountIds = await getHouseholdAccountIds(userId);
+  const tx = await prisma.transaction.findFirst({ where: { id, deletedAt: null } });
+  if (!tx || !householdAccountIds.includes(tx.accountId)) return null;
+  return tx;
+}
 
 export async function GET(
   _request: Request,
@@ -11,14 +19,8 @@ export async function GET(
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-
-  const tx = await prisma.transaction.findUnique({
-    where: { id },
-    include: { account: true },
-  });
-  if (!tx || tx.account.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  const tx = await getAuthorizedTx(id, session.user.id);
+  if (!tx) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const splits = await prisma.transactionSplit.findMany({
     where: { transactionId: id },
@@ -37,14 +39,8 @@ export async function POST(
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-
-  const tx = await prisma.transaction.findUnique({
-    where: { id },
-    include: { account: true },
-  });
-  if (!tx || tx.account.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  const tx = await getAuthorizedTx(id, session.user.id);
+  if (!tx) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await request.json();
   const splits: Array<{ categoryId: string | null; amount: number; note?: string }> =
@@ -64,11 +60,8 @@ export async function POST(
     );
   }
 
-  // Delete existing splits
   await prisma.transactionSplit.deleteMany({ where: { transactionId: id } });
 
-  // Create new splits sequentially — Neon HTTP adapter rejects the implicit
-  // transaction that create-with-include uses, so create then re-fetch.
   const createdIds: string[] = [];
   for (const split of splits) {
     const s = await prisma.transactionSplit.create({
@@ -98,14 +91,8 @@ export async function DELETE(
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-
-  const tx = await prisma.transaction.findUnique({
-    where: { id },
-    include: { account: true },
-  });
-  if (!tx || tx.account.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  const tx = await getAuthorizedTx(id, session.user.id);
+  if (!tx) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await prisma.transactionSplit.deleteMany({ where: { transactionId: id } });
 
